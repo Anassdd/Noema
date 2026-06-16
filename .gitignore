@@ -1,0 +1,51 @@
+# ---- Secrets / config -------------------------------------------------------
+# Real env files hold the OpenAI/Azure keys — never commit. .env.example stays.
+.env
+*.env
+!.env.example
+backend/.env
+
+# ---- Python (backend) -------------------------------------------------------
+backend/.venv/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- Vector store / uploads (disposable, regenerable) -----------------------
+# Chroma persistence + any locally uploaded test PDFs. Never carried between
+# machines per the spec — re-ingest instead.
+backend/chroma/
+backend/.chroma/
+chroma_db/
+backend/uploads/
+*.pdf
+
+# Persisted user memory (saved via /remember) — local, can hold personal facts.
+backend/memory.json
+
+# Durable conversation store (SQLite) — local, can hold personal chats.
+backend/app/conversations.db
+
+# ---- Node / frontend --------------------------------------------------------
+node_modules/
+frontend/node_modules/
+frontend/dist/
+dist/
+*.local
+.vite/
+
+# ---- Logs -------------------------------------------------------------------
+*.log
+npm-debug.log*
+
+# ---- OS / editor ------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

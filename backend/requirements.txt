@@ -1,0 +1,14 @@
+# Provider-swap layer (this step)
+openai>=1.40.0
+python-dotenv>=1.0.0
+
+# Backend API
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+pypdf>=4.0.0
+python-multipart>=0.0.9
+
+# RAG vector store — NOT used yet. Uncomment when the RAG slice is built.
+# Kept out of the default install since it's the heaviest dep and the most
+# likely to be blocked by enterprise pip restrictions.
+# chromadb>=0.5.0

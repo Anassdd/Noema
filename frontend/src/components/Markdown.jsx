@@ -2,11 +2,11 @@ import { useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import "highlight.js/styles/github-dark.css";
 
 // Markdown renderer for assistant messages. Lazy-loaded (see MessageList) so
-// the parser + highlighter stay out of the initial bundle. Code blocks are
-// always dark (ChatGPT-style) with a hover copy button and language label.
+// the parser + highlighter stay out of the initial bundle. Code blocks follow
+// the theme (light card in light mode, dark in dark mode); token colors come
+// from the theme-aware .hljs rules in index.css.
 
 function CodeBlock({ children, ...props }) {
   const preRef = useRef(null);
@@ -30,14 +30,21 @@ function CodeBlock({ children, ...props }) {
   };
 
   return (
-    <div className="group relative my-3 overflow-hidden rounded-xl border border-zinc-800">
-      <div className="flex items-center justify-between bg-zinc-800 px-3 py-1.5">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">
+    <div
+      className="group relative my-3 overflow-hidden rounded-xl border"
+      style={{ borderColor: "var(--code-border)" }}
+    >
+      <div
+        className="flex items-center justify-between px-3.5 py-2"
+        style={{ background: "var(--code-header-bg)", borderBottom: "1px solid var(--code-border)" }}
+      >
+        <span className="font-mono text-[11px] uppercase tracking-wide" style={{ color: "var(--text-faint)" }}>
           {lang || "code"}
         </span>
         <button
           onClick={copy}
-          className="rounded px-1.5 py-0.5 text-[11px] text-zinc-400 transition hover:bg-white/10 hover:text-zinc-200"
+          className="rounded px-1.5 py-0.5 font-mono text-[11px] transition hover:bg-[var(--row-hover)]"
+          style={{ color: "var(--text-faint)" }}
         >
           {copied ? "Copied ✓" : "Copy"}
         </button>
@@ -45,7 +52,8 @@ function CodeBlock({ children, ...props }) {
       <pre
         ref={preRef}
         {...props}
-        className="overflow-x-auto bg-zinc-900 p-3.5 text-[13px] leading-relaxed text-zinc-100"
+        className="overflow-x-auto p-3.5 text-[13px] leading-relaxed"
+        style={{ background: "var(--code-bg)", color: "var(--code-text)" }}
       >
         {children}
       </pre>

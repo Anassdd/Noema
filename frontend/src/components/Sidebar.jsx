@@ -1,95 +1,149 @@
-// Dark left rail, ChatGPT style. Lists the in-memory conversations and lets you
-// switch between them. Hidden on small screens.
+import {
+  Icon,
+  PanelIcon,
+  NewChatIcon,
+  TrashIcon,
+  GearIcon,
+} from "./icons.jsx";
+
+// Solid base-colour rail (mockup style). Lists the saved conversations, opens a
+// new chat, and collapses via the panel button. The active conversation is
+// passed in full (with messages) so its title can fall back to the first line.
 export default function Sidebar({
+  open,
   conversations,
   activeId,
-  onOpenSettings,
   onNewChat,
   onSelect,
   onDelete,
   onClearHistory,
+  onOpenSettings,
+  onCollapse,
 }) {
   return (
-    <aside className="hidden w-64 shrink-0 flex-col bg-zinc-900 p-3 text-zinc-100 md:flex">
-      <div className="mb-3 flex items-center gap-2 px-1 py-1">
-        <div className="grid h-8 w-8 place-items-center rounded-lg bg-white text-xs font-bold tracking-tight text-zinc-900">
-          N
-        </div>
-        <span className="text-lg font-semibold tracking-tight text-white">
-          Noema
-        </span>
-      </div>
-      <button
-        onClick={onNewChat}
-        className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:from-indigo-600 hover:to-violet-700"
+    <div
+      className="flex-shrink-0 overflow-hidden"
+      style={{
+        width: open ? 266 : 0,
+        transition: "width 0.28s cubic-bezier(0.22, 1, 0.36, 1)",
+      }}
+    >
+      <aside
+        className="flex h-full w-[266px] flex-col"
+        style={{ background: "var(--sidebar-bg)", borderRight: "1px solid var(--sidebar-border)" }}
       >
-        <PlusIcon className="h-4 w-4" />
-        New chat
-      </button>
+      <div className="px-[18px] pb-1 pt-5">
+        <div className="flex items-center justify-between">
+          <div
+            className="font-serif text-2xl font-medium"
+            style={{ letterSpacing: ".14em", color: "var(--text)" }}
+          >
+            Noema
+          </div>
+          <button
+            onClick={onCollapse}
+            aria-label="Hide conversations"
+            title="Hide conversations"
+            className="grid place-items-center"
+            style={{ color: "var(--text-faint)" }}
+          >
+            <PanelIcon size={17} />
+          </button>
+        </div>
+        <div
+          className="mt-2 inline-block rounded-md px-2 py-0.5 font-mono text-[10px]"
+          style={{ color: "var(--accent)", background: "var(--accent-soft)" }}
+        >
+          phase 1 · monofield
+        </div>
+      </div>
 
-      <div className="mt-4 flex-1 overflow-y-auto">
-        <div className="flex items-center justify-between px-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+      <div className="px-2.5 pb-1 pt-3.5">
+        <button
+          onClick={onNewChat}
+          className="flex w-full items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-left text-sm transition hover:bg-[var(--row-hover)]"
+          style={{ color: "var(--text)" }}
+        >
+          <span style={{ color: "var(--text-faint)" }}>
+            <NewChatIcon size={16} />
+          </span>
+          New chat
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-2.5 py-2">
+        <div className="flex items-center justify-between px-2.5 pb-1.5 pt-2">
+          <span className="text-[11px] font-medium" style={{ color: "var(--text-faint)" }}>
             Recent
-          </p>
+          </span>
           {conversations.length > 0 && (
             <button
               onClick={onClearHistory}
               title="Delete all conversations"
-              className="text-xs font-medium text-zinc-500 transition hover:text-red-400"
+              className="text-[11px] font-medium transition hover:opacity-100"
+              style={{ color: "var(--text-faint)" }}
             >
               Clear
             </button>
           )}
         </div>
+
         {conversations.length === 0 ? (
-          <p className="mt-2 px-2 text-sm text-zinc-500">
+          <p className="px-2.5 pt-1 text-[13px]" style={{ color: "var(--text-faint)" }}>
             No conversations yet.
           </p>
         ) : (
-          <ul className="mt-2 space-y-1">
-            {conversations.map((c) => (
-              <li key={c.id} className="group relative">
-                <button
-                  onClick={() => onSelect(c.id)}
-                  className={`w-full truncate rounded-lg py-2 pl-2 pr-8 text-left text-sm transition ${
-                    c.id === activeId
-                      ? "bg-white/10 text-white"
-                      : "text-zinc-300 hover:bg-white/5"
-                  }`}
-                >
-                  {titleOf(c)}
-                </button>
-                <button
-                  onClick={() => onDelete(c.id)}
-                  aria-label="Delete chat"
-                  title="Delete chat"
-                  className="absolute right-1 top-1/2 hidden -translate-y-1/2 rounded p-1 text-zinc-400 transition hover:bg-white/10 hover:text-red-400 group-hover:block"
-                >
-                  <TrashIcon className="h-3.5 w-3.5" />
-                </button>
-              </li>
-            ))}
+          <ul className="space-y-0.5">
+            {conversations.map((c) => {
+              const isActive = c.id === activeId;
+              return (
+                <li key={c.id} className="group/row relative">
+                  <button
+                    onClick={() => onSelect(c.id)}
+                    className="flex w-full items-center gap-2.5 truncate rounded-[9px] py-1.5 pl-2.5 pr-8 text-left text-[13.5px] transition hover:bg-[var(--row-hover)]"
+                    style={
+                      isActive
+                        ? { background: "var(--row-active)", color: "var(--text)", fontWeight: 500 }
+                        : { color: "var(--text-soft)" }
+                    }
+                  >
+                    <span className="flex-shrink-0" style={{ color: "var(--text-faint)" }}>
+                      <Icon size={14} sw={1.6}>
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                      </Icon>
+                    </span>
+                    <span className="truncate">{titleOf(c)}</span>
+                  </button>
+                  <button
+                    onClick={() => onDelete(c.id)}
+                    aria-label="Delete chat"
+                    title="Delete chat"
+                    className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 rounded-md p-1 group-hover/row:block"
+                    style={{ color: "var(--text-faint)" }}
+                  >
+                    <TrashIcon size={14} />
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
 
-      <div className="border-t border-white/10 pt-3">
-        <div className="flex items-center gap-2 px-2 py-1.5 text-sm text-zinc-300">
-          <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/10 text-zinc-200">
-            <UserIcon className="h-4 w-4" />
-          </div>
-          <div className="min-w-0 flex-1 font-medium text-zinc-100">User</div>
-          <button
-            onClick={onOpenSettings}
-            aria-label="Open settings"
-            className="grid h-8 w-8 place-items-center rounded-lg text-zinc-400 transition hover:bg-white/10 hover:text-zinc-100"
-          >
-            <GearIcon className="h-5 w-5" />
-          </button>
+      <div className="p-2.5" style={{ borderTop: "1px solid var(--sidebar-border)" }}>
+        <button
+          onClick={onOpenSettings}
+          aria-label="Open settings"
+          title="Settings"
+          className="flex w-full items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-left text-sm transition hover:bg-[var(--row-hover)]"
+          style={{ color: "var(--text-soft)" }}
+        >
+          <GearIcon size={16} />
+          Settings
+        </button>
         </div>
-      </div>
-    </aside>
+      </aside>
+    </div>
   );
 }
 
@@ -98,39 +152,4 @@ function titleOf(conversation) {
   if (conversation.title) return conversation.title;
   const firstUser = conversation.messages?.find((m) => m.role === "user");
   return firstUser ? firstUser.content : "New chat";
-}
-
-function GearIcon({ className }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-    </svg>
-  );
-}
-
-function TrashIcon({ className }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-      <path d="M10 11v6M14 11v6" />
-    </svg>
-  );
-}
-
-function PlusIcon({ className }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
-
-function UserIcon({ className }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
-  );
 }

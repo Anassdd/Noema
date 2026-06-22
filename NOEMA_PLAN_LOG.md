@@ -6,6 +6,8 @@ Grouped into stages for readability; numbering preserves the original order.
 
 **v1 in one line:** single domain → Docling parse → HybridChunker → contextual hybrid retrieval base + a graph layer (start LightRAG) → evolutive self-cleaning loop with an eval gate. Everything else (RAPTOR, ColPali, iterative retrieval, multi-domain router) is a measured upgrade for later.
 
+> **Update (2026-06-22):** the *parse* step changed — parsing now runs on a hosted, `.env`-swappable backend (Azure vision / Document Intelligence), with Docling kept as a local fallback. Rationale in the Stage B revision note below.
+
 ---
 
 ## Stage A — Scope & overall shape
@@ -27,6 +29,35 @@ Four moves: **parse → chunk → extract → store.**
 ---
 
 ## Stage B — Parsing the PDFs
+
+> **Revision (2026-06-22) — parsing moves to a hosted, `.env`-swappable backend.**
+> The original choice below (local Docling) assumed running parse models locally was
+> the lockdown-friendly option. Two facts changed that: (a) prod runs on locked-down
+> **company PCs that have only Azure models and restricted installs** — they likely
+> can't install/run Docling's torch models; (b) with local Docling, ingestion
+> quality/speed is **hostage to the machine** — weak PCs can't do it, or do it badly.
+> So the default flips to **Azure-hosted parsing**, which keeps data in the Azure
+> tenant *and* offloads the heavy compute (any PC, however weak, gets the same result).
+>
+> **New shape — a `Parser` provider seam (mirrors `llm_client`), chosen by `.env`:**
+> - **Azure OpenAI vision** (default candidate): render each page locally to an image
+>   (cheap, no model) → the vision model returns Markdown + LaTeX. Reuses the existing
+>   LLM provider abstraction, so Mac→prod is the *same* `LLM_PROVIDER` `.env` switch
+>   already used for chat. One call covers OCR + layout + tables + formulas — validated
+>   on a real corpus file (`resume_af.pdf`: broken-font French math needed all four).
+>   Frontier VLMs benchmark ~9.6 on formula extraction, near Mathpix.
+> - **Azure Document Intelligence** (alternative): send the PDF, get structured output
+>   + LaTeX formulas; stays in-tenant; zero local compute; less hallucination-prone
+>   than a chat-vision model.
+> - **Docling (local)**: kept as a **config-selectable fallback** — for offline /
+>   air-gapped boxes or a strong dev machine. No longer the assumed default. Empirical
+>   finding: Docling's standard pipeline leaves formulas as `<!-- formula-not-decoded -->`
+>   unless the (heavy) CodeFormula model is enabled.
+> - Third-party APIs (Mathpix, Marker, Mistral OCR) are best-accuracy but **send data
+>   out** → dev/eval only, never prod.
+>
+> Carried-forward question: does the company Azure expose a **vision-capable** model
+> and/or **Document Intelligence**? That picks the prod default.
 
 ### 3. Parse step: use Docling
 IBM's open-source parser. Chosen because it:

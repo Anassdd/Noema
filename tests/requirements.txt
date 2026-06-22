@@ -1,0 +1,5 @@
+# Test/lab-only dependencies. NOT part of the app — install into the backend
+# venv to run the harness, uninstall when you remove tests/.
+#   backend/.venv/bin/python -m pip install -r tests/requirements.txt
+streamlit>=1.40.0   # the interactive lab app
+reportlab>=4.0.0    # generates the edge-case PDF fixtures

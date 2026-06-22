@@ -5,10 +5,16 @@ python-dotenv>=1.0.0
 # Backend API
 fastapi>=0.110.0
 uvicorn[standard]>=0.29.0
-pypdf>=4.0.0
 python-multipart>=0.0.9
 
-# RAG vector store — NOT used yet. Uncomment when the RAG slice is built.
-# Kept out of the default install since it's the heaviest dep and the most
-# likely to be blocked by enterprise pip restrictions.
+# PDF parsing — Docling (structure-aware, local). Heavy (pulls torch + ML models)
+# and may be blocked by enterprise pip restrictions; the first parse downloads
+# the layout/table models from HuggingFace.
+docling>=2.100.0
+
+# Legacy raw-text parser (pypdf). Superseded by Docling and no longer wired in;
+# kept installable as a lightweight fallback.
+pypdf>=4.0.0
+
+# RAG vector store — NOT used yet. Uncomment when the embed/retrieve slice lands.
 # chromadb>=0.5.0

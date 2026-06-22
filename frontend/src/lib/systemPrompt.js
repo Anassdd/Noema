@@ -1,3 +1,9 @@
+// PDF text is no longer dumped into the prompt: Docling now parses uploads for
+// the upcoming chunk → embed → retrieve pipeline, so the naive "stuff the whole
+// document into the system prompt" path is OFF for now. Flip this flag back to
+// true to temporarily restore it.
+const INJECT_DOCUMENT_TEXT = false;
+
 // Builds the single system message pinned to the front of every chat request:
 // persona (/character) → attached PDFs → saved facts (/remember). Documents go
 // before memory so the cache-friendly prefix stays stable for the whole
@@ -11,7 +17,7 @@ export function buildSystemMessage(character, memories, documents) {
     );
   }
 
-  if (documents.length) {
+  if (INJECT_DOCUMENT_TEXT && documents.length) {
     const names = documents.map((d) => `"${d.filename}"`).join(", ");
     const blocks = documents
       .map(

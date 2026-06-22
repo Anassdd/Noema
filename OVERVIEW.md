@@ -16,7 +16,7 @@ knowledge graph itself is **not built yet** (see [Not built yet](#not-built-yet)
 | Backend | Python + FastAPI (app-factory + one router per surface), Pydantic, OpenAI SDK |
 | Frontend | React 19 + Vite + Tailwind v4, hooks-based (logic in hooks, components render) |
 | Persistence | SQLite (conversations) + JSON file (user facts) — both stdlib, no ORM |
-| LLM access | One provider-abstraction module; OpenAI / Azure / any OpenAI-compatible `/v1` |
+| LLM access | One provider-abstraction module; OpenAI (dev) or any OpenAI-compatible `/v1` (the company's Azure-hosted endpoint in prod) |
 
 Two processes run side by side: backend on `:8000`, Vite frontend on `:5173`
 (see `README.md` to run them).
@@ -30,7 +30,7 @@ routers. Everything below goes through the provider abstraction — **no other
 module imports the OpenAI SDK**.
 
 ### Provider abstraction (`llm_client.py`) — the critical seam
-- The only file allowed to construct an OpenAI/Azure client.
+- The only file allowed to construct the OpenAI(-compatible) client.
 - `chat(messages, stream=…, model=…, temperature=…, max_tokens=…)` → buffered
   `ChatResult` or a stream of `StreamEvent` (deltas, then one usage event).
 - `embed(texts)` and `list_models()` also exposed (embed is **unused so far** —
@@ -40,8 +40,9 @@ module imports the OpenAI SDK**.
   reasoning models). No per-model table to maintain.
 
 ### Configuration (`config.py`) — the only place env vars are read
-- `LLM_PROVIDER` ∈ `openai` | `azure` | `llmaas` selects the backend at runtime;
-  switching is a `.env` change, **no code change**.
+- `LLM_PROVIDER` ∈ `openai` | `llmaas` selects the backend at runtime; switching is
+  a `.env` change, **no code change**. (`llmaas` = the company's Azure-hosted,
+  OpenAI-compatible `/v1` endpoint.)
 - Resolved once at import into a frozen `Settings` (fail-fast on bad config).
 - Knobs: `CHAT_TEMPERATURE` (default `0.2`), `MAX_HISTORY_TURNS` (default `8`).
 
@@ -55,7 +56,7 @@ module imports the OpenAI SDK**.
 | `POST /title` | 3–5 word auto-title for a conversation (cheap buffered call) |
 | `GET/POST /memory`, `POST /memory/remove`, `DELETE /memory` | CRUD over the user-fact list |
 | `POST /memory/auto` | LLM **memory judge**: extract durable user facts from the last exchange |
-| `POST /upload` | PDF → extracted text (+ page count); 10 MB cap; rejects non-PDF / encrypted / scanned |
+| `POST /upload` | PDF → **vision-parsed Markdown + LaTeX** with per-page routing (clean prose uses the free text layer; math/figure/scanned/broken-font pages go to the vision model); 25 MB cap; rejects non-PDF |
 | `GET/DELETE /conversations`, `GET/PUT/PATCH/DELETE /conversations/{id}` | List summaries / clear all / load-save-rename-delete one |
 
 ### Stores
@@ -68,9 +69,13 @@ module imports the OpenAI SDK**.
 - **`memory_judge.py`** — the model behind `/memory/auto`. Strict prompt: only
   extract facts the **user explicitly asserted** (never the assistant's guesses),
   always phrased as "The user…"; lenient JSON parsing.
-- **`pdf_extract.py`** — `pypdf` text extraction. Per-page text is retained
-  (groundwork for future page-level citations). **No OCR** → image-only PDFs are
-  rejected with a clear message.
+- **`parsing/`** — the PDF parser package, the only thing that reads PDFs.
+  `parse_document()` routes by the `PARSER` env var to one of two backends behind a
+  shared `ParsedDoc`: **vision** (default — render each page → vision model →
+  Markdown + LaTeX, with per-page routing so clean-prose pages are free) and
+  **docintel** (Azure Document Intelligence — deterministic, in-tenant; wired,
+  awaiting a live resource). Per-page Markdown is retained for future citations;
+  scanned / broken-font / math / figures are all handled. See `app/parsing/PARSING.md`.
 
 Both stores are gitignored and disposable — delete the file to reset.
 
@@ -136,7 +141,7 @@ multiple matches.
 | Conversations (messages, persona, attached docs) | SQLite `conversations.db` | Durable, all sessions |
 | User facts (`/remember` + auto-judge) | `memory.json` | Durable, all chats |
 | Persona (`/character`) | Inside the conversation row | Per conversation |
-| Attached PDFs | Extracted text inside the conversation row, **stuffed into the system prompt** | Per conversation |
+| Attached PDFs | Parsed Markdown inside the conversation row, **stuffed into the system prompt** | Per conversation |
 | Theme family | `localStorage` | Per browser |
 | Dark mode / feature toggles | React state | Per session |
 
@@ -149,8 +154,9 @@ code today — useful to know before extending:
 
 - **The knowledge graph itself.** No entity/relationship extraction, no graph
   store, no provenance, no graph visualization/navigation view.
-- **RAG / retrieval.** PDFs are passed as **full text in the system prompt**, not
-  chunked, embedded, or retrieved. `embed()` exists but is unused; no vector store.
+- **RAG / retrieval.** PDFs are passed as **full parsed Markdown in the system
+  prompt**, not chunked, embedded, or retrieved. `embed()` exists but is unused; no
+  vector store.
 - **Pluggable memory strategies** (Classic RAG / LightRAG / GraphRAG behind one
   interface) — current "memory" is the simple user-fact list only.
 - **Phase 2** (incremental updates, curation/cleaning to keep the graph bounded)
@@ -158,5 +164,5 @@ code today — useful to know before extending:
 - **A dedicated ingestion page** — ingestion today is just PDF attach in the chat.
 
 The seams are in place for these: `documents.py` is where ingestion lands,
-`embed()` is ready, per-page PDF text is retained for citations, and the provider
+`embed()` is ready, per-page Markdown is retained for citations, and the provider
 abstraction means none of it needs new LLM plumbing.

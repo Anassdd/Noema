@@ -1,16 +1,16 @@
-"""Document ingestion. PDF -> Docling structured parse (parse step only).
+"""Document ingestion. PDF -> vision-LLM transcription (Markdown + LaTeX).
 
-Docling replaces the old pypdf text dump (it keeps tables/structure/math and page
-provenance, and runs locally). The parsed Markdown is returned to the client;
-chunking + embedding into the retrieval store land in later slices. This router
-is that seam.
+Pages are rendered locally (light) and transcribed by a vision model through the
+provider abstraction — OpenAI on dev, the Azure-hosted OpenAI-compatible endpoint
+in prod, swapped by `.env`. No heavy local models run here. This is the seam the
+retrieval/graph slices build on.
 """
 
 from __future__ import annotations
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
-from app import docling_parse
+from app import parsing
 
 router = APIRouter()
 
@@ -20,10 +20,10 @@ MAX_PDF_BYTES = 25 * 1024 * 1024  # 25 MB
 
 @router.post("/upload")
 async def upload(file: UploadFile = File(...)) -> dict:
-    """Accept a PDF and return its Docling-parsed Markdown + basic metadata.
+    """Accept a PDF and return its vision-parsed Markdown + basic metadata.
 
-    Rejects non-PDFs and oversized files. Parsing failures (empty / scanned with
-    OCR off) come back as a 400 with a clear message.
+    Rejects non-PDFs and oversized files. Parsing failures (unreadable / provider
+    error) come back as a 400 with a clear message.
     """
     name = file.filename or "document.pdf"
     is_pdf = name.lower().endswith(".pdf") or file.content_type == "application/pdf"
@@ -35,14 +35,13 @@ async def upload(file: UploadFile = File(...)) -> dict:
         raise HTTPException(status_code=413, detail="PDF is too large (max 25 MB).")
 
     try:
-        doc = docling_parse.parse_pdf(data, name)
-    except docling_parse.ParseError as exc:
+        doc = parsing.parse_document(data, name)  # vision or DI, per PARSER in .env
+    except parsing.ParseError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return {
         "filename": doc.filename,
         "pages": doc.pages,
         "chars": doc.chars,
-        "engine": doc.engine,
         "text": doc.markdown,
     }

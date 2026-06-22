@@ -5,9 +5,10 @@ It exposes exactly two capabilities to the rest of the app:
     chat(messages, ...)   -> streamed or buffered chat completion
     embed(texts)          -> embedding vectors
 
-Porting from OpenAI to Azure OpenAI is handled entirely here (same SDK, just the
-`AzureOpenAI` class + different constructor args), driven by config.settings.
-No other file should construct an OpenAI/AzureOpenAI client or hardcode a model.
+Both providers speak the OpenAI API: `openai` (standard endpoint, dev) and `llmaas`
+(an OpenAI-compatible endpoint at a custom base_url — the company's Azure-hosted
+gateway, prod). Switching is a config change in config.settings, never a code change.
+No other file should construct a client or hardcode a model.
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterator, Literal, Sequence
 
-from openai import AzureOpenAI, BadRequestError, OpenAI
+from openai import BadRequestError, OpenAI
 
 from app.config import settings
 
@@ -58,13 +59,7 @@ class StreamEvent:
 
 # --- Client construction (the swap point) ----------------------------------
 
-def _build_client() -> OpenAI | AzureOpenAI:
-    if settings.provider == "azure":
-        return AzureOpenAI(
-            api_key=settings.api_key,
-            azure_endpoint=settings.azure_endpoint,
-            api_version=settings.azure_api_version,
-        )
+def _build_client() -> OpenAI:
     if settings.provider == "llmaas":
         # OpenAI-compatible endpoint at a custom URL. Keyless gateways still
         # need a non-empty api_key string (the SDK refuses an empty one), so we
@@ -76,9 +71,8 @@ def _build_client() -> OpenAI | AzureOpenAI:
     return OpenAI(api_key=settings.api_key)
 
 
-# Single shared client for the process. Both classes expose the same
-# `.chat.completions` and `.embeddings` interface, so callers below are
-# provider-agnostic.
+# Single shared client for the process. Every provider is OpenAI-compatible, so
+# callers below are provider-agnostic.
 _client = _build_client()
 
 
@@ -177,6 +171,47 @@ def _chat_stream(messages, model, temperature, max_tokens) -> Iterator[StreamEve
                 yield StreamEvent(type="delta", text=delta.content)
         if chunk.usage:
             yield StreamEvent(type="usage", usage=_to_usage(chunk.usage))
+
+
+def transcribe_image(
+    image_b64: str,
+    prompt: str,
+    *,
+    model: str | None = None,
+    detail: str = "auto",
+    max_tokens: int | None = None,
+) -> ChatResult:
+    """Vision call: send one page image (base64 PNG) + a prompt, get text back.
+
+    Uses the same OpenAI-compatible client as chat(), with the standard image
+    content part — so dev and the prod endpoint work through the one swap point.
+    temperature=0 for faithful transcription (dropped automatically if the
+    model rejects it). `detail` is the vision fidelity ("low"|"high"|"auto"):
+    "high" forces max tiling for small/dense text. This is how PDF pages are
+    parsed (render → image → here).
+    """
+    model = model or settings.parse_model or settings.chat_model
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/png;base64,{image_b64}",
+                        "detail": detail,
+                    },
+                },
+            ],
+        }
+    ]
+    resp = _create(**_common_kwargs(model, messages, 0, max_tokens), stream=False)
+    return ChatResult(
+        text=resp.choices[0].message.content or "",
+        usage=_to_usage(resp.usage),
+        model=resp.model,
+    )
 
 
 def list_models() -> list[str]:

@@ -1,20 +1,22 @@
-"""Noema Lab — an interactive playground for the pipeline steps.
+"""Noema Lab — Vision PDF parser testbench.
 
-Run it (from the repo root):
+Drop ANY PDF (drawings, tables, math, scans, broken fonts) and watch the parser
+work: each page rendered on the left, the vision model's Markdown + LaTeX on the
+right (formulas rendered), with timing and token cost. Record what you observe —
+wins and fails accumulate into a "resume" at the bottom (tests/results/test_log.json).
+
+Independent of the app; imports the parser read-only. Parsing runs through the
+provider abstraction, so this uses whatever `.env` points at (OpenAI on the Mac).
+
     backend/.venv/bin/python -m streamlit run tests/lab.py
 
-Drop in a PDF, pick an engine (standard / OCR / Granite-Docling VLM), hit Run, and
-watch the step behave: the page render next to the parsed Markdown, with timings,
-legibility, and the canonical-structure counts. "Save to study" snapshots the run
-into tests/results/study.md so messing around builds a kept report. Imports the
-app's parse function read-only — it changes nothing in the product, and deleting
-tests/ removes it without a trace.
+Heads-up: each page is a vision-model call (a few cents). Cap "Pages to parse".
 """
 
 from __future__ import annotations
 
-import io
-import subprocess
+import json
+import re
 import sys
 import time
 from datetime import datetime
@@ -22,214 +24,199 @@ from pathlib import Path
 
 import streamlit as st
 
-ROOT = Path(__file__).resolve().parent           # tests/
+ROOT = Path(__file__).resolve().parent
 BACKEND = ROOT.parent / "backend"
 sys.path.insert(0, str(BACKEND))
 
-from app import docling_parse  # noqa: E402
+from app.config import settings  # noqa: E402
+from app.parsing import vision  # noqa: E402
 
-FIXTURES = ROOT / "fixtures" / "pdfs"
-MYPDFS = ROOT / "myTestPDFs"            # drop your own PDFs here to test them
-RESULTS = ROOT / "results"
-STUDY = RESULTS / "study.md"
-ASSETS = RESULTS / "study_assets"
-REPORT = RESULTS / "docling_report.md"
-SUITE = ROOT / "docling" / "run.py"
+MYPDFS = ROOT / "myTestPDFs"
+LOG = ROOT / "results" / "test_log.json"
+
+_RATES = {"gpt-4o": (2.5, 10.0), "gpt-4o-mini": (0.15, 0.6)}  # $/1M tok, ballpark
+_VERDICT = {"win": "✅", "fail": "❌", "partial": "⚠️"}
 
 
-def render_pages(data: bytes, max_pages: int = 4):
+# ---- test log ---------------------------------------------------------------
+def load_log() -> list[dict]:
+    if LOG.exists():
+        try:
+            return json.loads(LOG.read_text(encoding="utf-8"))
+        except Exception:
+            return []
+    return []
+
+
+def add_result(pdf: str, scope: str, verdict: str, note: str) -> None:
+    entries = load_log()
+    entries.insert(0, {
+        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "pdf": pdf, "scope": scope, "verdict": verdict, "note": note,
+    })
+    LOG.parent.mkdir(parents=True, exist_ok=True)
+    LOG.write_text(json.dumps(entries, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+# ---- markdown + LaTeX rendering --------------------------------------------
+def _normalize_math(md: str) -> str:
+    md = re.sub(r"\\\((.+?)\\\)", r"$\1$", md, flags=re.S)      # \( .. \) -> $ .. $
+    md = re.sub(r"\\\[(.+?)\\\]", r"$$\1$$", md, flags=re.S)    # \[ .. \] -> $$ .. $$
+    return md
+
+
+def render_markdown(md: str) -> None:
+    """Render text+LaTeX via normal st.markdown (KaTeX works), and HTML tables via
+    unsafe_allow_html — splitting them so the two don't fight (the LaTeX-not-rendering
+    bug came from unsafe_allow_html being on for the whole string)."""
+    md = _normalize_math(md)
+    for part in re.split(r"(<table[\s\S]*?</table>)", md, flags=re.I):
+        if not part.strip():
+            continue
+        if part.lstrip().lower().startswith("<table"):
+            st.markdown(part, unsafe_allow_html=True)
+        else:
+            st.markdown(part)
+
+
+def cost_estimate(model: str, p_tok: int, c_tok: int):
+    rate = _RATES.get((model or "").split("/")[-1])
+    return None if not rate else p_tok / 1e6 * rate[0] + c_tok / 1e6 * rate[1]
+
+
+def render_page_images(data: bytes, scale: float, max_pages):
     import pypdfium2 as pdfium
 
     pdf = pdfium.PdfDocument(data)
-    n = len(pdf)
-    imgs = [pdf[i].render(scale=1.5).to_pil() for i in range(min(n, max_pages))]
-    return imgs, n
+    total = len(pdf)
+    count = total if max_pages is None else min(total, max_pages)
+    return [pdf[i].render(scale=scale).to_pil() for i in range(count)], total
 
 
-def table_note(md: str) -> str:
-    if "|" in md:
-        return "Markdown table grid present"
-    if "<!-- image -->" in md:
-        return "region(s) classified as image (text may be lost)"
-    return "no table detected"
-
-
-def structure_summary(doc_dict: dict) -> dict:
-    """Counts from the canonical DoclingDocument — what Markdown can't show."""
-    return {
-        "texts": len(doc_dict.get("texts", [])),
-        "tables": len(doc_dict.get("tables", [])),
-        "pictures": len(doc_dict.get("pictures", [])),
-    }
-
-
-ENGINE_CHOICES = {
-    "Auto": "auto",
-    "Standard (fast)": "standard",
-    "Force OCR": "ocr",
-    "Granite-Docling VLM": "vlm",
-}
-
-
-def save_to_study(entry: dict, imgs, md: str, note: str) -> None:
-    ASSETS.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    slug = "".join(c if c.isalnum() else "-" for c in entry["name"])[:40]
-    folder = ASSETS / f"{stamp}_{slug}"
-    folder.mkdir(parents=True, exist_ok=True)
-    if imgs:
-        imgs[0].save(folder / "page1.png")
-    (folder / "parsed.md").write_text(md, encoding="utf-8")
-
-    rel = folder.relative_to(RESULTS)
-    s = entry.get("struct", {})
-    block = [
-        f"\n## {datetime.now():%Y-%m-%d %H:%M} — `{entry['name']}`",
-        "",
-        f"- **Engine:** {entry['engine_used']} · **Legibility:** {entry['legibility']:.2f}",
-        f"- **Pages:** {entry['pages']} · **Chars:** {entry['chars']} · "
-        f"**Time:** {entry['secs']:.2f}s ({entry['per_page']:.2f}s/page)",
-        f"- **Structure:** {s.get('texts', 0)} texts · {s.get('tables', 0)} tables · "
-        f"{s.get('pictures', 0)} pictures · **Tables:** {table_note(md)}",
-        f"- **Notes:** {note or '—'}",
-        "",
-        f"![page]({rel}/page1.png)" if imgs else "",
-        f"\n_Parsed Markdown: `{rel}/parsed.md`_",
-    ]
-    header = "" if STUDY.exists() else "# Noema — parse study\n\nCurated runs from the lab.\n"
-    with STUDY.open("a", encoding="utf-8") as f:
-        if header:
-            f.write(header)
-        f.write("\n".join(block) + "\n")
-
-
-# ---- UI --------------------------------------------------------------------
-st.set_page_config(page_title="Noema Lab", layout="wide")
-st.title("Noema Lab")
-st.caption("Interactive pipeline testbench · independent of the app")
+# ---- UI ---------------------------------------------------------------------
+st.set_page_config(page_title="Noema Lab — Vision Parser", layout="wide")
+st.title("Noema Lab — Vision PDF Parser")
+st.caption(
+    f"provider: **{settings.provider}** · default parse model: **{settings.parse_model}** "
+    "· renders pages locally, transcribes via the vision model · independent of the app"
+)
 
 with st.sidebar:
-    st.header("Step")
-    st.selectbox("Pipeline step", ["Parse — Docling"], index=0)
-
     st.header("Input")
-    mode = st.radio("Source", ["Fixture", "Upload"], horizontal=True)
+    src = st.radio("Source", ["Upload", "myTestPDFs"], horizontal=True)
     data, name = None, None
-    if mode == "Upload":
+    if src == "Upload":
         up = st.file_uploader("Drop a PDF", type="pdf")
         if up:
             data, name = up.getvalue(), up.name
     else:
-        pool = {}
-        for base, tag in [(FIXTURES, "fixtures"), (MYPDFS, "mine")]:
-            if base.exists():
-                for p in sorted(base.glob("*.pdf")):
-                    pool[f"{tag}/{p.name}"] = p
-        if pool:
-            choice = st.selectbox("File", list(pool))
-            data, name = pool[choice].read_bytes(), pool[choice].name
+        pdfs = sorted(MYPDFS.glob("*.pdf")) if MYPDFS.exists() else []
+        if pdfs:
+            choice = st.selectbox("File", [p.name for p in pdfs])
+            data, name = (MYPDFS / choice).read_bytes(), choice
         else:
-            st.info("No PDFs — run make_fixtures.py or drop files in tests/myTestPDFs/")
+            st.info("Drop PDFs into tests/myTestPDFs/")
 
-    engine_label = st.radio(
-        "Engine",
-        list(ENGINE_CHOICES),
-        help="Auto runs Standard, escalating to OCR if the text layer is garbled. "
-        "Force OCR rebuilds text from pixels (broken-font / scanned). VLM "
-        "(Granite-Docling) reads the page like an image — best for math, tables, "
-        "and broken fonts, but slower.",
+    st.header("Settings")
+    model = st.text_input("Vision model", value=settings.parse_model)
+    max_pages = st.number_input("Pages to parse (0 = all)", min_value=0, value=2, step=1)
+    scale = st.slider("Render scale (~72 DPI × this)", 1.0, 4.0, 2.0, 0.5)
+    detail = st.selectbox(
+        "Vision detail", ["high", "auto", "low"], index=0,
+        help="high = max tiling (better for small/dense text); low = cheapest. "
+        "A/B this on the stress pages.",
     )
-    engine = ENGINE_CHOICES[engine_label]
-    formulas = st.checkbox(
-        "Decode formulas → LaTeX",
-        value=False,
-        help="Transcribe formula images to LaTeX (else they show as "
-        "<!-- formula-not-decoded -->). Ignored by VLM, which does it natively.",
+    routing = st.selectbox(
+        "Routing", ["auto", "vision"], index=0,
+        help="auto = clean prose pages use the FREE text layer (no vision call); "
+        "vision = force the model on every page.",
     )
-    run = st.button("▶ Run parse", type="primary", use_container_width=True, disabled=data is None)
+    run = st.button("▶ Parse", type="primary", width="stretch", disabled=data is None)
 
 if run and data is not None:
-    with st.spinner(f"parsing with {engine}… (first run loads models)"):
+    mp = None if max_pages == 0 else int(max_pages)
+    with st.spinner(f"rendering + transcribing with {model}…"):
         t0 = time.perf_counter()
         try:
-            doc = docling_parse.parse_pdf(data, name, engine=engine, formulas=formulas)
-            md, pages, leg = doc.markdown, doc.pages, doc.legibility
-            used, struct, err = doc.engine, structure_summary(doc.doc_dict), None
-        except docling_parse.ParseError as exc:
-            md, pages, leg, used, struct, err = "", 0, 0.0, engine, {}, str(exc)
+            doc = vision.parse_pdf(
+                data, name, model=model or None, scale=scale, detail=detail,
+                max_pages=mp, mode=routing,
+            )
+            err = None
+        except Exception as exc:
+            doc, err = None, str(exc)
         secs = time.perf_counter() - t0
         try:
-            imgs, npages = render_pages(data)
+            imgs, _ = render_page_images(data, scale, mp)
         except Exception:
-            imgs, npages = [], pages
-    st.session_state["last"] = dict(
-        name=name, engine=engine, engine_used=used, formulas=formulas, md=md,
-        pages=pages or npages, chars=len(md), secs=secs,
-        per_page=secs / max(pages or npages, 1), legibility=leg,
-        undecoded=md.count("<!-- formula-not-decoded -->"), struct=struct,
-        err=err, imgs=imgs,
-    )
+            imgs = []
+    st.session_state["last"] = {
+        "name": name, "doc": doc, "err": err, "secs": secs, "imgs": imgs, "detail": detail,
+    }
 
 last = st.session_state.get("last")
 if last:
     if last["err"]:
-        st.error(f"Parse rejected: {last['err']}")
-    s = last.get("struct", {})
-    c = st.columns(5)
-    c[0].metric("Pages", last["pages"])
-    c[1].metric("Chars", f"{last['chars']:,}")
-    c[2].metric("Time", f"{last['secs']:.2f}s")
-    c[3].metric("Per page", f"{last['per_page']:.2f}s")
-    c[4].metric("Legibility", f"{last['legibility']:.2f}")
-    st.caption(
-        f"engine: **{last.get('engine_used', '?')}** · {table_note(last['md'])} · "
-        f"canonical: {s.get('texts', 0)} texts / {s.get('tables', 0)} tables / "
-        f"{s.get('pictures', 0)} pictures (DoclingDocument)"
-    )
-    if last["md"] and last["legibility"] < 0.6:
-        st.warning(
-            f"⚠ The text layer looks garbled (legibility {last['legibility']:.2f}) — "
-            "likely a broken-font / LaTeX PDF. Switch the Engine to **Force OCR** or "
-            "**Granite-Docling VLM** and re-run."
-        )
-    if last.get("undecoded"):
-        st.warning(
-            f"⚠ {last['undecoded']} formula(s) not decoded "
-            "(`<!-- formula-not-decoded -->`). Tick **Decode formulas → LaTeX**, or "
-            "use the **VLM** engine."
+        st.error(f"Parse failed: {last['err']}")
+    doc = last["doc"]
+    if doc:
+        cost = cost_estimate(doc.model, doc.prompt_tokens, doc.completion_tokens)
+        c = st.columns(5)
+        c[0].metric("Pages parsed", f"{doc.pages}/{doc.total_pages}")
+        c[1].metric("Chars", f"{doc.chars:,}")
+        c[2].metric("Time", f"{last['secs']:.1f}s")
+        c[3].metric("Tokens", f"{doc.total_tokens:,}")
+        c[4].metric("~Cost", f"${cost:.3f}" if cost is not None else "—")
+        st.caption(
+            f"model: {doc.model} · detail: {last.get('detail', '?')} · "
+            f"routing: **{doc.text_pages} text** (free) / **{doc.vision_pages} vision** · "
+            f"{doc.prompt_tokens:,} in / {doc.completion_tokens:,} out "
+            f"· {(last['secs'] / max(doc.pages, 1)):.1f}s/page"
         )
 
-    left, right = st.columns(2)
-    with left:
-        st.subheader("Input")
-        for img in last["imgs"]:
-            st.image(img, use_container_width=True)
-        if not last["imgs"]:
-            st.info("No page preview.")
-    with right:
-        st.subheader("Parsed Markdown")
-        if last["md"]:
-            with st.expander("raw", expanded=False):
-                st.code(last["md"], language="markdown")
-            st.markdown(last["md"])
-        else:
-            st.info("Nothing parsed.")
+        for i, md in enumerate(doc.page_markdown, start=1):
+            st.divider()
+            route = doc.routes[i - 1] if i - 1 < len(doc.routes) else "?"
+            badge = "🆓 text layer" if route == "text" else "👁 vision"
+            st.markdown(f"### Page {i}  ·  {badge}")
+            left, right = st.columns(2)
+            with left:
+                if i - 1 < len(last["imgs"]):
+                    st.image(last["imgs"][i - 1], width="stretch")
+            with right:
+                with st.expander("raw Markdown"):
+                    st.code(md, language="markdown")
+                render_markdown(md)
 
-    st.divider()
-    note = st.text_input("Note for the study (what were you testing?)")
-    if st.button("＋ Save to study"):
-        save_to_study(last, last["imgs"], last["md"], note)
-        st.success(f"Saved to {STUDY.relative_to(ROOT.parent)}")
-
-# ---- Benchmark suite + conserved report ------------------------------------
+# ---- record a result --------------------------------------------------------
 st.divider()
-st.subheader("Edge-case suite & report")
-if st.button("Run full edge-case suite"):
-    with st.spinner("running suite…"):
-        subprocess.run([sys.executable, str(SUITE)], capture_output=True, text=True)
-    st.success("Done — report refreshed below.")
-if REPORT.exists():
-    st.markdown(REPORT.read_text(encoding="utf-8"))
-if STUDY.exists():
-    with st.expander("📓 Saved study log"):
-        st.markdown(STUDY.read_text(encoding="utf-8"))
+with st.expander("➕ Record a test result"):
+    with st.form("add_result", clear_on_submit=True):
+        scope = st.text_input("What did you test? (scope)")
+        verdict = st.radio("Verdict", ["win", "fail", "partial"], horizontal=True)
+        note = st.text_area("What happened?")
+        pdf_name = st.text_input("PDF", value=(last.get("name") if last else ""))
+        if st.form_submit_button("Save result") and scope.strip():
+            add_result(pdf_name, scope.strip(), verdict, note.strip())
+            st.success("Recorded.")
+            st.rerun()
+
+# ---- the resume: where it wins & fails --------------------------------------
+st.divider()
+st.subheader("📋 Test log — where it wins & fails")
+entries = load_log()
+groups = {v: [e for e in entries if e.get("verdict") == v] for v in ("win", "fail", "partial")}
+m = st.columns(3)
+m[0].metric("✅ Wins", len(groups["win"]))
+m[1].metric("❌ Fails", len(groups["fail"]))
+m[2].metric("⚠️ Partial", len(groups["partial"]))
+for v in ("fail", "partial", "win"):  # fails first — most actionable
+    if groups[v]:
+        st.markdown(f"**{_VERDICT[v]} {v.capitalize()}**")
+        for e in groups[v]:
+            meta = " · ".join(x for x in (e.get("pdf"), e.get("date")) if x)
+            st.markdown(
+                f"- **{e.get('scope', '')}** — {e.get('note', '')}  \n"
+                f"  <span style='color:#888;font-size:0.85em'>{meta}</span>",
+                unsafe_allow_html=True,
+            )

@@ -1,69 +1,44 @@
-# Noema — Lab (independent test/eval harness)
+# Noema — Lab (vision PDF parser testbench)
 
-A standalone place to **validate each pipeline step on real inputs** and see, in a
-table, how it behaves — speed, output, and weak points. It is separate from the
-app: it imports the backend modules but ships its own fixtures and runners, so it
-never affects the running product.
+An interactive page to drop **any PDF** — drawings, tables, math, scans, broken
+fonts — and see how the **vision parser** transcribes it: each page rendered on the
+left, the model's **Markdown + LaTeX** on the right, with timing and token cost.
 
-The pipeline is built in steps (parse → chunk → embed → retrieve → …). Each step
-gets its own folder here as it lands. Today: **parse (Docling)**.
+It's independent of the app (imports `app.parsing.vision` read-only, changes nothing
+in the product) and deletes cleanly.
 
 ```
 tests/
-  lab.py                 # interactive Streamlit app — drop a PDF, flip OCR, see it parse
-  fixtures/
-    make_fixtures.py     # generates the edge-case PDFs (deterministic)
-    pdfs/                # generated fixtures (gitignored)
-  docling/
-    run.py               # headless: runs Docling over every fixture, times + scores it
-  results/
-    docling_report.md    # the reproducible benchmark table + findings
-    study.md             # your curated runs, appended from the lab ("Save to study")
-    markdown/            # each fixture's parsed Markdown output
-    screenshots/         # PNG render of each fixture's first page
+  lab.py            # the Streamlit testbench
+  myTestPDFs/       # drop your own PDFs here (gitignored)
+  requirements.txt  # streamlit
 ```
 
 ## Run it
 
-Uses the backend venv. One-time setup:
-
 ```bash
 backend/.venv/bin/python -m pip install -r tests/requirements.txt
-backend/.venv/bin/python tests/fixtures/make_fixtures.py   # build the edge-case PDFs
+backend/.venv/bin/python -m streamlit run tests/lab.py   # http://localhost:8501
 ```
 
-**Interactive lab** (play with it, then "Save to study"):
-
-```bash
-backend/.venv/bin/python -m streamlit run tests/lab.py
-# opens http://localhost:8501
-```
-
-**Headless benchmark** (the reproducible report table):
-
-```bash
-backend/.venv/bin/python tests/docling/run.py     # writes tests/results/docling_report.md
-```
+Pick a PDF, set **Pages to parse** (keep it low while experimenting — each page is
+a vision-model call, a few cents), and hit **Parse**. Uses whatever your `.env`
+points at (OpenAI on the Mac).
 
 ## Remove it when done
 
-Self-contained — nothing in the app depends on it:
-
 ```bash
 rm -rf tests/
-backend/.venv/bin/python -m pip uninstall -y streamlit reportlab
+backend/.venv/bin/python -m pip uninstall -y streamlit
 ```
 
-## What the Docling step is tested against
+## Why not Docling?
 
-| Fixture | What it validates |
-| --- | --- |
-| `simple` | Plain digital text — baseline correctness |
-| `multipage` | Page count / provenance across pages |
-| `headings` | Document structure → Markdown headings |
-| `table` | Table reconstruction (Docling's headline feature) |
-| `long` | Throughput on a bigger doc (sec/page) |
-| `empty` | Blank page → clean "no content" error |
-| `scanned` | Image-only page → OCR behavior |
-| `not_a_pdf` | Garbage bytes → rejected, not crashed |
-| `truncated` | Corrupted PDF → rejected, not crashed |
+We originally planned local **Docling**, but dropped it as the default. Short
+version: Docling runs heavy ML models locally and needs a strong machine — which the
+locked-down, Azure-only company PCs aren't, and which made even a dev Mac grind. The
+SOTA, hardware-independent answer for an Azure-only, math-heavy, French corpus is
+**hosted vision parsing** (render page → image → vision model → Markdown + LaTeX),
+which is also what Claude/ChatGPT/Gemini do under the hood. Full rationale, the 2026
+benchmarks, and the recommended prod architecture (Azure DI + Azure-hosted vision):
+see **`NOEMA_PARSING_SOTA.md`** at the repo root.

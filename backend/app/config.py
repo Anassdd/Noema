@@ -2,9 +2,9 @@
 
 Everything is driven by environment variables (loaded from a local .env in dev).
 `LLM_PROVIDER` selects the backend at runtime:
-  - "openai" : local dev (Mac), personal key.
-  - "azure"  : Azure OpenAI (key + endpoint + deployments).
-  - "llmaas" : any OpenAI-compatible endpoint at a custom URL, key optional.
+  - "openai" : local dev (Mac), personal key, standard endpoint.
+  - "llmaas" : any OpenAI-compatible endpoint at a custom URL (the company's
+               Azure-hosted gateway), key optional.
 Porting providers should be a config change here + filling that provider's vars,
 never a code change in the rest of the app.
 """
@@ -36,20 +36,26 @@ def _require(name: str) -> str:
 class Settings:
     """Resolved, validated configuration for the selected provider.
 
-    `chat_model` / `embed_model` are model names on OpenAI and *deployment names*
-    on Azure — the rest of the app does not care which, it just passes them to
-    the SDK. That uniformity is what keeps llm_client.py the single swap point.
+    `chat_model` / `embed_model` are whatever name the chosen endpoint expects —
+    the rest of the app does not care, it just passes them to the SDK. That
+    uniformity is what keeps llm_client.py the single swap point.
     """
 
-    provider: str  # "openai" | "azure" | "llmaas"
+    provider: str  # "openai" | "llmaas"
 
     api_key: str
     chat_model: str
     embed_model: str
+    # Vision model/deployment used to parse PDF pages (render→image→Markdown+LaTeX).
+    # Should be a strong vision-capable model; falls back to chat_model if unset.
+    parse_model: str = ""
 
-    # Azure-only; empty strings on OpenAI.
-    azure_endpoint: str = ""
-    azure_api_version: str = ""
+    # Parser backend, orthogonal to the LLM provider: "vision" (render→vision LLM,
+    # default, works anywhere the LLM does) or "docintel" (Azure Document
+    # Intelligence — deterministic, in-tenant, page provenance). Swap via .env.
+    parser: str = "vision"
+    docintel_endpoint: str = ""  # Azure Document Intelligence endpoint (docintel only)
+    docintel_key: str = ""  # Azure Document Intelligence key (docintel only)
 
     # llmaas-only: base URL of a custom OpenAI-compatible endpoint. Empty
     # otherwise. The api_key may be blank for keyless gateways (llm_client
@@ -66,27 +72,23 @@ class Settings:
 def load_settings() -> Settings:
     provider = os.getenv("LLM_PROVIDER", "openai").strip().lower()
 
+    # Parser selection + DI creds — orthogonal to the LLM provider, shared by all.
+    _common = dict(
+        parser=os.getenv("PARSER", "vision").strip().lower(),
+        docintel_endpoint=os.getenv("DOCINTEL_ENDPOINT", ""),
+        docintel_key=os.getenv("DOCINTEL_KEY", ""),
+    )
+
     if provider == "openai":
         return Settings(
             provider="openai",
             api_key=_require("OPENAI_API_KEY"),
             chat_model=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
             embed_model=os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-small"),
+            parse_model=os.getenv("OPENAI_PARSE_MODEL", "gpt-4o"),
             chat_temperature=float(os.getenv("CHAT_TEMPERATURE", "0.2")),
             max_history_turns=int(os.getenv("MAX_HISTORY_TURNS", "8")),
-        )
-
-    if provider == "azure":
-        return Settings(
-            provider="azure",
-            api_key=_require("AZURE_OPENAI_API_KEY"),
-            azure_endpoint=_require("AZURE_OPENAI_ENDPOINT"),
-            azure_api_version=_require("AZURE_OPENAI_API_VERSION"),
-            # On Azure these are deployment names, not model names.
-            chat_model=_require("AZURE_OPENAI_CHAT_DEPLOYMENT"),
-            embed_model=_require("AZURE_OPENAI_EMBED_DEPLOYMENT"),
-            chat_temperature=float(os.getenv("CHAT_TEMPERATURE", "0.2")),
-            max_history_turns=int(os.getenv("MAX_HISTORY_TURNS", "8")),
+            **_common,
         )
 
     if provider == "llmaas":
@@ -98,14 +100,17 @@ def load_settings() -> Settings:
             base_url=_require("LLMAAS_BASE_URL"),
             # Model name exactly as the endpoint expects it.
             chat_model=_require("LLMAAS_CHAT_MODEL"),
+            parse_model=os.getenv("LLMAAS_PARSE_MODEL")
+            or os.getenv("LLMAAS_CHAT_MODEL", ""),
             # Optional — only needed once RAG embeddings are wired up.
             embed_model=os.getenv("LLMAAS_EMBED_MODEL", ""),
             chat_temperature=float(os.getenv("CHAT_TEMPERATURE", "0.2")),
             max_history_turns=int(os.getenv("MAX_HISTORY_TURNS", "8")),
+            **_common,
         )
 
     raise ConfigError(
-        f"Unknown LLM_PROVIDER={provider!r}. Expected 'openai', 'azure', or 'llmaas'."
+        f"Unknown LLM_PROVIDER={provider!r}. Expected 'openai' or 'llmaas'."
     )
 
 

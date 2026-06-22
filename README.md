@@ -113,15 +113,22 @@ Open <http://localhost:5173> and send a test message.
 
 | Value    | Use                          | Required vars                                                        |
 | -------- | ---------------------------- | ------------------------------------------------------------------- |
-| `openai` | local dev (Mac)              | `OPENAI_API_KEY` (+ optional model names)                           |
-| `azure`  | Azure OpenAI                 | `AZURE_OPENAI_API_KEY`, `_ENDPOINT`, `_API_VERSION`, `_*_DEPLOYMENT` |
-| `llmaas` | any OpenAI-compatible endpoint | `LLMAAS_BASE_URL`, `LLMAAS_CHAT_MODEL` (key optional)             |
+| `openai` | local dev (Mac)                                 | `OPENAI_API_KEY` (+ optional model names)            |
+| `llmaas` | prod — the Azure-hosted OpenAI-compatible `/v1` | `LLMAAS_BASE_URL`, `LLMAAS_CHAT_MODEL` (key optional) |
+
+(There is no separate `azure` provider — the company endpoint is OpenAI-compatible,
+so it's reached through `llmaas`.)
+
+A second, independent switch — `PARSER` — selects the PDF backend: `vision` (default,
+works everywhere) or `docintel` (Azure Document Intelligence; needs `DOCINTEL_ENDPOINT`
++ `DOCINTEL_KEY`). See `backend/app/parsing/PARSING.md`.
 
 ## Troubleshooting (secure / corporate machine)
 
 - **`pip install` fails on `chromadb`** — it's not used yet (RAG isn't built).
-  Comment it out of `requirements.txt`; you only need `pypdf` and
-  `python-multipart` for the PDF feature.
+  Comment it out of `requirements.txt`; you only need `pypdfium2` and
+  `python-multipart` for the PDF feature (plus `azure-ai-documentintelligence`
+  only if you set `PARSER=docintel`).
 - **Proxy / TLS errors** (pip, npm, or the backend reaching the LLM) — set
   `HTTPS_PROXY` / `HTTP_PROXY`, and for self-signed certs point `SSL_CERT_FILE`
   (or `REQUESTS_CA_BUNDLE`) at the corporate CA bundle.

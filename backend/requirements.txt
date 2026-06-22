@@ -7,14 +7,17 @@ fastapi>=0.110.0
 uvicorn[standard]>=0.29.0
 python-multipart>=0.0.9
 
-# PDF parsing — Docling (structure-aware, local). Heavy (pulls torch + ML models)
-# and may be blocked by enterprise pip restrictions; the first parse downloads
-# the layout/table models from HuggingFace.
-docling>=2.100.0
+# PDF parsing — render pages to images locally (light, no ML models). The actual
+# parsing is done by a vision LLM via the provider abstraction (OpenAI/Azure), so
+# nothing heavy runs on the machine. We dropped local Docling because it needs
+# heavy models + a strong PC and can't run on the locked-down Azure-only target —
+# see NOEMA_PARSING_SOTA.md.
+pypdfium2>=4.0.0
 
-# Legacy raw-text parser (pypdf). Superseded by Docling and no longer wired in;
-# kept installable as a lightweight fallback.
-pypdf>=4.0.0
+# Azure Document Intelligence — the deterministic parser backbone, used only when
+# PARSER=docintel. Lightweight (no torch). Safe to keep installed even on the
+# vision default.
+azure-ai-documentintelligence>=1.0.0
 
 # RAG vector store — NOT used yet. Uncomment when the embed/retrieve slice lands.
 # chromadb>=0.5.0

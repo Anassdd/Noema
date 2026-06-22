@@ -35,8 +35,12 @@ export default function Sidebar({
       <div className="px-[18px] pb-1 pt-5">
         <div className="flex items-center justify-between">
           <div
-            className="font-serif text-2xl font-medium"
-            style={{ letterSpacing: ".14em", color: "var(--text)" }}
+            className="font-serif text-2xl"
+            style={{
+              fontWeight: "var(--wordmark-weight)",
+              letterSpacing: "var(--wordmark-tracking)",
+              color: "var(--text)",
+            }}
           >
             Noema
           </div>

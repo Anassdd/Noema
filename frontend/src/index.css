@@ -1,7 +1,7 @@
 /* Noema type pair: Newsreader (serif — wordmark + headings), Inter (sans — UI,
    a clean OpenAI/Codex-style grotesk), JetBrains Mono (labels/code). System
    fallbacks if the CDN is blocked (enterprise network). */
-@import url("https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap");
 @import "tailwindcss";
 
 /* Class-based dark mode: `dark:` utilities apply under html.dark */
@@ -9,6 +9,15 @@
 
 /* ---- Theme tokens — light (:root) and dark (.dark) ---------------------- */
 :root {
+  /* Type — Aurora family (serif wordmark/headings). Codex overrides these. */
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-serif: "Newsreader", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --wordmark-tracking: 0.14em; /* airy under serif; tightened to -.01em in Codex */
+  --wordmark-weight: 500;
+  --title-weight: 400;
+  --heading-weight: 500;
+
   --wallpaper: radial-gradient(130% 130% at 16% 88%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 42%),
     linear-gradient(138deg, #2a44d8 0%, #4357ea 30%, #5f67ee 55%, #8a85f2 82%, #a294f3 100%);
   --win-border: rgba(255, 255, 255, 0.5);
@@ -17,6 +26,9 @@
   --sidebar-bg: #f4f4f7;
   --sidebar-border: #e6e6ea;
   --panel-bg: rgba(255, 255, 255, 0.82);
+  /* Frosted main panel (Aurora). Codex turns these off for flat solid surfaces. */
+  --panel-blur: blur(34px) saturate(150%);
+  --panel-inset: inset 1px 0 0 rgba(255, 255, 255, 0.06);
 
   --accent: #2f6bff;
   --accent-soft: rgba(47, 107, 255, 0.09);
@@ -102,6 +114,49 @@
   --hl-comment: #5a5e68;
 }
 
+/* ---- Codex family — Geist grotesque, flat & solid (no wallpaper, no glass) -
+   Shared: the font swap + the flat-surface switch. Surfaces are split light/
+   dark so the light tweaks (higher attribute specificity) don't leak into dark. */
+html[data-theme="codex"] {
+  --font-sans: "Geist", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-serif: "Geist", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --wordmark-tracking: -0.01em;
+  --wordmark-weight: 700;
+  --title-weight: 600;
+  --heading-weight: 600;
+  --panel-blur: none;
+  --panel-inset: none;
+}
+
+html[data-theme="codex"]:not(.dark) {
+  --wallpaper: #ffffff;
+  --panel-bg: #ffffff;
+  --sidebar-bg: #f7f7f8;
+  --sidebar-border: #ebebef;
+  --border: #e7e7ea;
+  --border-soft: #eeeef1;
+  --user-bubble: #f1f1f4;
+  --user-bubble-border: transparent;
+  --plus-bg: #f1f1f4;
+  --code-bg: #ffffff;
+  --code-header-bg: #fafafb;
+  --code-border: #eeeef1;
+}
+
+html[data-theme="codex"].dark {
+  --wallpaper: #15171d;
+  --panel-bg: #15171d;
+  --sidebar-bg: #16181f;
+  --sidebar-border: rgba(255, 255, 255, 0.07);
+  --text: #f0f1f4;
+  --border: rgba(255, 255, 255, 0.1);
+  --border-soft: rgba(255, 255, 255, 0.07);
+  --code-bg: #1b1e25;
+  --code-header-bg: rgba(255, 255, 255, 0.03);
+  --code-border: rgba(255, 255, 255, 0.08);
+}
+
 html,
 body,
 #root {
@@ -109,8 +164,7 @@ body,
 }
 
 body {
-  font-family:
-    "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans);
   font-feature-settings: "cv05" 1, "ss01" 1; /* Söhne-like single-storey a/g */
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -118,14 +172,14 @@ body {
 }
 
 .font-serif {
-  font-family: "Newsreader", Georgia, serif;
+  font-family: var(--font-serif);
 }
 
 pre,
 code,
 kbd,
 .font-mono {
-  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 
 /* Signature surfaces */
@@ -134,9 +188,9 @@ kbd,
 }
 .glass-panel {
   background: var(--panel-bg);
-  backdrop-filter: blur(34px) saturate(150%);
-  -webkit-backdrop-filter: blur(34px) saturate(150%);
-  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: var(--panel-blur);
+  -webkit-backdrop-filter: var(--panel-blur);
+  box-shadow: var(--panel-inset);
 }
 
 /* Slim, unobtrusive scrollbars — closer to a native app feel. */
@@ -315,8 +369,8 @@ button:active:not(:disabled) {
 .md h2,
 .md h3,
 .md h4 {
-  font-family: "Newsreader", Georgia, serif;
-  font-weight: 500;
+  font-family: var(--font-serif);
+  font-weight: var(--heading-weight);
   margin: 1em 0 0.4em;
   color: var(--text);
 }

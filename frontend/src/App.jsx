@@ -98,7 +98,10 @@ export default function App() {
               <PanelIcon size={17} />
             </button>
           )}
-          <div className="font-serif truncate text-[17px]" style={{ color: "var(--text)" }}>
+          <div
+            className="font-serif truncate text-[17px]"
+            style={{ fontWeight: "var(--title-weight)", color: "var(--text)" }}
+          >
             {active?.title || "New chat"}
           </div>
 
@@ -184,6 +187,8 @@ export default function App() {
           onToggleTokenizer={settings.toggleTokenizer}
           darkMode={settings.darkMode}
           onToggleDarkMode={settings.toggleDarkMode}
+          themeFamily={settings.themeFamily}
+          onApplyTheme={settings.setThemeFamily}
           memoryCount={memory.memories.length}
           onClearMemory={memory.clearMemories}
           onClose={() => setSettingsOpen(false)}

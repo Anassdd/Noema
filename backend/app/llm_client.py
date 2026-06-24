@@ -28,11 +28,17 @@ Message = dict[str, str]
 
 @dataclass(frozen=True)
 class Usage:
-    """Token accounting for one chat call (surfaced to the UI per the spec)."""
+    """Token accounting for one chat call (surfaced to the UI per the spec).
+
+    `cached_tokens` is the portion of `prompt_tokens` served from the provider's
+    automatic prompt-prefix cache (0 if the endpoint doesn't report it). It's what
+    makes Contextual Retrieval cheap — the repeated document prefix is mostly cached.
+    """
 
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
+    cached_tokens: int = 0
 
 
 @dataclass(frozen=True)
@@ -79,10 +85,13 @@ _client = _build_client()
 def _to_usage(raw) -> Usage | None:
     if not raw:
         return None
+    details = getattr(raw, "prompt_tokens_details", None)
+    cached = getattr(details, "cached_tokens", 0) or 0 if details is not None else 0
     return Usage(
         prompt_tokens=raw.prompt_tokens,
         completion_tokens=raw.completion_tokens,
         total_tokens=raw.total_tokens,
+        cached_tokens=cached,
     )
 
 

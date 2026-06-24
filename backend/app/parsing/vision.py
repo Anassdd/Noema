@@ -34,8 +34,19 @@ PROMPT = (
     "- Preserve reading order and structure: headings as #/##, lists, bold/italic.\n"
     "- Render EVERY mathematical formula as LaTeX: inline $...$, display $$...$$.\n"
     "- Render tables as Markdown tables; use an HTML <table> only when cells are merged.\n"
-    "- For a figure, diagram, drawing, or chart, insert a short italic description in "
-    "square brackets, e.g. *[Figure: bar chart of revenue vs year]* — never invent its data.\n"
+    "- A figure, diagram, chart, drawing, or image is often the MOST important content on the "
+    "page — do NOT just label it, EXTRACT it so a reader who cannot see it still understands it. "
+    "Begin with a marker line `*[Figure: <type> — <one-line of what it shows>]*`, then on the "
+    "following lines give a faithful, detailed account:\n"
+    "    • transcribe ALL text in it — title, axis labels with units, legend, annotations, and "
+    "every node/arrow/box label;\n"
+    "    • for a chart/plot: state the variables and the relationship or trend it demonstrates, "
+    "and report concrete values you can actually read (e.g. peak, min, intercepts);\n"
+    "    • for a diagram/flowchart/architecture: state each component and how they connect or "
+    "flow, as a list of relationships (A -> B -> C, X feeds into Y);\n"
+    "    • for a photo/microscopy/screenshot: describe what it depicts in concrete detail.\n"
+    "  Report ONLY what is genuinely visible: if a value or label is not legible, write "
+    "[illegible] — never fabricate numbers, data points, or relationships that aren't shown.\n"
     "- Transcribe text EXACTLY as it appears, in its ORIGINAL language (e.g. French) with "
     "all accents. Do NOT translate, summarize, correct, or add anything.\n"
     "- If part of the page is unreadable, write [illegible]."
@@ -79,6 +90,52 @@ def _page_text(page) -> str:
         return page.get_textpage().get_text_range() or ""
     except Exception:
         return ""
+
+
+_HEADING_MAX_CHARS = 64
+_HEADING_MAX_WORDS = 9
+_LIST_ITEM = re.compile(r"^([-*+]|\d+[.)])\s")
+
+
+def _looks_like_heading(line: str) -> bool:
+    """Conservative title-line test: short, no terminal punctuation, mostly letters,
+    not a list item. Used ONLY on the free text route to recover headings the plain
+    text layer drops (the vision route gets headings from the model)."""
+    s = line.strip()
+    if not s or len(s) > _HEADING_MAX_CHARS:
+        return False
+    if s[-1] in ".!?,;:":
+        return False
+    if len(s.split()) > _HEADING_MAX_WORDS:
+        return False
+    if _LIST_ITEM.match(s):
+        return False
+    return sum(c.isalpha() for c in s) >= len(s) * 0.5
+
+
+def _textlayer_to_markdown(raw: str) -> str:
+    """Turn a plain text-layer dump into light Markdown: promote title-like lines to
+    headings and join wrapped lines into paragraphs — so text-routed pages carry
+    structure like vision-routed ones, instead of one flat blob."""
+    out: list[str] = []
+    para: list[str] = []
+
+    def flush():
+        if para:
+            out.append(" ".join(para))
+            para.clear()
+
+    for line in (raw or "").splitlines():
+        s = line.strip()
+        if not s:
+            flush()
+        elif _looks_like_heading(s):
+            flush()
+            out.append(f"# {s}")
+        else:
+            para.append(s)
+    flush()
+    return "\n\n".join(out).strip()
 
 
 def _has_figure(page) -> bool:
@@ -163,7 +220,7 @@ def parse_pdf(
         if mode == "auto":
             text = _page_text(page)
             if _route_to_text(page, text):
-                parts.append(text.strip())
+                parts.append(_textlayer_to_markdown(text))
                 routes.append("text")
                 continue
 

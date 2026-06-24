@@ -1,0 +1,18 @@
+{
+  "filename": "clean_prose.pdf",
+  "pages": 1,
+  "total_pages": 1,
+  "page_markdown": [
+    "# On Reading Documents\n\nThis page is ordinary prose with no mathematics, no tables, and no figures. Its embedded text layer is clean and fully legible, so the parser should route it to the free text layer and spend no tokens at all. The point of this example is to demonstrate the cheap path. When a page is confidently plain prose, there is nothing a vision model would add, so the router keeps the extracted text and moves on. Savings like this are what make per page routing worthwhile on a prose heavy corpus. A second paragraph continues in the same vein, describing the method in plain language and avoiding any symbol that might trip the math detector. The result should be a single text route."
+  ],
+  "routes": [
+    "text"
+  ],
+  "prompt_tokens": 0,
+  "completion_tokens": 0,
+  "model": "—",
+  "secs": 0.16,
+  "detail": "high",
+  "scale": 2.0,
+  "cached_at": "2026-06-24 14:26"
+}

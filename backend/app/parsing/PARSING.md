@@ -133,6 +133,25 @@ pages to vision.
 
 ---
 
+## Parked optimizations (future, not built)
+
+- **Region-level crop hybrid.** For a *clean-prose + raster-figure* page, take the
+  prose from the free text layer and send only a **crop of the figure** (we already
+  have its bounding box) to vision, instead of a full-page call — fewer image tiles,
+  cheaper. Parked because: it only helps that one page shape (scanned / broken-font /
+  math / vector-figure pages have **no** isolable region — the "necessary part" *is*
+  the whole page); the general version needs a heavy **layout-detection model** we
+  deliberately avoided (the reason we dropped Docling); and stitching regions back
+  into correct reading order re-introduces layout analysis. Whole-page is also what
+  the frontier agents do and preserves reading order + cross-region context for free.
+  Revisit only if the real corpus turns out to be mostly "clean text + isolated
+  figures" *and* vision cost becomes a concern — measured, not assumed.
+- **Office formats** (`.docx` / `.pptx`). Add a backend behind `parse_document`
+  (Azure DI ingests Office natively, or lightweight `python-docx` / `python-pptx` for
+  a text-only path). For now, export to PDF. The seam is already in `dispatch.py`.
+
+---
+
 ## Output shape (`ParsedDoc`)
 
 ```python

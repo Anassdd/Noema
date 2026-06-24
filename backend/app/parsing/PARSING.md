@@ -9,6 +9,9 @@ from app import parsing
 doc = parsing.parse_document(data, filename)   # -> ParsedDoc
 ```
 
+**Input:** a PDF file (`bytes`). &nbsp;
+**Output:** Markdown + LaTeX per page (`ParsedDoc`, with page provenance).
+
 ## Package layout
 
 | File | Role |
@@ -85,10 +88,10 @@ backend is the fallback for the pages DI handles poorly.
 
 | The page is… | Route | What you get | Cost |
 |---|---|---|---|
-| Clean digital prose | **text** | the text layer, verbatim | free |
+| Clean digital prose | **text** | text layer → light Markdown (headings + paragraphs) | free |
 | A formula / math-heavy page | **vision** | formulas as LaTeX `$…$` / `$$…$$` | paid |
 | A normal table | **vision** | a Markdown (or HTML) table | paid |
-| **Text-dominated + a diagram** | **vision** | the prose **plus** *[Figure: …]* with any labels | paid |
+| **Text-dominated + a diagram** | **vision** | the prose **plus** a detailed *[Figure: …]* extraction (labels, trend/flow, readable values) | paid |
 | A scanned / image-only page | **vision** | OCR-quality transcription | paid |
 | Broken-font / bad-ToUnicode (LaTeX PDFs) | **vision** | correct text (the garbled layer is ignored) | paid |
 | French text (accents, é/è/ç, Hölder) | either | preserved exactly, never translated | — |
@@ -107,7 +110,8 @@ pages to vision.
   (`pypdfium2`), the actual reading is a hosted model call. Runs fine on a locked-down,
   weak corporate PC. (This is why we dropped local Docling — see `NOEMA_PARSING_SOTA.md`.)
 - **Handles any PDF**: digital, scanned, broken-font, French, math, tables, figures.
-- **Math → LaTeX and figures described**, not dropped — good for a research corpus.
+- **Math → LaTeX, and figures *extracted*** (type, labels, trend/flow, readable values),
+  not dropped — important for a research corpus where the figure is often the result.
 - **Dev → prod is one `.env` line.** Same code on Mac (OpenAI) and Azure; and a second
   axis (`PARSER`) swaps the whole parser to deterministic Azure DI with no code change.
 - **Page-level provenance for free** (`page_markdown` is per page) — the seam citations
@@ -122,8 +126,12 @@ pages to vision.
 - **Hallucination risk** is inherent to any vision transcription. Mitigated by a strict
   "transcribe exactly, never invent, `[illegible]` if unreadable" prompt — but not zero.
   The DI backbone exists precisely to remove this for citation-grade work.
-- **Figures are described, not reconstructed.** A diagram becomes a short text caption +
-  its labels; its exact nodes/edges are **not** extracted (relevant later for the graph).
+- **Figures are extracted as text, not as the image.** A figure becomes a detailed
+  faithful description — type, all labels/units, the trend or the A→B→C flow, and values
+  the model can actually read — so questions about it can be answered. But it is still a
+  *textual* extraction bounded by page resolution: tiny labels may be `[illegible]`, and a
+  complex diagram's exact node/edge graph isn't perfectly structured (relevant for the graph
+  layer). It will not fabricate values that aren't shown.
 - **All-or-nothing per page.** A mostly-text page with one figure costs a full vision call
   (the text is re-transcribed too) — no hybrid text-layer-prose + vision-only-figure.
 - **A tiny, simple vector diagram** (< 15 path objects, no raster) can slip to the text

@@ -1,0 +1,18 @@
+{
+  "filename": "french_note.pdf",
+  "pages": 1,
+  "total_pages": 1,
+  "page_markdown": [
+    "# Note en francais\n\nCette page est redigee en francais avec des accents tels que e, e, a, c et u afin de verifier que la couche de texte conserve correctement les caracteres accentues sans recourir au modele de vision. Le texte reste une prose simple, sans mathematiques ni tableaux. L objectif est de montrer que le francais emprunte lui aussi le chemin gratuit lorsque la couche de texte est propre. La provenance par page est conservee pour permettre une citation precise."
+  ],
+  "routes": [
+    "text"
+  ],
+  "prompt_tokens": 0,
+  "completion_tokens": 0,
+  "model": "—",
+  "secs": 0.0,
+  "detail": "high",
+  "scale": 2.0,
+  "cached_at": "2026-06-24 14:26"
+}

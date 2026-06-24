@@ -1,0 +1,52 @@
+{
+  "name": "Research paper section (normal)",
+  "markdown": "# Hölder Inequalities\n\nThis introduction motivates the work in plain prose and sets up the notation used throughout, deliberately without any mathematics so the text layer would be clean.\n\n## Methods\n\nWe define the setup carefully. The exponents satisfy a duality relation and the proof proceeds by a standard convexity argument applied term by term to each summand.\n\n$$\\sum_{i=1}^n |a_i b_i| \\le \\left(\\sum_i |a_i|^p\\right)^{1/p} \\left(\\sum_i |b_i|^q\\right)^{1/q}$$\n\n### Data\n\n| model | score |\n| --- | --- |\n| A | 0.91 |\n| B | 0.88 |\n\n## Results\n\nThe results confirm the bound is tight. We discuss several consequences and edge cases that arise when one of the exponents tends to infinity, with detailed commentary throughout.",
+  "model": "(default chat model)",
+  "secs": 9.88,
+  "prompt_tokens": 1211,
+  "completion_tokens": 163,
+  "cached_tokens": 0,
+  "cached_at": "2026-06-24 14:00",
+  "items": [
+    {
+      "index": 0,
+      "section": "Hölder Inequalities",
+      "pages": [],
+      "chunk_text": "This introduction motivates the work in plain prose and sets up the notation used throughout, deliberately without any mathematics so the text layer would be clean.",
+      "context": "This chunk serves as the introductory section of the document, providing an overview of the Hölder inequalities and establishing the notation used in the subsequent mathematical discussions.",
+      "contextual_text": "This chunk serves as the introductory section of the document, providing an overview of the Hölder inequalities and establishing the notation used in the subsequent mathematical discussions.\n\nThis introduction motivates the work in plain prose and sets up the notation used throughout, deliberately without any mathematics so the text layer would be clean.",
+      "prompt_tokens": 287,
+      "completion_tokens": 30
+    },
+    {
+      "index": 1,
+      "section": "Hölder Inequalities › Methods",
+      "pages": [],
+      "chunk_text": "We define the setup carefully. The exponents satisfy a duality relation and the proof proceeds by a standard convexity argument applied term by term to each summand.\n\n$$\\sum_{i=1}^n |a_i b_i| \\le \\left(\\sum_i |a_i|^p\\right)^{1/p} \\left(\\sum_i |b_i|^q\\right)^{1/q}$$",
+      "context": "This chunk is part of the \"Methods\" section, where the authors outline the mathematical framework and key inequalities used in their analysis of Hölder inequalities, specifically detailing the setup, the relationship between the exponents, and the proof strategy involving convexity.",
+      "contextual_text": "This chunk is part of the \"Methods\" section, where the authors outline the mathematical framework and key inequalities used in their analysis of Hölder inequalities, specifically detailing the setup, the relationship between the exponents, and the proof strategy involving convexity.\n\nWe define the setup carefully. The exponents satisfy a duality relation and the proof proceeds by a standard convexity argument applied term by term to each summand.\n\n$$\\sum_{i=1}^n |a_i b_i| \\le \\left(\\sum_i |a_i|^p\\right)^{1/p} \\left(\\sum_i |b_i|^q\\right)^{1/q}$$",
+      "prompt_tokens": 348,
+      "completion_tokens": 50
+    },
+    {
+      "index": 2,
+      "section": "Hölder Inequalities › Methods › Data",
+      "pages": [],
+      "chunk_text": "| model | score |\n| --- | --- |\n| A | 0.91 |\n| B | 0.88 |",
+      "context": "The chunk presents a table of scores for models A and B, which are part of the results section that discusses the application and implications of Hölder inequalities in the context of the study.",
+      "contextual_text": "The chunk presents a table of scores for models A and B, which are part of the results section that discusses the application and implications of Hölder inequalities in the context of the study.\n\n| model | score |\n| --- | --- |\n| A | 0.91 |\n| B | 0.88 |",
+      "prompt_tokens": 285,
+      "completion_tokens": 37
+    },
+    {
+      "index": 3,
+      "section": "Hölder Inequalities › Results",
+      "pages": [],
+      "chunk_text": "The results confirm the bound is tight. We discuss several consequences and edge cases that arise when one of the exponents tends to infinity, with detailed commentary throughout.",
+      "context": "This chunk is part of the \"Results\" section, which follows the \"Methods\" section and summarizes the findings related to the Hölder inequalities, specifically addressing the tightness of the bound and exploring implications when exponents approach infinity.",
+      "contextual_text": "This chunk is part of the \"Results\" section, which follows the \"Methods\" section and summarizes the findings related to the Hölder inequalities, specifically addressing the tightness of the bound and exploring implications when exponents approach infinity.\n\nThe results confirm the bound is tight. We discuss several consequences and edge cases that arise when one of the exponents tends to infinity, with detailed commentary throughout.",
+      "prompt_tokens": 291,
+      "completion_tokens": 46
+    }
+  ]
+}

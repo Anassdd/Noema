@@ -1,0 +1,18 @@
+{
+  "filename": "formula_sheet.pdf",
+  "pages": 1,
+  "total_pages": 1,
+  "page_markdown": [
+    "# Formula Sheet\n\nThis page contains mathematics written in LaTeX so the math detector trips and the page is routed to vision, where formulas are transcribed as LaTeX.\n\nThe harmonic sum $\\sum_{i=1}^{n} 1/i$ grows like $\\ln(n)$, and the Gaussian integral $\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}$ is a classic result.\n\nWe also note the bound $x^{2} + y^{2} \\ge 2xy$ and the relation $E = mc^2$ for good measure."
+  ],
+  "routes": [
+    "vision"
+  ],
+  "prompt_tokens": 1304,
+  "completion_tokens": 127,
+  "model": "gpt-4o-2024-08-06",
+  "secs": 3.32,
+  "detail": "high",
+  "scale": 2.0,
+  "cached_at": "2026-06-24 14:26"
+}

@@ -11,11 +11,14 @@ never a code change in the rest of the app.
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Load .env from the backend/ folder if present.
-load_dotenv()
+# Load backend/.env by its path relative to this file, so it loads regardless of the
+# working directory — uvicorn runs from backend/, but the Streamlit lab runs from the
+# repo root. find-by-cwd would miss it there.
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 
 class ConfigError(RuntimeError):

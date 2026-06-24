@@ -1,0 +1,18 @@
+{
+  "filename": "prose_plus_figure.pdf",
+  "pages": 1,
+  "total_pages": 1,
+  "page_markdown": [
+    "# Results with a Figure\n\nThis page mixes a paragraph of clean prose with an embedded chart. Because a real figure is present, the page must route to vision so the figure is described and not silently dropped.\n\n*[Figure: Bar Chart — results by group]*\n\n- The chart displays five vertical bars.\n- Each bar represents a different group.\n- The heights of the bars vary, indicating different results for each group.\n- The tallest bar is the third one from the left.\n- The shortest bar is the fourth one from the left.\n- The bars are uniformly colored in blue.\n- The chart is titled \"Figure 1: results by group\"."
+  ],
+  "routes": [
+    "vision"
+  ],
+  "prompt_tokens": 1502,
+  "completion_tokens": 131,
+  "model": "gpt-4o-2024-08-06",
+  "secs": 4.99,
+  "detail": "high",
+  "scale": 2.0,
+  "cached_at": "2026-06-24 14:35"
+}

@@ -1,11 +1,264 @@
 [
-  {"date": "2026-06-22", "pdf": "stress_test.pdf", "scope": "Fix attempt — detail:high for sub-resolution text", "verdict": "partial", "note": "detail:high is now the parser default (clear general win: at 'low' the model couldn't even attempt the micro-text). But it STILL misreads 4pt -> '6pt' — the vision API downsamples a full page to a fixed budget no matter the detail, so only region-tiling (zoomed crops) would fix it. Deemed not worth building: the real corpus has no sub-resolution text; use Azure DI for exactness in prod."},
-  {"date": "2026-06-22", "pdf": "resume_af.pdf", "scope": "Broken-font / bad-ToUnicode LaTeX PDF", "verdict": "win", "note": "Garbled text layer that broke Docling came out clean — in one call, no OCR, no local models."},
-  {"date": "2026-06-22", "pdf": "resume_af.pdf", "scope": "French accents (é è à ç ô, Hölder)", "verdict": "win", "note": "Accents perfect, including Hölder which Docling's OCR mangled to 'Holder'."},
-  {"date": "2026-06-22", "pdf": "stress_test.pdf", "scope": "Borderless table + rowspan + multi-line wrap", "verdict": "win", "note": "Rebuilt the table exactly; rowspan cell left blank; wrapped cell and PENDING* kept."},
-  {"date": "2026-06-22", "pdf": "stress_test.pdf", "scope": "Figures: flowchart + unlabeled chart", "verdict": "win", "note": "Described both as figures and did NOT invent chart data — the big hallucination trap, avoided."},
-  {"date": "2026-06-22", "pdf": "stress_test.pdf", "scope": "Grid-noise page + overlapping/skewed text", "verdict": "win", "note": "Ignored the grid (no structural decay); captured overlapping text; didn't invent the clipped off-page part."},
-  {"date": "2026-06-22", "pdf": "stress_test.pdf", "scope": "4pt micro-text", "verdict": "fail", "note": "Misread 'exactly 4pt' -> '6pt' and 'This text' -> 'The text'. Higher DPI did NOT help — the vision API downsamples to a token budget. Needs detail:high / region-tiling."},
-  {"date": "2026-06-22", "pdf": "stress_test.pdf", "scope": "Faint low-contrast watermark", "verdict": "fail", "note": "Misread 'INTERNAL R&D USE ONLY' -> 'INTERNAL FOR USE ONLY'. Low-contrast text guessed plausibly wrong."},
-  {"date": "2026-06-22", "pdf": "stress_test.pdf", "scope": "Color (red PENDING*, blue text) & bordered box", "verdict": "partial", "note": "Color is dropped (Markdown can't carry it; prompt didn't ask). Bordered box rendered as a code block — a formatting artifact."}
+  {
+    "date": "2026-06-24",
+    "tool": "chunker",
+    "scope": "Research paper section (normal)",
+    "verdict": "win",
+    "note": "4 chunk(s), 4 section(s), max 66 tok; formula intact: True",
+    "input": {
+      "source": "Research paper section (normal)",
+      "category": "normal",
+      "target": 512,
+      "overlap": 64,
+      "min": 64
+    },
+    "output": {
+      "chunks": 4,
+      "sections": 4,
+      "max_tokens": 66
+    }
+  },
+  {
+    "date": "2026-06-24",
+    "tool": "chunker",
+    "scope": "French prose (normal)",
+    "verdict": "win",
+    "note": "2 chunk(s), 2 section(s), max 50 tok",
+    "input": {
+      "source": "French prose (normal)",
+      "category": "normal",
+      "target": 512,
+      "overlap": 64,
+      "min": 64
+    },
+    "output": {
+      "chunks": 2,
+      "sections": 2,
+      "max_tokens": 50
+    }
+  },
+  {
+    "date": "2026-06-24",
+    "tool": "chunker",
+    "scope": "No headings (edge)",
+    "verdict": "win",
+    "note": "1 chunk(s), 1 section(s), max 66 tok",
+    "input": {
+      "source": "No headings (edge)",
+      "category": "edge",
+      "target": 512,
+      "overlap": 64,
+      "min": 64
+    },
+    "output": {
+      "chunks": 1,
+      "sections": 1,
+      "max_tokens": 66
+    }
+  },
+  {
+    "date": "2026-06-24",
+    "tool": "chunker",
+    "scope": "One giant paragraph (edge)",
+    "verdict": "win",
+    "note": "1 chunk(s), 1 section(s), max 143 tok",
+    "input": {
+      "source": "One giant paragraph (edge)",
+      "category": "edge",
+      "target": 512,
+      "overlap": 64,
+      "min": 64
+    },
+    "output": {
+      "chunks": 1,
+      "sections": 1,
+      "max_tokens": 143
+    }
+  },
+  {
+    "date": "2026-06-24",
+    "tool": "chunker",
+    "scope": "Heavy LaTeX (edge)",
+    "verdict": "win",
+    "note": "1 chunk(s), 1 section(s), max 57 tok; formula intact: True",
+    "input": {
+      "source": "Heavy LaTeX (edge)",
+      "category": "edge",
+      "target": 512,
+      "overlap": 64,
+      "min": 64
+    },
+    "output": {
+      "chunks": 1,
+      "sections": 1,
+      "max_tokens": 57
+    }
+  },
+  {
+    "date": "2026-06-24",
+    "tool": "chunker",
+    "scope": "Tables (edge)",
+    "verdict": "win",
+    "note": "1 chunk(s), 1 section(s), max 52 tok; html table intact: True",
+    "input": {
+      "source": "Tables (edge)",
+      "category": "edge",
+      "target": 512,
+      "overlap": 64,
+      "min": 64
+    },
+    "output": {
+      "chunks": 1,
+      "sections": 1,
+      "max_tokens": 52
+    }
+  },
+  {
+    "date": "2026-06-24",
+    "tool": "chunker",
+    "scope": "Deeply nested headings (edge)",
+    "verdict": "win",
+    "note": "4 chunk(s), 4 section(s), max 6 tok",
+    "input": {
+      "source": "Deeply nested headings (edge)",
+      "category": "edge",
+      "target": 512,
+      "overlap": 64,
+      "min": 64
+    },
+    "output": {
+      "chunks": 4,
+      "sections": 4,
+      "max_tokens": 6
+    }
+  },
+  {
+    "date": "2026-06-24",
+    "tool": "chunker",
+    "scope": "Code block (edge)",
+    "verdict": "win",
+    "note": "1 chunk(s), 1 section(s), max 17 tok",
+    "input": {
+      "source": "Code block (edge)",
+      "category": "edge",
+      "target": 512,
+      "overlap": 64,
+      "min": 64
+    },
+    "output": {
+      "chunks": 1,
+      "sections": 1,
+      "max_tokens": 17
+    }
+  },
+  {
+    "date": "2026-06-24",
+    "tool": "chunker",
+    "scope": "Tiny (edge)",
+    "verdict": "win",
+    "note": "1 chunk(s), 1 section(s), max 6 tok",
+    "input": {
+      "source": "Tiny (edge)",
+      "category": "edge",
+      "target": 512,
+      "overlap": 64,
+      "min": 64
+    },
+    "output": {
+      "chunks": 1,
+      "sections": 1,
+      "max_tokens": 6
+    }
+  },
+  {
+    "date": "2026-06-24",
+    "tool": "chunker",
+    "scope": "Empty (edge)",
+    "verdict": "win",
+    "note": "0 chunks (correct — whitespace-only yields nothing, no crash).",
+    "input": {
+      "source": "Empty (edge)",
+      "category": "edge",
+      "target": 512,
+      "overlap": 64,
+      "min": 64
+    },
+    "output": {
+      "chunks": 0,
+      "sections": 0,
+      "max_tokens": 0
+    }
+  },
+  {
+    "date": "2026-06-22",
+    "pdf": "stress_test.pdf",
+    "scope": "Fix attempt — detail:high for sub-resolution text",
+    "verdict": "partial",
+    "note": "detail:high is now the parser default (clear general win: at 'low' the model couldn't even attempt the micro-text). But it STILL misreads 4pt -> '6pt' — the vision API downsamples a full page to a fixed budget no matter the detail, so only region-tiling (zoomed crops) would fix it. Deemed not worth building: the real corpus has no sub-resolution text; use Azure DI for exactness in prod.",
+    "tool": "parser"
+  },
+  {
+    "date": "2026-06-22",
+    "pdf": "resume_af.pdf",
+    "scope": "Broken-font / bad-ToUnicode LaTeX PDF",
+    "verdict": "win",
+    "note": "Garbled text layer that broke Docling came out clean — in one call, no OCR, no local models.",
+    "tool": "parser"
+  },
+  {
+    "date": "2026-06-22",
+    "pdf": "resume_af.pdf",
+    "scope": "French accents (é è à ç ô, Hölder)",
+    "verdict": "win",
+    "note": "Accents perfect, including Hölder which Docling's OCR mangled to 'Holder'.",
+    "tool": "parser"
+  },
+  {
+    "date": "2026-06-22",
+    "pdf": "stress_test.pdf",
+    "scope": "Borderless table + rowspan + multi-line wrap",
+    "verdict": "win",
+    "note": "Rebuilt the table exactly; rowspan cell left blank; wrapped cell and PENDING* kept.",
+    "tool": "parser"
+  },
+  {
+    "date": "2026-06-22",
+    "pdf": "stress_test.pdf",
+    "scope": "Figures: flowchart + unlabeled chart",
+    "verdict": "win",
+    "note": "Described both as figures and did NOT invent chart data — the big hallucination trap, avoided.",
+    "tool": "parser"
+  },
+  {
+    "date": "2026-06-22",
+    "pdf": "stress_test.pdf",
+    "scope": "Grid-noise page + overlapping/skewed text",
+    "verdict": "win",
+    "note": "Ignored the grid (no structural decay); captured overlapping text; didn't invent the clipped off-page part.",
+    "tool": "parser"
+  },
+  {
+    "date": "2026-06-22",
+    "pdf": "stress_test.pdf",
+    "scope": "4pt micro-text",
+    "verdict": "fail",
+    "note": "Misread 'exactly 4pt' -> '6pt' and 'This text' -> 'The text'. Higher DPI did NOT help — the vision API downsamples to a token budget. Needs detail:high / region-tiling.",
+    "tool": "parser"
+  },
+  {
+    "date": "2026-06-22",
+    "pdf": "stress_test.pdf",
+    "scope": "Faint low-contrast watermark",
+    "verdict": "fail",
+    "note": "Misread 'INTERNAL R&D USE ONLY' -> 'INTERNAL FOR USE ONLY'. Low-contrast text guessed plausibly wrong.",
+    "tool": "parser"
+  },
+  {
+    "date": "2026-06-22",
+    "pdf": "stress_test.pdf",
+    "scope": "Color (red PENDING*, blue text) & bordered box",
+    "verdict": "partial",
+    "note": "Color is dropped (Markdown can't carry it; prompt didn't ask). Bordered box rendered as a code block — a formatting artifact.",
+    "tool": "parser"
+  }
 ]

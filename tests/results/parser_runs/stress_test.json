@@ -1,0 +1,24 @@
+{
+  "filename": "stress_test.pdf",
+  "pages": 4,
+  "total_pages": 4,
+  "page_markdown": [
+    "# Test 1: Layout, Overlaps & Reading Order\n\nThis document presents layout, text extraction, and bounding-box stress tests. Standard OCR models read linearly from left to right; vision models should capture blocks.\n\n# Layer 0: Interior Content Box\n\n# >> OVERLAPPING STRING EXTENSION <<\n\n[SKEWED ANCHOR]: Text rendered at +8 degrees. CRITICAL PRECISION MINUTIAE TEST: This text is exactly 4pt font. It tests the spatial limits of the vision grid resolution. If your pipeline handles this without hallucinatory structural decay, the localized zooming layer is highly optimized.",
+    "# Test 2: Borderless Tables & Structural Traps\n\n# Main Category Sub-Key Metric Value (USD) Status\n\n# Enterprise Division Q1 Hardware Revenue 1,245,000.50 AUDITED\n\n# Q2 Software Licenses 890,400.00 PENDING*\n\n# Consumer Goods\n\n# This is a multi-line long metric wrap\n\nthat breaks bounds across columns. 34,120.00 N/A",
+    "# Test 3: Graphical Objects & Floating Anchors\n\n*[Figure: Diagram — Input node connected to parser]*\n- **INPUT NODE**: A rectangular box labeled \"INPUT NODE\".\n- **PARSER**: A circular node labeled \"PARSER\".\n- **Connection**: An arrow labeled \"parse_stream\" pointing from INPUT NODE to PARSER.\n\n*[Figure: Chart — Line graph with anomaly spike]*\n- **Line Graph**: A zigzag line representing data points.\n- **Anomaly Spike Peak (Critical)**: A label at the peak of the line indicating a critical anomaly spike.",
+    "# Test 4: Optical Distortion & Noise Masking\n\nCONFIDENTIAL INTERNAL FOR USE ONLY. DO NOT DISTRIBUTE\n\n*[Figure: Grid with Text Overlay — Demonstrates optical distortion and noise masking]*\n\n- Background: A grid pattern with evenly spaced black lines on a white background.\n- Text: \"CONFIDENTIAL INTERNAL FOR USE ONLY. DO NOT DISTRIBUTE\" is centered at the top.\n- Overlay: A solid gray block with the text \"Text Overlapping Solid Color Fill Block\" in blue, centered within the block."
+  ],
+  "routes": [
+    "text",
+    "text",
+    "vision",
+    "vision"
+  ],
+  "prompt_tokens": 3004,
+  "completion_tokens": 232,
+  "model": "gpt-4o-2024-08-06",
+  "secs": 5.82,
+  "detail": "high",
+  "scale": 2.0,
+  "cached_at": "2026-06-24 14:35"
+}

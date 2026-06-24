@@ -1,29 +1,60 @@
-# Noema — Lab (vision PDF parser testbench)
+# Noema — Lab (interactive testbench)
 
-An interactive page to drop **any PDF** — drawings, tables, math, scans, broken
-fonts — and see how the **vision parser** transcribes it: each page rendered on the
-left, the model's **Markdown + LaTeX** on the right, with timing and token cost.
-
-It's independent of the app (imports `app.parsing.vision` read-only, changes nothing
-in the product) and deletes cleanly.
+A multipage Streamlit app to inspect each pipeline step. Independent of the product
+(imports the app modules read-only) and deletes cleanly.
 
 ```
 tests/
-  lab.py            # the Streamlit testbench
-  myTestPDFs/       # drop your own PDFs here (gitignored)
-  requirements.txt  # streamlit
+  lab.py                  # Home — overview + the test report (wins / fails)
+  lab_common.py           # shared helpers (report, timing, caching, render, "show the code")
+  pages/
+    1_Parser.py           # Parser        — tabs: How it works | Saved tests | Live run
+    2_Chunker.py          # Chunker       — tabs: How it works | Saved tests | Live run
+    3_Contextualizer.py   # Contextualizer— tabs: How it works | Saved tests | Live run
+  myTestPDFs/             # example + user-added PDFs (gitignored)
+  results/
+    test_log.json         # the shared test report
+    chunk_examples.json   # seeded chunker use cases + edge cases
+    parser_runs/          # cached parser results (Saved tests need no re-extraction)
+    context_runs/         # cached contextual-retrieval results
+  test_chunking.py        # automated chunker tests (no pytest needed)
+  test_contextual.py      # automated contextualizer tests (mocked LLM, free)
+  requirements.txt        # streamlit
 ```
 
 ## Run it
 
 ```bash
 backend/.venv/bin/python -m pip install -r tests/requirements.txt
-backend/.venv/bin/python -m streamlit run tests/lab.py   # http://localhost:8501
+backend/.venv/bin/python -m streamlit run tests/lab.py        # http://localhost:8501
 ```
 
-Pick a PDF, set **Pages to parse** (keep it low while experimenting — each page is
-a vision-model call, a few cents), and hit **Parse**. Uses whatever your `.env`
-points at (OpenAI on the Mac).
+Each tool page has three tabs:
+
+- **How it works** — a flow diagram of the mechanism, the live thresholds/defaults read
+  from the code, and an expander with the **actual source** of the functions.
+- **Saved tests** — browse results without re-running:
+  - *Parser*: cached parse of each example PDF (rendered pages + Markdown, no model call).
+    Upload your own PDF — it parses once, then it's cached here too.
+  - *Chunker*: the seeded use cases / edge cases, input shown visually next to the chunks.
+    Add your own example.
+  - *Contextualizer*: cached contextualized examples (original chunk vs the LLM blurb).
+    Add your own document.
+- **Live run** — watch the mechanism execute with timing:
+  - *Parser*: the per-page routing **decision** computed from free signals (no tokens),
+    plus an optional full parse.
+  - *Chunker*: the stages — blocks → sections → chunks — with sizes and timing.
+  - *Contextualizer*: contextualizes live (LLM call per chunk) with token cost and timing.
+
+Every page has a **Log run** control that records the run's input → output (with a
+verdict) into the shared report shown on **Home**.
+
+## Automated tests
+
+```bash
+backend/.venv/bin/python tests/test_chunking.py      # chunker: normal + edge cases
+backend/.venv/bin/python tests/test_contextual.py    # contextualizer: mocked LLM, free
+```
 
 ## Remove it when done
 
@@ -32,13 +63,8 @@ rm -rf tests/
 backend/.venv/bin/python -m pip uninstall -y streamlit
 ```
 
-## Why not Docling?
+## Background
 
-We originally planned local **Docling**, but dropped it as the default. Short
-version: Docling runs heavy ML models locally and needs a strong machine — which the
-locked-down, Azure-only company PCs aren't, and which made even a dev Mac grind. The
-SOTA, hardware-independent answer for an Azure-only, math-heavy, French corpus is
-**hosted vision parsing** (render page → image → vision model → Markdown + LaTeX),
-which is also what Claude/ChatGPT/Gemini do under the hood. Full rationale, the 2026
-benchmarks, and the recommended prod architecture (Azure DI + Azure-hosted vision):
-see **`NOEMA_PARSING_SOTA.md`** at the repo root.
+- Why hosted vision parsing (not local Docling): `NOEMA_PARSING_SOTA.md`, `backend/app/parsing/PARSING.md`.
+- Chunking SOTA + mechanism: `backend/app/chunking/CHUNKING.md`.
+- Contextual Retrieval method: `backend/app/retrieval/CONTEXTUAL.md`.

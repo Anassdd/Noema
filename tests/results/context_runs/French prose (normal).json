@@ -1,0 +1,32 @@
+{
+  "name": "French prose (normal)",
+  "markdown": "# Inégalité de Hölder\n\nCette section présente le résultat principal en français, avec les accents é, è, ç, à et ù. Le théorème généralise l'inégalité de Cauchy–Schwarz et joue un rôle central dans l'analyse fonctionnelle.\n\n## Démonstration\n\nLa preuve repose sur la convexité de la fonction puissance et s'applique terme à terme.",
+  "model": "(default chat model)",
+  "secs": 7.17,
+  "prompt_tokens": 368,
+  "completion_tokens": 91,
+  "cached_tokens": 0,
+  "cached_at": "2026-06-24 14:00",
+  "items": [
+    {
+      "index": 0,
+      "section": "Inégalité de Hölder",
+      "pages": [],
+      "chunk_text": "Cette section présente le résultat principal en français, avec les accents é, è, ç, à et ù. Le théorème généralise l'inégalité de Cauchy–Schwarz et joue un rôle central dans l'analyse fonctionnelle.",
+      "context": "Le chunk se situe dans la section dédiée à l'inégalité de Hölder, où le résultat principal est présenté, soulignant son importance en analyse fonctionnelle et son lien avec l'inégalité de Cauchy–Schwarz.",
+      "contextual_text": "Le chunk se situe dans la section dédiée à l'inégalité de Hölder, où le résultat principal est présenté, soulignant son importance en analyse fonctionnelle et son lien avec l'inégalité de Cauchy–Schwarz.\n\nCette section présente le résultat principal en français, avec les accents é, è, ç, à et ù. Le théorème généralise l'inégalité de Cauchy–Schwarz et joue un rôle central dans l'analyse fonctionnelle.",
+      "prompt_tokens": 199,
+      "completion_tokens": 46
+    },
+    {
+      "index": 1,
+      "section": "Inégalité de Hölder › Démonstration",
+      "pages": [],
+      "chunk_text": "La preuve repose sur la convexité de la fonction puissance et s'applique terme à terme.",
+      "context": "Ce chunk fait partie de la section \"Démonstration\" du document sur l'inégalité de Hölder, qui explique comment la preuve de ce théorème s'appuie sur la convexité de la fonction puissance.",
+      "contextual_text": "Ce chunk fait partie de la section \"Démonstration\" du document sur l'inégalité de Hölder, qui explique comment la preuve de ce théorème s'appuie sur la convexité de la fonction puissance.\n\nLa preuve repose sur la convexité de la fonction puissance et s'applique terme à terme.",
+      "prompt_tokens": 169,
+      "completion_tokens": 45
+    }
+  ]
+}

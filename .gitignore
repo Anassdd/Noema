@@ -33,6 +33,9 @@ tests/results/graph_store/
 # Persisted user memory (saved via /remember) — local, can hold personal facts.
 backend/memory.json
 
+# Persisted co-occurrence graph memory (the InfraNodus-style graph) — local user data.
+backend/app/textgraph_store/
+
 # Durable conversation store (SQLite) — local, can hold personal chats.
 backend/app/conversations.db
 

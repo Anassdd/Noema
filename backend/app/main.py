@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import chat, conversations, documents, memory, system
+from app.routers import chat, conversations, documents, graphmem, memory, system, textgraph
 
 
 def create_app() -> FastAPI:
@@ -31,6 +31,8 @@ def create_app() -> FastAPI:
         memory.router,
         documents.router,
         conversations.router,
+        textgraph.router,
+        graphmem.router,
     ):
         app.include_router(router)
 

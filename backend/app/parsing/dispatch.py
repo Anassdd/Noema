@@ -14,9 +14,9 @@ from app.parsing import vision
 from app.parsing.base import ParsedDoc
 
 
-def parse_document(data: bytes, filename: str) -> ParsedDoc:
+def parse_document(data: bytes, filename: str, *, model: str | None = None) -> ParsedDoc:
     if settings.parser == "docintel":
         from app.parsing import docintel  # lazy — only import the SDK path when chosen
 
-        return docintel.parse(data, filename)
-    return vision.parse_pdf(data, filename)
+        return docintel.parse(data, filename)  # DI is model-free; `model` applies to vision only
+    return vision.parse_pdf(data, filename, model=model)

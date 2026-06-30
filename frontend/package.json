@@ -9,12 +9,20 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "3d-force-graph": "^1.80.0",
     "gpt-tokenizer": "^3.4.0",
+    "graphology": "^0.26.0",
+    "graphology-communities-louvain": "^2.0.2",
+    "graphology-layout-forceatlas2": "^0.10.1",
+    "graphology-metrics": "^2.4.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-markdown": "^10.1.0",
     "rehype-highlight": "^7.0.2",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "sigma": "^3.0.3",
+    "three": "^0.185.0",
+    "three-spritetext": "^1.10.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.0",

@@ -12,6 +12,7 @@ import {
   FileIcon,
   SunIcon,
   MoonIcon,
+  GraphIcon,
 } from "./components/icons.jsx";
 import { useConversations } from "./hooks/useConversations.js";
 import { useMemory } from "./hooks/useMemory.js";
@@ -106,6 +107,13 @@ export default function App() {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
+            <HeaderButton
+              icon={<GraphIcon size={17} sw={1.7} />}
+              label="Graph memory"
+              onClick={() =>
+                window.open(`${window.location.origin}/?view=graph`, "_blank", "noopener")
+              }
+            />
             <ModelSelector
               models={models}
               value={selectedModel}

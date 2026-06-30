@@ -115,3 +115,12 @@ export const CloseIcon = (p) => (
     <path d="M18 6L6 18M6 6l12 12" />
   </Icon>
 );
+
+export const GraphIcon = (p) => (
+  <Icon {...p}>
+    <circle cx="5" cy="6" r="2.2" />
+    <circle cx="18" cy="6" r="2.2" />
+    <circle cx="12" cy="18" r="2.2" />
+    <path d="M6.8 7.2L11 16.4M16.2 7.2L13 16.4M7 6h8.5" />
+  </Icon>
+);

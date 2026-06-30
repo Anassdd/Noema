@@ -1,0 +1,23 @@
+{
+  "scenario": "empty_episode",
+  "description": "A contentless episode must not crash ingestion.",
+  "model": "gpt-4o",
+  "saved_at": "2026-06-30T11:16:29.180780+00:00",
+  "verdict": "win",
+  "observations": [
+    "no crash on a contentless episode",
+    "0 nodes extracted (expected ~0)"
+  ],
+  "episodes": [
+    {
+      "name": "blank",
+      "body": "ok.",
+      "reference_time": "2026-06-01T00:00:00+00:00"
+    }
+  ],
+  "facts": [],
+  "snapshot": {
+    "nodes": [],
+    "edges": []
+  }
+}

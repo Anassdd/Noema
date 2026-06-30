@@ -7,6 +7,7 @@ backend/.env
 
 # ---- Python (backend) -------------------------------------------------------
 backend/.venv/
+backend/.venv-graph/
 .venv/
 venv/
 __pycache__/
@@ -24,6 +25,10 @@ backend/.chroma/
 chroma_db/
 backend/uploads/
 *.pdf
+
+# ---- Graph store (embedded FalkorDB Lite .rdb binaries) ---------------------
+# Regenerable; the kept edge-case results live as JSON in tests/results/graph_runs/.
+tests/results/graph_store/
 
 # Persisted user memory (saved via /remember) — local, can hold personal facts.
 backend/memory.json
@@ -49,3 +54,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# ---- Induced per-domain graph schemas (regenerable playground artifacts) ----
+tests/results/graph_schemas/

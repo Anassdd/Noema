@@ -1,0 +1,58 @@
+{
+  "scenario": "entity_resolution",
+  "description": "Two mentions of the same entity should resolve to ONE node, not duplicate.",
+  "model": "gpt-4o",
+  "saved_at": "2026-06-30T11:17:09.199479+00:00",
+  "verdict": "win",
+  "observations": [
+    "2 nodes total",
+    "1 node(s) match 'acme'",
+    "names: Lumen, Acme Corporation"
+  ],
+  "episodes": [
+    {
+      "name": "intro",
+      "body": "Acme Corporation released a language model called Lumen.",
+      "reference_time": "2026-02-01T00:00:00+00:00"
+    },
+    {
+      "name": "again",
+      "body": "Acme builds reliable developer tools that engineers trust.",
+      "reference_time": "2026-02-02T00:00:00+00:00"
+    }
+  ],
+  "facts": [],
+  "snapshot": {
+    "nodes": [
+      {
+        "uuid": "ce617950-9cc6-4a0f-9675-27789e11431a",
+        "name": "Lumen",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Acme Corporation released a language model called Lumen."
+      },
+      {
+        "uuid": "21ae6d6b-63c1-4364-84d3-12719af52da6",
+        "name": "Acme Corporation",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Acme Corporation released a language model called Lumen."
+      }
+    ],
+    "edges": [
+      {
+        "uuid": "0f2820fc-3075-43dd-9018-8d32adb2c3be",
+        "source_uuid": "21ae6d6b-63c1-4364-84d3-12719af52da6",
+        "target_uuid": "ce617950-9cc6-4a0f-9675-27789e11431a",
+        "name": "RELEASED",
+        "fact": "Acme Corporation released a language model called Lumen.",
+        "valid_at": "2026-02-01T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      }
+    ]
+  }
+}

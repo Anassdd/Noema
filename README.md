@@ -8,7 +8,8 @@ provider + credentials). The code is the same on both.
 
 ## Prerequisites
 
-- Python 3.10+
+- **Python 3.12** (required — graphiti-core, the graph memory, isn't ready for 3.13/3.14;
+  one venv holds the contextual base and the graph)
 - Node.js 18+
 
 ---
@@ -19,7 +20,7 @@ provider + credentials). The code is the same on both.
 
 ```bash
 cd backend
-python -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env

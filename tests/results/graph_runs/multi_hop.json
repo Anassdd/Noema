@@ -1,0 +1,83 @@
+{
+  "scenario": "multi_hop",
+  "description": "A 2-hop question (Dana→Acme→Lumen) should surface the bridged fact.",
+  "model": "gpt-4o",
+  "saved_at": "2026-06-30T11:16:13.445241+00:00",
+  "verdict": "win",
+  "observations": [
+    "1 facts retrieved",
+    "top fact: Acme builds the Lumen language model.",
+    "surfaced 'Lumen' across the hop: True"
+  ],
+  "episodes": [
+    {
+      "name": "founder",
+      "body": "Dana Reeves founded Acme.",
+      "reference_time": "2026-04-01T00:00:00+00:00"
+    },
+    {
+      "name": "product",
+      "body": "Acme builds the Lumen language model.",
+      "reference_time": "2026-04-02T00:00:00+00:00"
+    }
+  ],
+  "facts": [
+    {
+      "uuid": "8ee02294-3e82-4770-84fd-306a9d3f4f8f",
+      "fact": "Acme builds the Lumen language model.",
+      "source": "Acme",
+      "target": "Lumen language model",
+      "name": "BUILDS",
+      "valid_at": "2026-04-02T00:00:00+00:00",
+      "invalid_at": null,
+      "created_at": "2026-06-30T11:16:12.261206+00:00",
+      "expired_at": null,
+      "episodes": [
+        "a1daa3a4-d216-425a-a520-6f696ec1acf7"
+      ],
+      "score": null,
+      "is_current": true
+    }
+  ],
+  "snapshot": {
+    "nodes": [
+      {
+        "uuid": "7c9f4a95-7558-41d3-9e52-fd17c37eaf89",
+        "name": "Acme",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Dana Reeves founded Acme.\nAcme builds the Lumen language model."
+      },
+      {
+        "uuid": "2ff13382-83f0-4102-b819-28c8e4ee7182",
+        "name": "Dana Reeves",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Dana Reeves founded Acme."
+      },
+      {
+        "uuid": "21675ad7-ae0f-43ac-91f4-dfa5b4f36e02",
+        "name": "Lumen language model",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Acme builds the Lumen language model."
+      }
+    ],
+    "edges": [
+      {
+        "uuid": "8ee02294-3e82-4770-84fd-306a9d3f4f8f",
+        "source_uuid": "7c9f4a95-7558-41d3-9e52-fd17c37eaf89",
+        "target_uuid": "21675ad7-ae0f-43ac-91f4-dfa5b4f36e02",
+        "name": "BUILDS",
+        "fact": "Acme builds the Lumen language model.",
+        "valid_at": "2026-04-02T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      }
+    ]
+  }
+}

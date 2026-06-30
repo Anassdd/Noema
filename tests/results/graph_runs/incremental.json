@@ -1,0 +1,74 @@
+{
+  "scenario": "incremental",
+  "description": "Adding a document extends the graph incrementally (no full rebuild).",
+  "model": "gpt-4o",
+  "saved_at": "2026-06-30T11:16:24.844528+00:00",
+  "verdict": "win",
+  "observations": [
+    "nodes after 1st episode: 2",
+    "nodes after 2nd episode: 4",
+    "graph grew without a rebuild"
+  ],
+  "episodes": [
+    {
+      "name": "c1",
+      "body": "Paris is the capital of France.",
+      "reference_time": "2026-05-01T00:00:00+00:00"
+    },
+    {
+      "name": "c2",
+      "body": "Berlin is the capital of Germany.",
+      "reference_time": "2026-05-02T00:00:00+00:00"
+    }
+  ],
+  "facts": [],
+  "snapshot": {
+    "nodes": [
+      {
+        "uuid": "dd8af3a7-bcff-43be-9391-0cae98e1379f",
+        "name": "France",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Paris is the capital of France."
+      },
+      {
+        "uuid": "95761c14-efc9-456c-a0ab-0c1ebcf968e0",
+        "name": "Paris",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Paris is the capital of France."
+      },
+      {
+        "uuid": "80937797-25ff-4e1f-88c0-5a2dc370a5d3",
+        "name": "Germany",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Berlin is the capital of Germany."
+      },
+      {
+        "uuid": "4fc5a533-8a2c-4ea6-a27f-e50455031544",
+        "name": "Berlin",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Berlin is the capital of Germany."
+      }
+    ],
+    "edges": [
+      {
+        "uuid": "7cdcd8c6-eb38-43d7-b985-11ffe1fda890",
+        "source_uuid": "4fc5a533-8a2c-4ea6-a27f-e50455031544",
+        "target_uuid": "80937797-25ff-4e1f-88c0-5a2dc370a5d3",
+        "name": "IS_CAPITAL_OF",
+        "fact": "Berlin is the capital of Germany.",
+        "valid_at": "2026-05-02T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      }
+    ]
+  }
+}

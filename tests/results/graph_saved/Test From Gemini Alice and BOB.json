@@ -1,0 +1,479 @@
+{
+  "name": "Test From Gemini Alice and BOB",
+  "domain": "wb_text",
+  "saved_at": "2026-06-30T15:06:24.324287+00:00",
+  "source": "Phase 1 (The Beginning):\nIn 2022, Alice and Bob were married and co-founded a software startup in Chicago called \"DevFlow.\" Alice served as the CEO, while Bob worked under her as the Chief Technology Officer (CTO). DevFlow relied entirely on a cloud hosting company called SkyLine for its servers.\nPhase 2 (The Shift):\nBy 2024, things changed dramatically. Alice and Bob divorced, and Bob left DevFlow entirely to launch a rival startup called \"CloudPulse.\" Bob successfully convinced DevFlow’s top engineer, Carlos, to quit and join CloudPulse as his new partner.\nPhase 3 (The Present):\nToday, Alice still runs DevFlow, but she has completely replaced SkyLine, moving all company servers over to Bob’s new company, CloudPulse, because their rates were cheaper. Despite their messy history, Alice now pays her ex-husband’s company $5,000 a month for server infrastructure.",
+  "schema": {
+    "domain": "wb_text",
+    "sample_chars": 872,
+    "model": "gpt-4o",
+    "entity_types": [
+      {
+        "name": "Person",
+        "description": "An individual involved in the narrative."
+      },
+      {
+        "name": "Company",
+        "description": "A business entity involved in the narrative."
+      },
+      {
+        "name": "Role",
+        "description": "A position or job title held by a person within a company."
+      },
+      {
+        "name": "Event",
+        "description": "A significant occurrence or change in the narrative."
+      },
+      {
+        "name": "Location",
+        "description": "A geographical place relevant to the narrative."
+      },
+      {
+        "name": "Service",
+        "description": "A type of service provided by a company."
+      },
+      {
+        "name": "FinancialTransaction",
+        "description": "A monetary exchange between entities."
+      }
+    ],
+    "edge_types": [
+      {
+        "name": "MARRIED_TO",
+        "description": "Indicates a marital relationship between two people."
+      },
+      {
+        "name": "CO_FOUNDED",
+        "description": "Indicates joint founding of a company by people."
+      },
+      {
+        "name": "HOLDS_ROLE",
+        "description": "Indicates a person holding a specific role in a company."
+      },
+      {
+        "name": "RELOCATED_SERVERS_TO",
+        "description": "Indicates the movement of servers from one company to another."
+      },
+      {
+        "name": "PAYS_FOR_SERVICE",
+        "description": "Indicates a financial transaction for services between entities."
+      },
+      {
+        "name": "LEFT_COMPANY",
+        "description": "Indicates a person leaving a company."
+      },
+      {
+        "name": "JOINED_COMPANY",
+        "description": "Indicates a person joining a company."
+      },
+      {
+        "name": "CONVINCED_TO_JOIN",
+        "description": "Indicates a person persuading another to join a company."
+      },
+      {
+        "name": "DIVORCED",
+        "description": "Indicates the end of a marital relationship between two people."
+      },
+      {
+        "name": "LOCATED_IN",
+        "description": "Indicates the geographical location of a company."
+      }
+    ]
+  },
+  "snapshot": {
+    "nodes": [
+      {
+        "uuid": "eb896ec1-6858-469c-8d2b-0056427f2534",
+        "name": "CloudPulse",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Bob launched CloudPulse.\nCarlos joined CloudPulse.\nAlice moved all DevFlow's servers to CloudPulse.\nAlice pays CloudPulse $5,000 a month for server infrastructure."
+      },
+      {
+        "uuid": "eb1e55eb-f644-415c-83aa-3afb5fc51bdf",
+        "name": "Alice",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Alice and Bob were married.\nAlice and Bob divorced.\nAlice co-founded DevFlow.\nAlice served as the CEO of DevFlow.\nAlice pays CloudPulse $5,000 a month for server infrastructure."
+      },
+      {
+        "uuid": "e46da159-8d01-4e25-a173-39ae70cbadd4",
+        "name": "SkyLine",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "DevFlow relied on SkyLine for its servers."
+      },
+      {
+        "uuid": "dfa62ebf-e91b-40f7-b324-9cd91012c9ba",
+        "name": "DevFlow",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Alice co-founded DevFlow.\nBob co-founded DevFlow.\nAlice served as the CEO of DevFlow.\nBob was the Chief Technology Officer (CTO) at DevFlow.\nDevFlow relied on SkyLine for its servers.\nDevFlow is located in Chicago.\nCarlos quit DevFlow.\nDevFlow uses CloudPulse for its server infrastructure.\nDevFlow replaced SkyLine with CloudPulse for its servers."
+      },
+      {
+        "uuid": "c820d7f3-b732-436a-aafc-1bcdd730cc27",
+        "name": "Carlos",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Bob convinced Carlos to join CloudPulse.\nCarlos joined CloudPulse."
+      },
+      {
+        "uuid": "c1f33cfe-eff9-4149-9585-f130648f477b",
+        "name": "Alice",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Alice and Bob were married.\nAlice and Bob co-founded DevFlow.\nAlice served as the CEO of DevFlow.\nAlice and Bob divorced.\nAlice moved all DevFlow's servers to CloudPulse.\nAlice pays CloudPulse $5,000 a month for server infrastructure."
+      },
+      {
+        "uuid": "872550d1-7886-47f1-896c-fb2ce2293fc5",
+        "name": "CloudPulse",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Bob founded CloudPulse.\nCarlos joined CloudPulse as Bob's new partner.\nDevFlow uses CloudPulse for its server infrastructure.\nAlice pays CloudPulse $5,000 a month for server infrastructure."
+      },
+      {
+        "uuid": "6e189077-f708-459c-ae1d-d2c9b39ed873",
+        "name": "SkyLine",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "DevFlow relied on SkyLine for its servers.\nDevFlow replaced SkyLine with CloudPulse for its servers."
+      },
+      {
+        "uuid": "3d98c7c7-6600-456b-a0a7-3c087d727ad4",
+        "name": "Chicago",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "DevFlow is located in Chicago."
+      },
+      {
+        "uuid": "2dcc2567-16b7-42a7-a3db-79cc4254ac1c",
+        "name": "Bob",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Alice and Bob were married.\nAlice and Bob divorced.\nBob co-founded DevFlow.\nBob was the Chief Technology Officer (CTO) at DevFlow.\nBob founded CloudPulse."
+      },
+      {
+        "uuid": "2423b1b4-f86d-4971-962c-3604fb4da5dc",
+        "name": "Carlos",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Carlos joined CloudPulse as Bob's new partner.\nCarlos quit DevFlow."
+      },
+      {
+        "uuid": "02c76415-94fe-45fc-b6b4-46b06f948c81",
+        "name": "Bob",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Alice and Bob were married.\nAlice and Bob co-founded DevFlow.\nBob worked as the CTO of DevFlow.\nAlice and Bob divorced.\nBob left DevFlow.\nBob launched CloudPulse.\nBob convinced Carlos to join CloudPulse."
+      },
+      {
+        "uuid": "02702a5d-b967-456b-8af0-cf50bb6cd82a",
+        "name": "DevFlow",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Alice served as the CEO of DevFlow.\nBob worked as the CTO of DevFlow.\nDevFlow relied on SkyLine for its servers.\nBob left DevFlow."
+      }
+    ],
+    "edges": [
+      {
+        "uuid": "fcd5bc79-63b9-47c5-9fd9-28063c44b992",
+        "source_uuid": "c820d7f3-b732-436a-aafc-1bcdd730cc27",
+        "target_uuid": "eb896ec1-6858-469c-8d2b-0056427f2534",
+        "name": "JOINED_COMPANY",
+        "fact": "Carlos joined CloudPulse.",
+        "valid_at": "2024-01-01T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      },
+      {
+        "uuid": "fc037774-e35f-41a9-b269-1e6642d23373",
+        "source_uuid": "02c76415-94fe-45fc-b6b4-46b06f948c81",
+        "target_uuid": "02702a5d-b967-456b-8af0-cf50bb6cd82a",
+        "name": "HOLDS_ROLE",
+        "fact": "Bob worked as the CTO of DevFlow.",
+        "valid_at": "2022-01-01T00:00:00+00:00",
+        "invalid_at": "2024-01-01T00:00:00+00:00",
+        "expired_at": null,
+        "is_current": false
+      },
+      {
+        "uuid": "ea678645-3dfb-4601-b11e-1d2de319e7c9",
+        "source_uuid": "2423b1b4-f86d-4971-962c-3604fb4da5dc",
+        "target_uuid": "dfa62ebf-e91b-40f7-b324-9cd91012c9ba",
+        "name": "LEFT_COMPANY",
+        "fact": "Carlos quit DevFlow.",
+        "valid_at": "2024-01-01T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      },
+      {
+        "uuid": "e967f50c-1710-4155-b224-1ac1946439e0",
+        "source_uuid": "eb1e55eb-f644-415c-83aa-3afb5fc51bdf",
+        "target_uuid": "dfa62ebf-e91b-40f7-b324-9cd91012c9ba",
+        "name": "FOUNDED",
+        "fact": "Alice co-founded DevFlow.",
+        "valid_at": "2022-01-01T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      },
+      {
+        "uuid": "e433231a-74b3-4e2b-a046-6b51cb22e92b",
+        "source_uuid": "2dcc2567-16b7-42a7-a3db-79cc4254ac1c",
+        "target_uuid": "dfa62ebf-e91b-40f7-b324-9cd91012c9ba",
+        "name": "FOUNDED",
+        "fact": "Bob co-founded DevFlow.",
+        "valid_at": "2022-01-01T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      },
+      {
+        "uuid": "e3fff91a-3a30-48da-beb2-248f0b263c7d",
+        "source_uuid": "eb1e55eb-f644-415c-83aa-3afb5fc51bdf",
+        "target_uuid": "dfa62ebf-e91b-40f7-b324-9cd91012c9ba",
+        "name": "WORKS_AS",
+        "fact": "Alice served as the CEO of DevFlow.",
+        "valid_at": "2022-01-01T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      },
+      {
+        "uuid": "d9d4bde6-4b58-48ae-98c5-cf25616d736d",
+        "source_uuid": "dfa62ebf-e91b-40f7-b324-9cd91012c9ba",
+        "target_uuid": "872550d1-7886-47f1-896c-fb2ce2293fc5",
+        "name": "USES_SERVICE",
+        "fact": "DevFlow uses CloudPulse for its server infrastructure.",
+        "valid_at": "2026-06-30T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      },
+      {
+        "uuid": "c599c59e-9ef0-4d79-851d-b7d6b850b2b0",
+        "source_uuid": "2423b1b4-f86d-4971-962c-3604fb4da5dc",
+        "target_uuid": "872550d1-7886-47f1-896c-fb2ce2293fc5",
+        "name": "JOINED_COMPANY",
+        "fact": "Carlos joined CloudPulse as Bob's new partner.",
+        "valid_at": "2024-01-01T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      },
+      {
+        "uuid": "b60c34d0-9062-4d18-8099-c9ee771391ba",
+        "source_uuid": "c1f33cfe-eff9-4149-9585-f130648f477b",
+        "target_uuid": "eb896ec1-6858-469c-8d2b-0056427f2534",
+        "name": "RELOCATED_SERVERS_TO",
+        "fact": "Alice moved all DevFlow's servers to CloudPulse.",
+        "valid_at": "2026-06-30T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      },
+      {
+        "uuid": "b2485834-0a20-4c98-b6b6-dcd05ef27441",
+        "source_uuid": "02702a5d-b967-456b-8af0-cf50bb6cd82a",
+        "target_uuid": "e46da159-8d01-4e25-a173-39ae70cbadd4",
+        "name": "RELOCATED_SERVERS_TO",
+        "fact": "DevFlow relied on SkyLine for its servers.",
+        "valid_at": "2022-01-01T00:00:00+00:00",
+        "invalid_at": "2024-01-01T00:00:00+00:00",
+        "expired_at": null,
+        "is_current": false
+      },
+      {
+        "uuid": "b0909e13-edb6-43fc-b5d5-7d99eba83aa4",
+        "source_uuid": "dfa62ebf-e91b-40f7-b324-9cd91012c9ba",
+        "target_uuid": "3d98c7c7-6600-456b-a0a7-3c087d727ad4",
+        "name": "LOCATED_IN",
+        "fact": "DevFlow is located in Chicago.",
+        "valid_at": "2022-01-01T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      },
+      {
+        "uuid": "a973902d-f2af-473d-8b34-6bfb9c32bb26",
+        "source_uuid": "dfa62ebf-e91b-40f7-b324-9cd91012c9ba",
+        "target_uuid": "6e189077-f708-459c-ae1d-d2c9b39ed873",
+        "name": "REPLACED_SERVICE",
+        "fact": "DevFlow replaced SkyLine with CloudPulse for its servers.",
+        "valid_at": "2026-06-30T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      },
+      {
+        "uuid": "784885bb-5347-41ec-82ac-f9f6b38b9675",
+        "source_uuid": "eb1e55eb-f644-415c-83aa-3afb5fc51bdf",
+        "target_uuid": "2dcc2567-16b7-42a7-a3db-79cc4254ac1c",
+        "name": "MARRIED_TO",
+        "fact": "Alice and Bob were married.",
+        "valid_at": "2022-01-01T00:00:00+00:00",
+        "invalid_at": "2024-01-01T00:00:00+00:00",
+        "expired_at": null,
+        "is_current": false
+      },
+      {
+        "uuid": "75f0b34a-fb2d-4386-8081-c0e0e5d7b75e",
+        "source_uuid": "dfa62ebf-e91b-40f7-b324-9cd91012c9ba",
+        "target_uuid": "6e189077-f708-459c-ae1d-d2c9b39ed873",
+        "name": "USES_SERVICE",
+        "fact": "DevFlow relied on SkyLine for its servers.",
+        "valid_at": "2022-01-01T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      },
+      {
+        "uuid": "6e5e4f61-5a58-4472-a46c-d2ddbf7ae09b",
+        "source_uuid": "02c76415-94fe-45fc-b6b4-46b06f948c81",
+        "target_uuid": "c820d7f3-b732-436a-aafc-1bcdd730cc27",
+        "name": "CONVINCED_TO_JOIN",
+        "fact": "Bob convinced Carlos to join CloudPulse.",
+        "valid_at": "2024-01-01T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      },
+      {
+        "uuid": "69505ec9-1336-4884-b6fb-3790379b64d5",
+        "source_uuid": "eb1e55eb-f644-415c-83aa-3afb5fc51bdf",
+        "target_uuid": "872550d1-7886-47f1-896c-fb2ce2293fc5",
+        "name": "PAYS",
+        "fact": "Alice pays CloudPulse $5,000 a month for server infrastructure.",
+        "valid_at": "2026-06-30T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      },
+      {
+        "uuid": "626635e2-1362-436d-ae40-1adbb7dc7d8d",
+        "source_uuid": "2dcc2567-16b7-42a7-a3db-79cc4254ac1c",
+        "target_uuid": "dfa62ebf-e91b-40f7-b324-9cd91012c9ba",
+        "name": "WORKS_AS",
+        "fact": "Bob was the Chief Technology Officer (CTO) at DevFlow.",
+        "valid_at": "2022-01-01T00:00:00+00:00",
+        "invalid_at": "2024-01-01T00:00:00+00:00",
+        "expired_at": null,
+        "is_current": false
+      },
+      {
+        "uuid": "3f2c0ffa-a300-4a92-ba8e-d6dc2ab90913",
+        "source_uuid": "c1f33cfe-eff9-4149-9585-f130648f477b",
+        "target_uuid": "02702a5d-b967-456b-8af0-cf50bb6cd82a",
+        "name": "HOLDS_ROLE",
+        "fact": "Alice served as the CEO of DevFlow.",
+        "valid_at": "2022-01-01T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      },
+      {
+        "uuid": "3a0ef06c-1d4b-4163-8ad8-deb2a63b0c24",
+        "source_uuid": "c1f33cfe-eff9-4149-9585-f130648f477b",
+        "target_uuid": "02c76415-94fe-45fc-b6b4-46b06f948c81",
+        "name": "DIVORCED",
+        "fact": "Alice and Bob divorced.",
+        "valid_at": "2024-01-01T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      },
+      {
+        "uuid": "3202ce92-49da-46a4-9514-c541f818eabe",
+        "source_uuid": "c1f33cfe-eff9-4149-9585-f130648f477b",
+        "target_uuid": "02c76415-94fe-45fc-b6b4-46b06f948c81",
+        "name": "CO_FOUNDED",
+        "fact": "Alice and Bob co-founded DevFlow.",
+        "valid_at": "2022-01-01T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      },
+      {
+        "uuid": "2fc88a1d-24c8-497a-970d-481efcde124d",
+        "source_uuid": "c1f33cfe-eff9-4149-9585-f130648f477b",
+        "target_uuid": "02c76415-94fe-45fc-b6b4-46b06f948c81",
+        "name": "MARRIED_TO",
+        "fact": "Alice and Bob were married.",
+        "valid_at": "2022-01-01T00:00:00+00:00",
+        "invalid_at": "2024-01-01T00:00:00+00:00",
+        "expired_at": null,
+        "is_current": false
+      },
+      {
+        "uuid": "2fc866ab-b6ef-4a2b-8a09-aedd17c518e9",
+        "source_uuid": "2dcc2567-16b7-42a7-a3db-79cc4254ac1c",
+        "target_uuid": "872550d1-7886-47f1-896c-fb2ce2293fc5",
+        "name": "FOUNDED",
+        "fact": "Bob founded CloudPulse.",
+        "valid_at": "2024-01-01T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      },
+      {
+        "uuid": "2ef2188d-c012-4c54-89f2-fa7237e9c0e9",
+        "source_uuid": "02c76415-94fe-45fc-b6b4-46b06f948c81",
+        "target_uuid": "02702a5d-b967-456b-8af0-cf50bb6cd82a",
+        "name": "LEFT_COMPANY",
+        "fact": "Bob left DevFlow.",
+        "valid_at": "2024-01-01T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      },
+      {
+        "uuid": "2edb6407-e27c-4069-823c-8cd3e69263ac",
+        "source_uuid": "eb1e55eb-f644-415c-83aa-3afb5fc51bdf",
+        "target_uuid": "2dcc2567-16b7-42a7-a3db-79cc4254ac1c",
+        "name": "DIVORCED_FROM",
+        "fact": "Alice and Bob divorced.",
+        "valid_at": "2024-01-01T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      },
+      {
+        "uuid": "282a06f8-4772-451b-b130-c78c62bb5efe",
+        "source_uuid": "c1f33cfe-eff9-4149-9585-f130648f477b",
+        "target_uuid": "eb896ec1-6858-469c-8d2b-0056427f2534",
+        "name": "PAYS_FOR_SERVICE",
+        "fact": "Alice pays CloudPulse $5,000 a month for server infrastructure.",
+        "valid_at": "2026-06-30T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      },
+      {
+        "uuid": "056dad29-020a-4a9f-bcb8-f35c2a353b50",
+        "source_uuid": "02c76415-94fe-45fc-b6b4-46b06f948c81",
+        "target_uuid": "eb896ec1-6858-469c-8d2b-0056427f2534",
+        "name": "CO_FOUNDED",
+        "fact": "Bob launched CloudPulse.",
+        "valid_at": "2024-01-01T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      }
+    ]
+  }
+}

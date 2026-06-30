@@ -1,0 +1,164 @@
+{
+  "scenario": "temporal_invalidation",
+  "description": "A contradicting later fact should invalidate (not delete) the old one.",
+  "model": "gpt-4o",
+  "saved_at": "2026-06-30T11:16:59.905797+00:00",
+  "verdict": "win",
+  "observations": [
+    "4 facts, 2 invalidated",
+    "adidas fact invalidated: True",
+    "nike fact current: True"
+  ],
+  "episodes": [
+    {
+      "name": "adidas",
+      "body": "Kendra Walsh's favorite shoe brand is Adidas. She wears Adidas every day.",
+      "reference_time": "2026-01-03T00:00:00+00:00"
+    },
+    {
+      "name": "nike",
+      "body": "Kendra Walsh's favorite shoe brand is now Nike. She no longer likes Adidas.",
+      "reference_time": "2026-08-21T00:00:00+00:00"
+    }
+  ],
+  "facts": [
+    {
+      "uuid": "7fc9f596-84cd-479e-879d-826a362bb8ba",
+      "fact": "Kendra Walsh no longer likes Adidas.",
+      "source": "Kendra Walsh",
+      "target": "Adidas",
+      "name": "NO_LONGER_LIKES",
+      "valid_at": "2026-08-21T00:00:00+00:00",
+      "invalid_at": null,
+      "created_at": "2026-06-30T11:16:57.523601+00:00",
+      "expired_at": null,
+      "episodes": [
+        "9780c140-d4a2-4261-85cd-87b73c04d25d"
+      ],
+      "score": null,
+      "is_current": true
+    },
+    {
+      "uuid": "24c8e62d-ce8b-4697-bb63-b4076f04f3fb",
+      "fact": "Kendra Walsh's favorite shoe brand is Adidas.",
+      "source": "Kendra Walsh",
+      "target": "Adidas",
+      "name": "FAVORITE_SHOE_BRAND",
+      "valid_at": "2026-01-03T00:00:00+00:00",
+      "invalid_at": "2026-08-21T00:00:00+00:00",
+      "created_at": "2026-06-30T11:16:52.095951+00:00",
+      "expired_at": "2026-06-30T11:16:59.160875+00:00",
+      "episodes": [
+        "75716579-3f82-4538-bad3-9389c8668e33"
+      ],
+      "score": null,
+      "is_current": false
+    },
+    {
+      "uuid": "451084b6-a9b7-466b-9ac3-2419bfe805ef",
+      "fact": "Kendra Walsh wears Adidas every day.",
+      "source": "Kendra Walsh",
+      "target": "Adidas",
+      "name": "WEARS_EVERY_DAY",
+      "valid_at": "2026-01-03T00:00:00+00:00",
+      "invalid_at": "2026-08-21T00:00:00+00:00",
+      "created_at": "2026-06-30T11:16:52.096091+00:00",
+      "expired_at": "2026-06-30T11:16:59.234158+00:00",
+      "episodes": [
+        "75716579-3f82-4538-bad3-9389c8668e33"
+      ],
+      "score": null,
+      "is_current": false
+    },
+    {
+      "uuid": "99ec3a58-2c71-46ca-86ef-84522c56bfca",
+      "fact": "Kendra Walsh's favorite shoe brand is now Nike.",
+      "source": "Kendra Walsh",
+      "target": "Nike",
+      "name": "FAVORITE_SHOE_BRAND",
+      "valid_at": "2026-08-21T00:00:00+00:00",
+      "invalid_at": null,
+      "created_at": "2026-06-30T11:16:57.523464+00:00",
+      "expired_at": null,
+      "episodes": [
+        "9780c140-d4a2-4261-85cd-87b73c04d25d"
+      ],
+      "score": null,
+      "is_current": true
+    }
+  ],
+  "snapshot": {
+    "nodes": [
+      {
+        "uuid": "950823c7-12c8-48e3-9956-dd37344d8f5e",
+        "name": "Kendra Walsh",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Kendra Walsh's favorite shoe brand is Adidas.\nKendra Walsh wears Adidas every day.\nKendra Walsh's favorite shoe brand is now Nike.\nKendra Walsh no longer likes Adidas."
+      },
+      {
+        "uuid": "3ad411fa-7f8a-4025-b9d4-64fd3162ee00",
+        "name": "Nike",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Kendra Walsh's favorite shoe brand is now Nike."
+      },
+      {
+        "uuid": "18e8d1ad-2263-4490-9927-e19844471f47",
+        "name": "Adidas",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Kendra Walsh's favorite shoe brand is Adidas.\nKendra Walsh wears Adidas every day.\nKendra Walsh no longer likes Adidas."
+      }
+    ],
+    "edges": [
+      {
+        "uuid": "99ec3a58-2c71-46ca-86ef-84522c56bfca",
+        "source_uuid": "950823c7-12c8-48e3-9956-dd37344d8f5e",
+        "target_uuid": "3ad411fa-7f8a-4025-b9d4-64fd3162ee00",
+        "name": "FAVORITE_SHOE_BRAND",
+        "fact": "Kendra Walsh's favorite shoe brand is now Nike.",
+        "valid_at": "2026-08-21T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      },
+      {
+        "uuid": "7fc9f596-84cd-479e-879d-826a362bb8ba",
+        "source_uuid": "950823c7-12c8-48e3-9956-dd37344d8f5e",
+        "target_uuid": "18e8d1ad-2263-4490-9927-e19844471f47",
+        "name": "NO_LONGER_LIKES",
+        "fact": "Kendra Walsh no longer likes Adidas.",
+        "valid_at": "2026-08-21T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      },
+      {
+        "uuid": "451084b6-a9b7-466b-9ac3-2419bfe805ef",
+        "source_uuid": "950823c7-12c8-48e3-9956-dd37344d8f5e",
+        "target_uuid": "18e8d1ad-2263-4490-9927-e19844471f47",
+        "name": "WEARS_EVERY_DAY",
+        "fact": "Kendra Walsh wears Adidas every day.",
+        "valid_at": "2026-01-03T00:00:00+00:00",
+        "invalid_at": "2026-08-21T00:00:00+00:00",
+        "expired_at": "2026-06-30T11:16:59.234158+00:00",
+        "is_current": false
+      },
+      {
+        "uuid": "24c8e62d-ce8b-4697-bb63-b4076f04f3fb",
+        "source_uuid": "950823c7-12c8-48e3-9956-dd37344d8f5e",
+        "target_uuid": "18e8d1ad-2263-4490-9927-e19844471f47",
+        "name": "FAVORITE_SHOE_BRAND",
+        "fact": "Kendra Walsh's favorite shoe brand is Adidas.",
+        "valid_at": "2026-01-03T00:00:00+00:00",
+        "invalid_at": "2026-08-21T00:00:00+00:00",
+        "expired_at": "2026-06-30T11:16:59.160875+00:00",
+        "is_current": false
+      }
+    ]
+  }
+}

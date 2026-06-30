@@ -1,0 +1,104 @@
+{
+  "scenario": "provenance",
+  "description": "Every retrieved fact must trace back to its source episode (citable).",
+  "model": "gpt-4o",
+  "saved_at": "2026-06-30T11:16:03.979970+00:00",
+  "verdict": "win",
+  "observations": [
+    "2 facts retrieved",
+    "2 carry source episode(s)"
+  ],
+  "episodes": [
+    {
+      "name": "p1",
+      "body": "Marie Curie discovered radium in Paris.",
+      "reference_time": "2026-03-01T00:00:00+00:00"
+    }
+  ],
+  "facts": [
+    {
+      "uuid": "34bf705a-57cf-47ce-ac9b-922e5b2253f1",
+      "fact": "Marie Curie discovered radium.",
+      "source": "Marie Curie",
+      "target": "radium",
+      "name": "DISCOVERED",
+      "valid_at": "2026-03-01T00:00:00+00:00",
+      "invalid_at": null,
+      "created_at": "2026-06-30T11:16:01.451466+00:00",
+      "expired_at": null,
+      "episodes": [
+        "f65b9442-31ab-4f76-aea2-84bcb0e31c1a"
+      ],
+      "score": null,
+      "is_current": true
+    },
+    {
+      "uuid": "99cb3143-eb12-47d7-bb1c-4095a7f47dbb",
+      "fact": "Marie Curie discovered radium in Paris.",
+      "source": "Marie Curie",
+      "target": "Paris",
+      "name": "DISCOVERED_IN",
+      "valid_at": "1898-12-26T00:00:00+00:00",
+      "invalid_at": null,
+      "created_at": "2026-06-30T11:16:01.451581+00:00",
+      "expired_at": null,
+      "episodes": [
+        "f65b9442-31ab-4f76-aea2-84bcb0e31c1a"
+      ],
+      "score": null,
+      "is_current": true
+    }
+  ],
+  "snapshot": {
+    "nodes": [
+      {
+        "uuid": "d0eca068-7ff8-4b5d-b444-92d6ee26a7e2",
+        "name": "radium",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Marie Curie discovered radium."
+      },
+      {
+        "uuid": "9de9b2c7-94a7-44eb-91b8-7ac8912fdeb7",
+        "name": "Marie Curie",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Marie Curie discovered radium.\nMarie Curie discovered radium in Paris."
+      },
+      {
+        "uuid": "289690a8-45e6-48fa-92ba-8e6f5d39431d",
+        "name": "Paris",
+        "labels": [
+          "Entity"
+        ],
+        "summary": "Marie Curie discovered radium in Paris."
+      }
+    ],
+    "edges": [
+      {
+        "uuid": "99cb3143-eb12-47d7-bb1c-4095a7f47dbb",
+        "source_uuid": "9de9b2c7-94a7-44eb-91b8-7ac8912fdeb7",
+        "target_uuid": "289690a8-45e6-48fa-92ba-8e6f5d39431d",
+        "name": "DISCOVERED_IN",
+        "fact": "Marie Curie discovered radium in Paris.",
+        "valid_at": "1898-12-26T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      },
+      {
+        "uuid": "34bf705a-57cf-47ce-ac9b-922e5b2253f1",
+        "source_uuid": "9de9b2c7-94a7-44eb-91b8-7ac8912fdeb7",
+        "target_uuid": "d0eca068-7ff8-4b5d-b444-92d6ee26a7e2",
+        "name": "DISCOVERED",
+        "fact": "Marie Curie discovered radium.",
+        "valid_at": "2026-03-01T00:00:00+00:00",
+        "invalid_at": null,
+        "expired_at": null,
+        "is_current": true
+      }
+    ]
+  }
+}

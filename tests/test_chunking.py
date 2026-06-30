@@ -157,6 +157,28 @@ def test_default_tokenizer_runs():
     print(f"  default_tokenizer: {len(chunks)} chunks, token_count populated ✓")
 
 
+def test_oversized_atomic_block_never_split():
+    # a display-math block / code block bigger than target must stay whole, not be
+    # hard-split mid-formula into broken LaTeX.
+    term = r"\frac{a_i}{b_i} + \sum_{k=1}^{n} x_k^{2} \le \int_0^\infty e^{-t}\,dt "
+    formula = "$$\n" + term * 80 + "\n$$"   # ~560 words, well over target
+    md = "Intro prose for context here.\n\n" + formula + "\n\nClosing prose here too."
+    chunks = chunk_markdown(md, doc_id="big", target_tokens=100, count_tokens=WC)
+    fc = [c for c in chunks if "frac" in c.text]
+    assert len(fc) == 1, f"formula split across {len(fc)} chunks"
+    assert fc[0].text.count("$$") == 2, "formula delimiters broken"
+    assert fc[0].text.count("frac") == 80, "formula content lost"
+    assert fc[0].text.count("{") == fc[0].text.count("}"), "braces unbalanced — split mid-formula"
+
+    code = "```python\n" + "x = compute_value(idx)\n" * 80 + "```"
+    md2 = "Lead-in line.\n\n" + code + "\n\nWrap-up line."
+    ch2 = chunk_markdown(md2, doc_id="code", target_tokens=100, count_tokens=WC)
+    cc = [c for c in ch2 if "compute_value" in c.text]
+    assert len(cc) == 1, f"code block split across {len(cc)} chunks"
+    assert cc[0].text.count("```") == 2, "code fence broken"
+    print(f"  oversized_atomic: formula ({WC(formula)}w) + code kept whole, never split ✓")
+
+
 TESTS = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
 
 if __name__ == "__main__":

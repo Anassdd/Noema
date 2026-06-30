@@ -19,5 +19,7 @@ pypdfium2>=4.0.0
 # vision default.
 azure-ai-documentintelligence>=1.0.0
 
-# RAG vector store — NOT used yet. Uncomment when the embed/retrieve slice lands.
-# chromadb>=0.5.0
+# RAG vector store — embedded, on-disk, no server/GPU. Holds the contextual vector base.
+# We pass our own embeddings (via the provider abstraction), so Chroma's bundled
+# embedding models aren't used. BM25 (keyword search) is pure-Python, no dependency.
+chromadb>=1.0.0

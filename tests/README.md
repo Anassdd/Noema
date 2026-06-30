@@ -1,24 +1,30 @@
 # Noema — Lab (interactive testbench)
 
-A multipage Streamlit app to inspect each pipeline step. Independent of the product
+A Streamlit app. The landing page is a **simple playground** — add a PDF, ask a question,
+read the answer with its sources; no internals to learn. The sidebar pages are the
+**inspector** for when you want to see how each step works. Independent of the product
 (imports the app modules read-only) and deletes cleanly.
 
 ```
 tests/
-  lab.py                  # Home — overview + the test report (wins / fails)
+  lab.py                  # Playground — add documents, ask, get cited answers (the easy front door)
   lab_common.py           # shared helpers (report, timing, caching, render, "show the code")
   pages/
     1_Parser.py           # Parser        — tabs: How it works | Saved tests | Live run
     2_Chunker.py          # Chunker       — tabs: How it works | Saved tests | Live run
     3_Contextualizer.py   # Contextualizer— tabs: How it works | Saved tests | Live run
+    4_Retrieval.py        # Retrieval     — tabs: How it works | Build the base | Ask
   myTestPDFs/             # example + user-added PDFs (gitignored)
   results/
     test_log.json         # the shared test report
     chunk_examples.json   # seeded chunker use cases + edge cases
     parser_runs/          # cached parser results (Saved tests need no re-extraction)
     context_runs/         # cached contextual-retrieval results
+    rag_store/            # the lab's Chroma RAG base (disposable)
   test_chunking.py        # automated chunker tests (no pytest needed)
   test_contextual.py      # automated contextualizer tests (mocked LLM, free)
+  test_textlayer.py       # automated text-route structuring tests
+  test_retrieval.py       # automated retrieval-engine tests (fake embedder, free)
   requirements.txt        # streamlit
 ```
 
@@ -54,6 +60,8 @@ verdict) into the shared report shown on **Home**.
 ```bash
 backend/.venv/bin/python tests/test_chunking.py      # chunker: normal + edge cases
 backend/.venv/bin/python tests/test_contextual.py    # contextualizer: mocked LLM, free
+backend/.venv/bin/python tests/test_textlayer.py     # text-route structuring
+backend/.venv/bin/python tests/test_retrieval.py     # retrieval engine: fake embedder, free
 ```
 
 ## Remove it when done

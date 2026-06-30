@@ -33,6 +33,7 @@ class _Block:
     end: int
     level: int = 0
     heading_text: str = ""
+    atomic: bool = False  # code / $$math$$ / table — never split, even if over target
 
 
 def _lines_with_offsets(text: str):
@@ -74,7 +75,8 @@ def _blocks(markdown: str) -> list[_Block]:
                 i += 1
                 if l2.strip().startswith(token):
                     break
-            blocks.append(_Block("content", "".join(buf).strip("\n"), s, s + sum(len(x) for x in buf)))
+            blocks.append(_Block("content", "".join(buf).strip("\n"), s,
+                                 s + sum(len(x) for x in buf), atomic=True))
             continue
 
         if stripped.startswith("$$"):
@@ -86,7 +88,8 @@ def _blocks(markdown: str) -> list[_Block]:
                     i += 1
                     if "$$" in l2:
                         break
-            blocks.append(_Block("content", "".join(buf).strip("\n"), s, s + sum(len(x) for x in buf)))
+            blocks.append(_Block("content", "".join(buf).strip("\n"), s,
+                                 s + sum(len(x) for x in buf), atomic=True))
             continue
 
         if _HTML_TABLE_OPEN.match(line):
@@ -95,7 +98,8 @@ def _blocks(markdown: str) -> list[_Block]:
                 _, l2 = lines[i]
                 buf.append(l2)
                 i += 1
-            blocks.append(_Block("content", "".join(buf).strip("\n"), s, s + sum(len(x) for x in buf)))
+            blocks.append(_Block("content", "".join(buf).strip("\n"), s,
+                                 s + sum(len(x) for x in buf), atomic=True))
             continue
 
         # Paragraph / list / Markdown table: run until a blank line or a new structure.
@@ -131,6 +135,10 @@ def _sections(blocks: list[_Block]):
                 stack.pop()
             stack.append((b.level, b.heading_text))
             path[:] = [h[1] for h in stack]
+            # Keep the heading line in the body too, not only in the path: a chunk must
+            # carry every character of the source so nothing is lost, searchable, or
+            # un-citable — even if a line was mis-promoted to a heading upstream.
+            current.append(_Block("content", b.text, b.start, b.end))
         else:
             current.append(b)
     flush()
@@ -180,8 +188,11 @@ def _pack(blocks: list[_Block], target: int, min_tokens: int, count) -> list[lis
             if cur:
                 groups.append(cur)
                 cur, cur_tok = [], 0
-            for piece in _split_block(b, target, count):
-                groups.append([piece])
+            if b.atomic:  # a formula / code block / table is emitted whole, never split
+                groups.append([b])
+            else:
+                for piece in _split_block(b, target, count):
+                    groups.append([piece])
             continue
         if cur and cur_tok + btok > target:
             groups.append(cur)
@@ -244,9 +255,14 @@ def chunk_markdown(
     for path, content in sections:
         groups = _pack(content, target_tokens, min_tokens, count_tokens)
         prev_body = None
+        prev_atomic = False
         for gi, group in enumerate(groups):
             body = "\n\n".join(b.text for b in group)
-            prefix = _tail(prev_body, overlap_tokens, count_tokens) if gi > 0 and prev_body else ""
+            atomic = len(group) == 1 and group[0].atomic
+            # Skip overlap across an atomic block: copying a formula/code/table fragment
+            # forward would duplicate it and tear it apart.
+            use_overlap = gi > 0 and prev_body and not prev_atomic and not atomic
+            prefix = _tail(prev_body, overlap_tokens, count_tokens) if use_overlap else ""
             text = f"{prefix}\n\n{body}" if prefix else body
             chunks.append(Chunk(
                 chunk_id=f"{doc_id}::{index}",
@@ -262,6 +278,7 @@ def chunk_markdown(
             ))
             index += 1
             prev_body = body
+            prev_atomic = atomic
     return chunks
 
 

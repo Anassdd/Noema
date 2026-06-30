@@ -65,6 +65,14 @@ class Settings:
     # supplies a placeholder, which the SDK requires but the server ignores).
     base_url: str = ""
 
+    # Retrieval: where the embedded vector store persists (empty -> backend/.chroma).
+    vector_dir: str = ""
+    # Reranker seam (optional, no-GPU). Empty rerank_model -> a dedicated reranker is
+    # not used; the lab/engine can still fall back to LLM-based reranking.
+    rerank_model: str = ""
+    rerank_base_url: str = ""
+    rerank_api_key: str = ""
+
     # Generation defaults (overridable per call in llm_client.chat()).
     chat_temperature: float = 0.2
     # Cap on conversation turns kept in history; consumed by the chat route, not
@@ -80,6 +88,10 @@ def load_settings() -> Settings:
         parser=os.getenv("PARSER", "vision").strip().lower(),
         docintel_endpoint=os.getenv("DOCINTEL_ENDPOINT", ""),
         docintel_key=os.getenv("DOCINTEL_KEY", ""),
+        vector_dir=os.getenv("VECTOR_DIR", ""),
+        rerank_model=os.getenv("RERANK_MODEL", ""),
+        rerank_base_url=os.getenv("RERANK_BASE_URL", ""),
+        rerank_api_key=os.getenv("RERANK_API_KEY", ""),
     )
 
     if provider == "openai":

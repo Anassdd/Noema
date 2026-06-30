@@ -85,8 +85,10 @@ info → `pages = []`.)
 
 - **Text-route structure is heuristic** — when the *parser* routes a page to the free
   text layer, headings are recovered by a light **text-only** heuristic (short, title-like
-  lines), not by font size, so an unusual heading may be missed or a short prose line
-  mis-promoted. Vision-routed pages get exact headings from the model. (A parser concern.)
+  lines that start like a title and have no sentence punctuation), not by font size, so an
+  unusual heading may be missed. Vision-routed pages get exact headings from the model.
+  Even if a line is mis-promoted, the chunker keeps the heading text **in the chunk body**
+  (not only in the section path), so no character is ever dropped from retrieval. (A parser concern.)
 - **Token counts are approximate** when tiktoken isn't installed (heuristic ~4 chars/tok);
   exact with tiktoken. Either way it's used only to size chunks, so slight drift is fine.
 - **Markdown tables are grouped as one block** by blank-line boundaries; an unusually

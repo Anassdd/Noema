@@ -98,17 +98,26 @@ _LIST_ITEM = re.compile(r"^([-*+]|\d+[.)])\s")
 
 
 def _looks_like_heading(line: str) -> bool:
-    """Conservative title-line test: short, no terminal punctuation, mostly letters,
-    not a list item. Used ONLY on the free text route to recover headings the plain
-    text layer drops (the vision route gets headings from the model)."""
+    """Conservative title-line test: short, mostly letters, not a list item, starts
+    like a title and doesn't read like a sentence. Used ONLY on the free text route to
+    recover headings the plain text layer drops (the vision route gets headings from the
+    model). Deliberately strict: a false heading would silently swallow body text, so we
+    only promote a line we're confident is a title."""
     s = line.strip()
     if not s or len(s) > _HEADING_MAX_CHARS:
-        return False
-    if s[-1] in ".!?,;:":
         return False
     if len(s.split()) > _HEADING_MAX_WORDS:
         return False
     if _LIST_ITEM.match(s):
+        return False
+    # A title starts like a title — not with a lowercase word (a wrapped sentence does).
+    first = next((c for c in s if c.isalnum()), "")
+    if first.islower():
+        return False
+    # A title has no sentence-ending punctuation. Ignore trailing quotes/brackets first,
+    # so dialogue or prose wrapped onto a short line ('... tomorrow."') is still rejected.
+    core = s.rstrip("\"'”’»)]}")
+    if core and core[-1] in ".!?,;:":
         return False
     return sum(c.isalpha() for c in s) >= len(s) * 0.5
 

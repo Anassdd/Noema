@@ -98,8 +98,12 @@ def load_settings() -> Settings:
         return Settings(
             provider="openai",
             api_key=_require("OPENAI_API_KEY"),
-            chat_model=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
-            embed_model=os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-small"),
+            # Default judge/answer model: gpt-4.1-mini — clearly stronger than 4o-mini
+            # (better routing/grading + reasoning) while staying cheap. Override in .env.
+            chat_model=os.getenv("OPENAI_CHAT_MODEL", "gpt-4.1-mini"),
+            # text-embedding-3-large: better retrieval + multilingual (French corpus), still
+            # cheap. Dimension is read dynamically downstream, so this is a safe swap.
+            embed_model=os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-large"),
             parse_model=os.getenv("OPENAI_PARSE_MODEL", "gpt-4o"),
             chat_temperature=float(os.getenv("CHAT_TEMPERATURE", "0.2")),
             max_history_turns=int(os.getenv("MAX_HISTORY_TURNS", "8")),

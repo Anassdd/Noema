@@ -2,7 +2,8 @@ import { useRef, useState } from "react";
 
 import { estimateTokens } from "../lib/tokens.js";
 import { findCommand, matchCommands } from "../lib/commands.js";
-import { PlusIcon, SendIcon, StopIcon, SparkIcon } from "./icons.jsx";
+import { listSaves } from "../api/graphmem.js";
+import { PlusIcon, SendIcon, StopIcon, SparkIcon, Icon, ChevronDownIcon, CheckIcon } from "./icons.jsx";
 
 // Rounded composer (mockup style): auto-growing textarea, a circular attach
 // button and a circular send/stop button, with a token + model footer. A
@@ -17,6 +18,9 @@ export default function MessageInput({
   isUploading,
   model,
   sessionTokens,
+  memory,
+  onSelectMemory,
+  expertEnabled,
 }) {
   const [text, setText] = useState("");
   const [selIdx, setSelIdx] = useState(0);
@@ -200,6 +204,8 @@ export default function MessageInput({
             )}
           </button>
 
+          {expertEnabled && <MemorySelector value={memory} onChange={onSelectMemory} />}
+
           <div className="ml-auto" />
 
           {isStreaming ? (
@@ -229,7 +235,7 @@ export default function MessageInput({
         className="mt-2.5 flex items-center px-1 font-mono text-[11px]"
         style={{ color: "var(--text-faint)" }}
       >
-        <span>Answers may be inaccurate.</span>
+        <span>{memory ? `Answering from “${memory}”.` : "Answers may be inaccurate."}</span>
         <span className="ml-auto flex items-center gap-3.5">
           {showTokenEstimate && estTokens > 0 && (
             <span title="Exact token count of your message (tiktoken o200k_base).">
@@ -241,5 +247,77 @@ export default function MessageInput({
         </span>
       </div>
     </div>
+  );
+}
+
+// Pick which memory the expert grounds answers in: the live working memory, or one of the
+// saved snapshots (each captures the graph + RAG together). Saves are made on the graph page.
+function MemorySelector({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [saves, setSaves] = useState([]);
+  const toggle = () => {
+    if (!open) listSaves().then((r) => setSaves(r.saves || [])).catch(() => {});
+    setOpen((o) => !o);
+  };
+  const active = !!value;
+  return (
+    <div className="relative">
+      <button
+        onClick={toggle}
+        title="Which memory the expert answers from"
+        className="flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs transition"
+        style={{
+          borderColor: active ? "var(--accent-border)" : "var(--border)",
+          color: active ? "var(--accent)" : "var(--text-soft)",
+          background: active ? "var(--accent-soft)" : "transparent",
+        }}
+      >
+        <Icon size={12} sw={1.8}>
+          <ellipse cx="12" cy="5" rx="8" ry="3" />
+          <path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5" />
+          <path d="M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6" />
+        </Icon>
+        <span className="max-w-[130px] truncate">{value || "Live memory"}</span>
+        <ChevronDownIcon size={12} sw={2} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
+          <div
+            className="animate-pop-in absolute bottom-full left-0 z-30 mb-2 max-h-72 w-60 overflow-y-auto rounded-xl border p-1.5"
+            style={{ background: "var(--sidebar-bg)", borderColor: "var(--border)", boxShadow: "var(--win-shadow)" }}
+          >
+            <MemoryItem active={!value} onClick={() => { onChange(null); setOpen(false); }}
+              label="Live memory" hint="the current working memory" />
+            {saves.map((s) => (
+              <MemoryItem key={s} active={value === s} onClick={() => { onChange(s); setOpen(false); }}
+                label={s} hint="saved snapshot" />
+            ))}
+            {saves.length === 0 && (
+              <p className="px-3 py-2 text-[11px]" style={{ color: "var(--text-faint)" }}>
+                No saved memories yet — save one on the graph page.
+              </p>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function MemoryItem({ active, onClick, label, hint }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition hover:bg-[var(--row-hover)]"
+    >
+      <span className="grid h-4 w-4 shrink-0 place-items-center" style={{ color: "var(--accent)" }}>
+        {active ? <CheckIcon size={13} sw={2.6} /> : null}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13px]" style={{ color: "var(--text)" }}>{label}</span>
+        <span className="block text-[10px]" style={{ color: "var(--text-faint)" }}>{hint}</span>
+      </span>
+    </button>
   );
 }

@@ -100,3 +100,27 @@ class VectorStore:
         self._client.delete_collection(_collection_name(self.domain_id))
         self._col = self._client.get_or_create_collection(
             _collection_name(self.domain_id), metadata={"hnsw:space": "cosine"})
+
+    # ---- snapshot / restore (for memory checkpoints) ----
+    def copy_into(self, dest_domain_id: str) -> int:
+        """Replace another domain's collection with a copy of this one (embeddings and all).
+        Used to snapshot the RAG store alongside a graph save, and to restore it."""
+        dest_name = _collection_name(dest_domain_id)
+        try:
+            self._client.delete_collection(dest_name)  # start clean
+        except Exception:
+            pass
+        dest = self._client.get_or_create_collection(dest_name, metadata={"hnsw:space": "cosine"})
+        r = self._col.get(include=["embeddings", "documents", "metadatas"])
+        if not r["ids"]:
+            return 0
+        dest.add(ids=r["ids"], embeddings=r["embeddings"],
+                 documents=r["documents"], metadatas=r["metadatas"])
+        return len(r["ids"])
+
+    def drop(self) -> None:
+        """Delete this collection entirely (used when deleting a save)."""
+        try:
+            self._client.delete_collection(_collection_name(self.domain_id))
+        except Exception:
+            pass

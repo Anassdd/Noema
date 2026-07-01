@@ -14,14 +14,22 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
  * @param {object} handlers
  * @param {(text: string) => void}  handlers.onDelta  called per token chunk
  * @param {(usage: object|null) => void} handlers.onUsage final token counts
+ * @param {(step: {stage: string, detail: string}) => void} [handlers.onStatus] runtime-trace step
+ * @param {(sources: object[]) => void} [handlers.onSources]  the answer's cited sources
  * @param {AbortSignal} [handlers.signal]  to cancel an in-flight stream
  * @param {string} [handlers.model]  model id to use (defaults server-side)
+ * @param {boolean} [handlers.useMemory]  ground the answer in the RAG/graph memory
+ * @param {string} [handlers.domain]  which knowledge base to ground in
+ * @param {string|null} [handlers.memory]  a saved snapshot name to answer from (null = live)
  */
-export async function streamChat(messages, { onDelta, onUsage, signal, model }) {
+export async function streamChat(
+  messages,
+  { onDelta, onUsage, onStatus, onSources, signal, model, useMemory = false, domain = "default", memory = null },
+) {
   const res = await fetch(`${API_BASE}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, model }),
+    body: JSON.stringify({ messages, model, use_memory: useMemory, domain, memory }),
     signal,
   });
 
@@ -59,6 +67,8 @@ export async function streamChat(messages, { onDelta, onUsage, signal, model }) 
 
       if (event.type === "delta") onDelta(event.text);
       else if (event.type === "usage") onUsage(event.usage);
+      else if (event.type === "status") onStatus?.(event); // live runtime trace step
+      else if (event.type === "sources") onSources?.(event.sources); // cited sources
       // Provider error mid-stream — surface it instead of ending silently.
       else if (event.type === "error")
         throw new Error(event.message || "The model returned an error.");

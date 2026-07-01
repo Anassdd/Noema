@@ -57,6 +57,9 @@ export default function App() {
   const trackUsage = (usage) =>
     setSessionTokens((t) => t + (usage?.total_tokens ?? 0));
 
+  // Which saved memory snapshot the expert answers from (null = live memory).
+  const [selectedMemory, setSelectedMemory] = useState(null);
+
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [docsPanelOpen, setDocsPanelOpen] = useState(false);
@@ -153,6 +156,9 @@ export default function App() {
             onForgetMemory={memory.forgetMemories}
             prefilterEnabled={settings.prefilterEnabled}
             memoryEnabled={settings.memoryEnabled}
+            expertEnabled={settings.expertEnabled}
+            selectedMemory={selectedMemory}
+            onSelectMemory={setSelectedMemory}
             tokenizerEnabled={settings.tokenizerEnabled}
             character={active.character}
             onSetCharacter={conv.setActiveCharacter}
@@ -189,6 +195,8 @@ export default function App() {
         <SettingsModal
           memoryEnabled={settings.memoryEnabled}
           onToggleMemory={settings.toggleMemory}
+          expertEnabled={settings.expertEnabled}
+          onToggleExpert={settings.toggleExpert}
           prefilterEnabled={settings.prefilterEnabled}
           onTogglePrefilter={settings.togglePrefilter}
           tokenizerEnabled={settings.tokenizerEnabled}

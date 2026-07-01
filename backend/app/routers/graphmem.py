@@ -19,15 +19,14 @@ from pydantic import BaseModel
 from app import parsing
 from app.graph import GraphMemory, GraphSnapshot
 from app.graph.config import graph_config
+from app.graph.manager import graph_manager
+from app.retrieval import VectorStore, ingest_parsed_doc
+from app.saves import save_key, save_prefix
 
 router = APIRouter(prefix="/graphmem")
 
 DOMAIN_DEFAULT = "default"
 MAX_PDF_BYTES = 25 * 1024 * 1024
-
-
-def _save_key(domain: str, name: str) -> str:
-    return f"__save__{domain}__{name}"
 
 
 def _falkor_ops(fn):
@@ -45,32 +44,8 @@ def _falkor_ops(fn):
             pass
 
 
-class _Manager:
-    """Holds one GraphMemory per (domain, extraction-model); builds lazily, and
-    serializes writes per domain so concurrent ingests don't race the graph."""
-
-    def __init__(self) -> None:
-        self._mems: dict[tuple[str, str], GraphMemory] = {}
-        self._locks: dict[str, asyncio.Lock] = {}
-        self._build_lock = asyncio.Lock()
-
-    async def get(self, domain: str, model: str = "") -> GraphMemory:
-        key = (domain, model)
-        mem = self._mems.get(key)
-        if mem is None:
-            async with self._build_lock:
-                mem = self._mems.get(key)
-                if mem is None:
-                    mem = GraphMemory(domain, extract_model=model or None)
-                    await mem.build()
-                    self._mems[key] = mem
-        return mem
-
-    def lock(self, domain: str) -> asyncio.Lock:
-        return self._locks.setdefault(domain, asyncio.Lock())
-
-
-_mgr = _Manager()
+# One shared cache of GraphMemory instances (also used by the retrieval pipeline).
+_mgr = graph_manager
 
 
 class IngestText(BaseModel):
@@ -171,6 +146,19 @@ async def upload(
                     continue
                 snap = await reader.snapshot()
                 yield _line({"phase": "page", "page": i + 1, "total": len(pages), **_payload(snap)})
+
+        # Same doc → also fold into the RAG vector base (chunk → contextualize → embed →
+        # store), so the one corpus is queryable both ways. Reuses the already-parsed doc
+        # (no second vision pass). Independent of the graph: a failure here must not lose
+        # the graph work, so it's isolated and reported, not raised.
+        yield _line({"phase": "rag_indexing", "filename": doc.filename})
+        try:
+            info = await asyncio.to_thread(
+                ingest_parsed_doc, doc, domain_id=domain, context_model=model or None
+            )
+            yield _line({"phase": "rag_done", "filename": doc.filename, "chunks": info.get("chunks", 0)})
+        except Exception as exc:  # noqa: BLE001 — surface, keep the stream alive
+            yield _line({"phase": "rag_error", "filename": doc.filename, "detail": str(exc)})
         yield _line({"phase": "done"})
 
     return StreamingResponse(stream(), media_type="application/x-ndjson")
@@ -191,7 +179,7 @@ class SaveBody(BaseModel):
 
 @router.get("/saves")
 async def list_saves(domain: str = DOMAIN_DEFAULT) -> dict:
-    prefix = _save_key(domain, "")
+    prefix = save_prefix(domain)
     graphs = await asyncio.to_thread(_falkor_ops, lambda db: db.list_graphs())
     return {"saves": sorted(g[len(prefix):] for g in graphs if g.startswith(prefix))}
 
@@ -203,11 +191,11 @@ async def save_graph(body: SaveBody) -> dict:
         raise HTTPException(status_code=400, detail="Give the save a name.")
     domain = body.domain or DOMAIN_DEFAULT
     await _mgr.get(domain)  # ensure the server is up and the graph exists
+    dest = save_key(domain, name)
 
     def _do(db):
         if domain not in db.list_graphs():
             raise ValueError("empty")
-        dest = _save_key(domain, name)
         if dest in db.list_graphs():
             db.select_graph(dest).delete()  # overwrite an existing save of the same name
         db.select_graph(domain).copy(dest)
@@ -217,14 +205,16 @@ async def save_graph(body: SaveBody) -> dict:
             await asyncio.to_thread(_falkor_ops, _do)
         except ValueError:
             raise HTTPException(status_code=400, detail="Nothing to save — the graph is empty.")
-    return {"saved": name}
+        # Snapshot the RAG vector base under the same key, so the save captures BOTH stores.
+        chunks = await asyncio.to_thread(lambda: VectorStore(domain).copy_into(dest))
+    return {"saved": name, "chunks": chunks}
 
 
 @router.post("/restore")
 async def restore_graph(body: SaveBody) -> dict:
     name = body.name.strip()
     domain = body.domain or DOMAIN_DEFAULT
-    src = _save_key(domain, name)
+    src = save_key(domain, name)
     await _mgr.get(domain)
 
     def _do(db):
@@ -239,6 +229,8 @@ async def restore_graph(body: SaveBody) -> dict:
             await asyncio.to_thread(_falkor_ops, _do)
         except ValueError:
             raise HTTPException(status_code=404, detail="That save doesn't exist.")
+        # Restore the RAG store too (an old graph-only save has none → clears to empty).
+        await asyncio.to_thread(lambda: VectorStore(src).copy_into(domain))
     mem = await _mgr.get(domain)
     return _payload(await mem.snapshot())
 
@@ -246,11 +238,13 @@ async def restore_graph(body: SaveBody) -> dict:
 @router.post("/delete-save")
 async def delete_save(body: SaveBody) -> dict:
     domain = body.domain or DOMAIN_DEFAULT
-    src = _save_key(domain, body.name.strip())
+    name = body.name.strip()
+    src = save_key(domain, name)
 
     def _do(db):
         if src in db.list_graphs():
             db.select_graph(src).delete()
 
     await asyncio.to_thread(_falkor_ops, _do)
-    return {"deleted": body.name}
+    await asyncio.to_thread(lambda: VectorStore(src).drop())  # drop the RAG snapshot too
+    return {"deleted": name}

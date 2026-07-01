@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 
 import { COMMANDS } from "../lib/commands.js";
-import { CheckIcon, Icon } from "./icons.jsx";
+import { CheckIcon, ChevronDownIcon, Icon } from "./icons.jsx";
 
 // Markdown (parser + highlighter) is heavy — lazy-load it into its own chunk.
 const Markdown = lazy(() => import("./Markdown.jsx"));
@@ -141,6 +141,7 @@ function Row({ message, breakdown, showCursor, isLast, onProgress }) {
           Noema
         </span>
       </div>
+      {message.trace?.length ? <TracePanel trace={message.trace} streaming={showCursor} /> : null}
       {message.content ? (
         isLast ? (
           <PacedAnswer
@@ -152,9 +153,10 @@ function Row({ message, breakdown, showCursor, isLast, onProgress }) {
         ) : (
           <MarkdownBlock content={message.content} />
         )
-      ) : showCursor ? (
+      ) : showCursor && !message.trace?.length ? (
         <TypingDots />
       ) : null}
+      {message.sources?.length ? <Sources sources={message.sources} /> : null}
       {!showCursor && (!isLast || revealDone) && message.content && (
         <div className="mt-2 flex items-center gap-2 font-mono text-[11px]" style={{ color: "var(--text-faint)" }}>
           <CopyButton text={message.content} />
@@ -298,5 +300,131 @@ function CopyButton({ text }) {
         </Icon>
       )}
     </button>
+  );
+}
+
+// ---- Expert runtime trace + citations --------------------------------------
+// The live "what is the bot doing" strip (routing / retrieving / grading / redoing /
+// grounding) and, once answered, the sources the answer is grounded on.
+
+const TERMINAL_STAGES = ["grounded", "ungrounded", "empty", "direct"];
+
+function traceSummary(trace) {
+  const terminal = [...trace].reverse().find((s) => TERMINAL_STAGES.includes(s.stage));
+  const s = terminal || trace[trace.length - 1];
+  const tone = s.stage === "grounded" ? "ok" : ["ungrounded", "empty"].includes(s.stage) ? "warn" : "soft";
+  return { label: s.detail, tone };
+}
+
+function TracePanel({ trace, streaming }) {
+  const [open, setOpen] = useState(false);
+  const expanded = streaming || open;
+  const { label, tone } = traceSummary(trace);
+  const color = tone === "ok" ? "var(--accent)" : tone === "warn" ? "var(--danger)" : "var(--text-faint)";
+
+  return (
+    <div className="mb-2.5">
+      {!streaming && (
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="flex items-center gap-1.5 font-mono text-[11px] transition hover:opacity-80"
+          style={{ color }}
+        >
+          <span className="grid h-3.5 w-3.5 place-items-center rounded-full" style={{ background: "var(--accent-soft)" }}>
+            {tone === "ok" ? (
+              <CheckIcon size={9} sw={3} />
+            ) : (
+              <span className="h-1 w-1 rounded-full" style={{ background: "currentColor" }} />
+            )}
+          </span>
+          <span>{label}</span>
+          <span
+            className="inline-flex"
+            style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s" }}
+          >
+            <ChevronDownIcon size={12} sw={2.2} />
+          </span>
+        </button>
+      )}
+      {expanded && (
+        <div
+          className="mt-1.5 flex flex-col gap-1 rounded-lg px-3 py-2"
+          style={{ background: "var(--accent-soft)", border: "1px solid var(--border-soft)" }}
+        >
+          {trace.map((s, i) => {
+            const active = streaming && i === trace.length - 1;
+            return (
+              <div key={i} className="flex items-center gap-2 font-mono text-[11px]">
+                <span
+                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${active ? "animate-pulse" : ""}`}
+                  style={{ background: active ? "var(--accent)" : "var(--text-faint)" }}
+                />
+                <span style={{ color: active ? "var(--text)" : "var(--text-soft)" }}>{s.detail}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Sources({ sources }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-3">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 font-mono text-[11px] transition hover:opacity-80"
+        style={{ color: "var(--text-soft)" }}
+      >
+        <span>Sources · {sources.length}</span>
+        <span
+          className="inline-flex"
+          style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s" }}
+        >
+          <ChevronDownIcon size={12} sw={2.2} />
+        </span>
+      </button>
+      {open && (
+        <div className="mt-2 flex flex-col gap-1.5">
+          {sources.map((s) => (
+            <SourceCard key={s.n} s={s} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SourceCard({ s }) {
+  const [show, setShow] = useState(false);
+  const graph = s.origin === "graph";
+  return (
+    <div className="rounded-lg px-3 py-2" style={{ background: "var(--user-bubble)", border: "1px solid var(--border-soft)" }}>
+      <button onClick={() => setShow((v) => !v)} className="flex w-full items-center gap-2 text-left">
+        <span className="font-mono text-[10px] font-semibold" style={{ color: "var(--accent)" }}>
+          S{s.n}
+        </span>
+        <span className="truncate text-[12px]" style={{ color: "var(--text)" }}>
+          {s.citation}
+        </span>
+        <span
+          className="ml-auto shrink-0 rounded-full px-1.5 py-0.5 font-mono text-[9px] uppercase"
+          style={{
+            background: graph ? "var(--accent-soft)" : "var(--row-active)",
+            color: graph ? "var(--accent)" : "var(--text-faint)",
+            letterSpacing: ".04em",
+          }}
+        >
+          {graph ? "graph" : "vector"}
+        </span>
+      </button>
+      {show && (
+        <div className="mt-1.5 whitespace-pre-wrap text-[12px]" style={{ color: "var(--text-soft)", lineHeight: 1.6 }}>
+          {s.text}
+        </div>
+      )}
+    </div>
   );
 }

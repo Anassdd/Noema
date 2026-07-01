@@ -51,7 +51,9 @@ export function topicsFrom(nodes, links) {
       weight: w,
       is_current: true,
       __topic: true,
-      color: PALETTE[+a % PALETTE.length], // colour the edge by its source cluster
+      // gradient endpoints: source cluster colour → target cluster colour
+      __srcColor: PALETTE[+a % PALETTE.length],
+      __tgtColor: PALETTE[+b % PALETTE.length],
     };
   });
   return { nodes: topicNodes, links: topicLinks };

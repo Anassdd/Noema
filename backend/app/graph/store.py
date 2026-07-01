@@ -120,6 +120,19 @@ class GraphMemory:
         names = await self._node_names()
         return [self._to_fact(e, names) for e in edges]
 
+    async def episode_names(self, uuids: list[str]) -> dict[str, str]:
+        """Resolve episode UUIDs → their names (we name episodes '<file> · p<N>'), so a
+        retrieved fact can cite the document + page it came from. Best-effort."""
+        uuids = list({u for u in uuids if u})
+        if not uuids:
+            return {}
+        try:
+            from graphiti_core.nodes import EpisodicNode
+            eps = await EpisodicNode.get_by_uuids(self._driver, uuids)
+            return {e.uuid: (e.name or "") for e in eps}
+        except Exception:
+            return {}
+
     async def snapshot(self) -> GraphSnapshot:
         """The full current graph for this domain — all nodes and all edges,
         including invalidated ones, so the temporal history stays visible."""

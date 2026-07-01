@@ -17,6 +17,9 @@ export function useSettings() {
   const [memoryEnabled, setMemoryEnabled] = useState(true);
   const [prefilterEnabled, setPrefilterEnabled] = useState(true);
   const [tokenizerEnabled, setTokenizerEnabled] = useState(true);
+  // Expert mode: ground answers in the RAG/graph knowledge base (retrieve → verify →
+  // cite). Off = plain chat. Distinct from memoryEnabled (durable facts about the user).
+  const [expertEnabled, setExpertEnabled] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
   const [themeFamily, setThemeFamily] = useState(readThemeFamily);
 
@@ -41,6 +44,8 @@ export function useSettings() {
   return {
     memoryEnabled,
     toggleMemory: () => setMemoryEnabled((on) => !on),
+    expertEnabled,
+    toggleExpert: () => setExpertEnabled((on) => !on),
     prefilterEnabled,
     togglePrefilter: () => setPrefilterEnabled((on) => !on),
     tokenizerEnabled,

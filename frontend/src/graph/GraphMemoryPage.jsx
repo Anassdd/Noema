@@ -183,64 +183,68 @@ export default function GraphMemoryPage() {
       })
       // Colorful web (InfraNodus-style): active edges take their source cluster's color;
       // just-added = white; no-longer-active = muted red. Focusing dims the rest to near-black.
-      .linkColor((l) => {
-        if (hoverNodeRef.current && !highlightLinksRef.current.has(l)) return "#20242e";
-        if (l.recent) return "#ffffff";
-        if (!l.is_current && !l.timeView) return "#000000"; // hide solid line — a dashed one is drawn instead
-        if (l.__topic) return l.color || "#8aa0c8"; // topic edges: coloured by source cluster
-        return l.__srcColor || "#6f86b3"; // active edges: coloured by source cluster
-      })
-      .linkWidth((l) => {
-        const base = l.__topic
-          ? 1.4 + Math.min(3, (l.weight || 1) * 0.5) // topic edges: thicker, by cross-cluster weight
-          : l.recent
-            ? 1.4
-            : l.is_current || l.timeView
-              ? 0.6
-              : 0.4;
-        return hoverNodeRef.current && highlightLinksRef.current.has(l) ? base + 1.1 : base;
-      })
-      .linkLabel(() => "") // edge info goes to the left panel on hover
-      // Flowing particle animation along the active edges.
+      // Every edge is a GRADIENT from its source node's colour to its target node's colour,
+      // so it reads coherently with BOTH nodes it connects (a single source-colour clashed
+      // with the differently-coloured target). The default single-colour line is replaced
+      // (extend=false); particles ride the active edges. NAMES stay in the left panel.
+      .linkColor(() => "#000000") // default line hidden — the gradient Line2 below is what shows
+      .linkLabel(() => "")
       .linkDirectionalParticles((l) => {
         if (hoverNodeRef.current && !highlightLinksRef.current.has(l)) return 0;
         return l.is_current || l.recent || l.timeView ? 2 : 0;
       })
+      .linkDirectionalParticleColor((l) => (l.recent ? "#ffffff" : l.__srcColor || "#8aa0c8"))
       .linkDirectionalParticleWidth(1.8)
       .linkDirectionalParticleSpeed(0.006)
-      // Only no-longer-active facts get a custom object: a thick dashed red line (Line2).
-      // Relationship NAMES are never drawn on the graph — they show in the left panel on hover.
-      .linkThreeObjectExtend(true)
+      .linkThreeObjectExtend(false)
       .linkThreeObject((l) => {
-        if (l.is_current || l.timeView) {
-          l.__dash = null;
-          return null;
-        }
+        const dashed = !l.is_current && !l.timeView; // no-longer-active facts are dashed
+        const width = l.__topic
+          ? 1.4 + Math.min(3, (l.weight || 1) * 0.5) // topic edges thicker, by cross-cluster weight
+          : l.recent ? 1.4 : dashed ? 0.8 : 0.9;
+        const cS = new THREE.Color(l.recent ? "#ffffff" : l.__srcColor || "#6f86b3");
+        const cT = new THREE.Color(l.recent ? "#ffffff" : l.__tgtColor || l.__srcColor || "#6f86b3");
         const geom = new LineGeometry();
         geom.setPositions([0, 0, 0, 0.01, 0, 0]);
-        const srcColor = l.__srcColor || "#ff6b8a";
+        geom.setColors([cS.r, cS.g, cS.b, cT.r, cT.g, cT.b]);
         const line = new Line2(
           geom,
           new LineMaterial({
-            color: new THREE.Color(srcColor), // dashed edge takes its source node's colour
-            linewidth: 0.8, // match the normal (active) edge thickness, just dashed
+            vertexColors: true, // the source→target gradient
+            linewidth: width,
             worldUnits: true,
-            dashed: true,
+            dashed,
             dashSize: 1.4,
             gapSize: 1.1,
             transparent: true,
             opacity: 1,
           }),
         );
+        line.__cS = cS;
+        line.__cT = cT; // kept so we can re-colour along the sampled arc
         line.computeLineDistances();
-        l.__dash = line;
+        l.__line = line;
         return line;
       })
-      .linkPositionUpdate((obj, { start, end }, link) => {
-        if (link.__dash) {
-          link.__dash.geometry.setPositions([start.x, start.y, start.z, end.x, end.y, end.z]);
-          link.__dash.computeLineDistances(); // required for the dashes to render
+      .linkPositionUpdate((line, { start, end }, link) => {
+        if (!line || !line.geometry) return true;
+        // Sample the arc (linkCurvature) so the gradient line follows the same curve the
+        // particles do; fall back to a straight segment when there's no curve.
+        const pts = link.__curve ? link.__curve.getPoints(18) : [start, end];
+        const pos = [];
+        for (const p of pts) pos.push(p.x, p.y, p.z);
+        line.geometry.setPositions(pos);
+        if (line.__cS && line.__cT) {
+          const cols = [];
+          const n = pts.length - 1 || 1;
+          for (let i = 0; i < pts.length; i++) {
+            const c = line.__cS.clone().lerp(line.__cT, i / n);
+            cols.push(c.r, c.g, c.b);
+          }
+          line.geometry.setColors(cols);
         }
+        line.computeLineDistances();
+        return true;
       })
       // Hover a node → show its info in the left panel (no floating tooltip).
       .onNodeHover((node) => {
@@ -428,6 +432,9 @@ export default function GraphMemoryPage() {
     if (!isFinite(tmin)) tmin = tmax - DAY;
     setTimeRange((r) => (r.min === tmin && r.max === tmax ? r : { min: tmin, max: tmax }));
 
+    const nodes = [...byId.values()];
+
+    // Every fact, mapped to a render link.
     let links = snap.links.map((l) => ({
       source: l.source,
       target: l.target,
@@ -440,6 +447,17 @@ export default function GraphMemoryPage() {
       recent: recentKeysRef.current.has(linkKey(l)),
     }));
 
+    // Cluster + colour + size on the WHOLE graph, BEFORE any time/history filtering, so a
+    // node's colour is STABLE and never shifts when the slider hides edges. Then each edge's
+    // gradient endpoints always match its nodes. (Re-clustering on the time-filtered subset
+    // was why scrubbed edges came out a colour different from both of their nodes.)
+    enrich(nodes, links);
+    for (const l of links) {
+      l.__srcColor = byId.get(l.source)?.color || "#6f86b3";
+      l.__tgtColor = byId.get(l.target)?.color || l.__srcColor;
+    }
+
+    // Now filter which edges are DISPLAYED — colours are already fixed above.
     if (timeActiveRef.current) {
       // Evolution view: the graph as it was known at the scrubbed instant — facts created
       // by then and not yet invalidated.
@@ -454,9 +472,7 @@ export default function GraphMemoryPage() {
       links = links.filter((l) => l.is_current);
     }
 
-    const nodes = [...byId.values()];
-
-    // Cross-references for focus mode: each node's neighbors + incident links.
+    // Cross-references for focus mode use the DISPLAYED edges.
     nodes.forEach((n) => {
       n.__neighbors = [];
       n.__adjLinks = [];
@@ -472,15 +488,21 @@ export default function GraphMemoryPage() {
       }
     }
     currentLinksRef.current = links;
-
-    enrich(nodes, links);
-    // Store each edge's source-cluster colour as a plain string NOW (reliable), before
-    // the graph binds l.source to the node object (accessors were reading it too early).
-    for (const l of links) l.__srcColor = byId.get(l.source)?.color || "#6f86b3";
     conceptNodesRef.current = nodes;
     conceptLinksRef.current = links;
     renderView(); // draw as concepts or topics, per the current view mode
+    syncNodeColors(); // reused spheres follow the cluster colour if it shifted on ingest
     setStats(snap.stats);
+  }
+
+  // A concept node's sphere is created once and reused across renders, so if enrich re-colours
+  // it (e.g. after an ingest changes the clustering) the mesh would keep its old colour while
+  // the edges take the new one. Push the current colour onto the reused meshes to keep them in
+  // step with the edge gradients.
+  function syncNodeColors() {
+    for (const n of renderedNodesRef.current) {
+      if (n.__disk && n.color) n.__disk.material.color.set(n.color);
+    }
   }
 
   // Draw the current view: individual entities (concepts) or one cube per Louvain
@@ -597,11 +619,11 @@ export default function GraphMemoryPage() {
       }
     }
     for (const l of currentLinksRef.current) {
-      // Dashed "no-longer-active" lines fade when out of focus.
-      if (l.__dash) l.__dash.material.opacity = !focusing || hl.has(l) ? 1 : 0.08;
+      // Gradient edge lines fade when out of focus.
+      if (l.__line) l.__line.material.opacity = !focusing || hl.has(l) ? 1 : 0.08;
     }
     const fg = fgRef.current;
-    fg.linkColor(fg.linkColor()).linkWidth(fg.linkWidth()).linkDirectionalParticles(fg.linkDirectionalParticles());
+    fg.linkDirectionalParticles(fg.linkDirectionalParticles()); // re-eval particle visibility for focus
   }
 
   function toggleHistory() {
@@ -633,18 +655,29 @@ export default function GraphMemoryPage() {
     }
     setError("");
     setBusy(true);
+    const many = pdfs.length > 1;
     try {
-      for (const file of pdfs) {
+      for (let idx = 0; idx < pdfs.length; idx++) {
+        const file = pdfs[idx];
+        const tag = many ? `[${idx + 1}/${pdfs.length}] ` : "";
         await uploadPdfStream(file, model, (ev) => {
-          if (ev.phase === "parsing") setStatus(`Reading “${file.name}”…`);
-          else if (ev.phase === "parsed") setStatus(`Extracting ${ev.pages} page${ev.pages === 1 ? "" : "s"}…`);
+          if (ev.phase === "parsing") setStatus(`${tag}Reading “${file.name}”…`);
+          else if (ev.phase === "parsed")
+            setStatus(`${tag}Extracting ${ev.pages} page${ev.pages === 1 ? "" : "s"}…`);
           else if (ev.phase === "page") {
             applySnapshot(ev);
-            setStatus(`Page ${ev.page}/${ev.total} — ${ev.stats.node_count} entities, ${ev.stats.edge_count} facts`);
+            setStatus(`${tag}Page ${ev.page}/${ev.total} — ${ev.stats.node_count} entities, ${ev.stats.edge_count} facts`);
+          } else if (ev.phase === "rag_indexing") {
+            setStatus(`${tag}Indexing “${file.name}” into the search base…`);
+          } else if (ev.phase === "rag_done") {
+            setStatus(`${tag}Indexed ${ev.chunks} chunk${ev.chunks === 1 ? "" : "s"} into the search base`);
+          } else if (ev.phase === "rag_error") {
+            setError(`Search-base indexing failed for “${file.name}”: ${ev.detail}`);
           } else if (ev.phase === "error") setError(ev.detail);
-          else if (ev.phase === "done") setStatus(`Done — “${file.name}” folded in.`);
+          else if (ev.phase === "done" && !many) setStatus(`Done — “${file.name}” folded in.`);
         });
       }
+      if (many) setStatus(`Done — ${pdfs.length} documents folded into graph + search base.`);
     } catch (e) {
       setError(e.message);
     } finally {

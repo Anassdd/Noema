@@ -1,0 +1,29 @@
+# Windows requirements. Identical to requirements.txt EXCEPT the graph store:
+# the bundled FalkorDB (graphiti-core[falkordblite]) relies on `redislite`, which is
+# Unix-only and cannot be installed on Windows. On Windows we run FalkorDB as an
+# external server (Docker) and connect to it with the pure-Python `falkordb` client.
+# => set GRAPH_BACKEND=falkor_server in backend/.env (see RUN_ON_WINDOWS.md).
+
+# Provider-swap layer
+openai>=1.40.0
+python-dotenv>=1.0.0
+
+# Backend API
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+
+# PDF parsing — renders pages to images locally (Windows wheels available).
+pypdfium2>=4.0.0
+
+# Azure Document Intelligence (only when PARSER=docintel). Pure-Python, cross-platform.
+azure-ai-documentintelligence>=1.0.0
+
+# RAG vector store — Chroma (Windows wheels available on 1.0+).
+chromadb>=1.0.0
+
+# Graph memory — Graphiti WITHOUT the falkordblite extra, plus the falkordb client that
+# connects to an external FalkorDB server (Docker). This is the Windows-safe combination.
+graphiti-core>=0.29.2
+falkordb>=1.0.0
+networkx>=3.6

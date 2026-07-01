@@ -13,6 +13,9 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
     model: str | None = None  # override the configured chat model
+    domain: str | None = None  # which knowledge base to ground answers in
+    memory: str | None = None  # a saved snapshot name to answer from (None = live memory)
+    use_memory: bool = True  # ground answers in the RAG/graph memory (off = plain chat)
 
 
 class MemoryRequest(BaseModel):

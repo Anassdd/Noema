@@ -35,6 +35,8 @@ const THEMES = [
 export default function SettingsModal({
   memoryEnabled,
   onToggleMemory,
+  expertEnabled,
+  onToggleExpert,
   prefilterEnabled,
   onTogglePrefilter,
   tokenizerEnabled,
@@ -114,6 +116,11 @@ export default function SettingsModal({
             title="Dark mode"
             desc="Switch the interface to a dark theme."
             control={<Toggle on={darkMode} onClick={onToggleDarkMode} label="Toggle dark mode" />}
+          />
+          <SettingRow
+            title="Expert mode"
+            desc="Ground answers in your uploaded documents (retrieve → verify → cite). Off = plain chat."
+            control={<Toggle on={expertEnabled} onClick={onToggleExpert} label="Toggle expert mode" />}
           />
           <SettingRow
             title="Memory"

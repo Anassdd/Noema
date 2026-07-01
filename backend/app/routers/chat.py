@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import json
-from typing import Iterator
+from typing import AsyncIterator, Iterator
 
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
-from app import llm_client
+from app import llm_client, pipeline
 from app.config import settings
 from app.schemas import ChatRequest
 
@@ -38,34 +38,43 @@ def _trim_history(messages: list[dict]) -> list[dict]:
 
 
 @router.post("/chat")
-def chat(req: ChatRequest) -> StreamingResponse:
+async def chat(req: ChatRequest) -> StreamingResponse:
     """Stream the answer as Server-Sent Events.
 
-    Yields one `delta` event per token chunk, then a single `usage` event with
-    final token counts. A provider error mid-stream becomes an `error` event
-    rather than a silently dead connection. RAG comes in a later slice.
+    With `use_memory` off it's plain chat: `delta` token events then a `usage`
+    event. With `use_memory` on it runs the expert pipeline (route → retrieve →
+    grade → answer → verify) and additionally streams `status` events (the live
+    runtime trace) and a `sources` event (what the answer is grounded on). A
+    provider error mid-stream becomes an `error` event, not a dead connection.
     """
     messages = _trim_history([m.model_dump() for m in req.messages])
 
-    def event_stream() -> Iterator[str]:
-        try:
-            for event in llm_client.chat(
-                messages,
-                stream=True,
-                model=req.model,
-            ):
-                if event.type == "delta":
-                    yield _sse("delta", {"text": event.text})
-                elif event.type == "usage":
-                    yield _sse(
-                        "usage",
-                        {"usage": event.usage.__dict__ if event.usage else None},
-                    )
-        except Exception as exc:  # surface provider errors to the UI
-            yield _sse("error", {"message": str(exc)})
-        yield "data: [DONE]\n\n"  # clean end-of-stream sentinel
+    if not req.use_memory:
+        def plain() -> Iterator[str]:
+            try:
+                for event in llm_client.chat(messages, stream=True, model=req.model):
+                    if event.type == "delta":
+                        yield _sse("delta", {"text": event.text})
+                    elif event.type == "usage":
+                        yield _sse("usage", {"usage": event.usage.__dict__ if event.usage else None})
+            except Exception as exc:  # surface provider errors to the UI
+                yield _sse("error", {"message": str(exc)})
+            yield "data: [DONE]\n\n"
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+        # Starlette runs a sync generator in a threadpool, so this won't block the loop.
+        return StreamingResponse(plain(), media_type="text/event-stream")
+
+    async def expert() -> AsyncIterator[str]:
+        try:
+            async for ev in pipeline.answer_stream(
+                messages, model=req.model, domain_id=req.domain or "default", memory=req.memory
+            ):
+                yield _sse(ev.pop("type"), ev)
+        except Exception as exc:  # surface any pipeline/provider error to the UI
+            yield _sse("error", {"message": str(exc)})
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(expert(), media_type="text/event-stream")
 
 
 @router.post("/title")

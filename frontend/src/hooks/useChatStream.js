@@ -16,6 +16,9 @@ export function useChatStream({
   documents,
   memoryEnabled,
   prefilterEnabled,
+  expertEnabled,
+  memory = null,
+  domain = "default",
   model,
   onUsage,
   onAutoTitle,
@@ -74,12 +77,27 @@ export function useChatStream({
         });
       };
 
+      const patchLast = (patch) =>
+        setMessages((prev) => {
+          const next = [...prev];
+          const last = next[next.length - 1];
+          next[next.length - 1] = { ...last, ...patch(last) };
+          return next;
+        });
+      const appendTrace = (step) => patchLast((last) => ({ trace: [...(last.trace || []), step] }));
+      const attachSources = (sources) => patchLast(() => ({ sources }));
+
       try {
         await streamChat(history, {
           onDelta: appendToAssistant,
           onUsage: attachUsage,
+          onStatus: appendTrace,
+          onSources: attachSources,
           signal: controller.signal,
           model,
+          useMemory: expertEnabled,
+          domain,
+          memory,
         });
 
         if (isFirstExchange && answer) {
@@ -124,6 +142,9 @@ export function useChatStream({
       documents,
       memoryEnabled,
       prefilterEnabled,
+      expertEnabled,
+      memory,
+      domain,
       model,
       onUsage,
       onAutoTitle,

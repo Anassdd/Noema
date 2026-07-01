@@ -22,6 +22,9 @@ export default function ChatWindow({
   onForgetMemory,
   prefilterEnabled,
   memoryEnabled,
+  expertEnabled,
+  selectedMemory,
+  onSelectMemory,
   tokenizerEnabled,
   character,
   onSetCharacter,
@@ -55,6 +58,8 @@ export default function ChatWindow({
     documents,
     memoryEnabled,
     prefilterEnabled,
+    expertEnabled,
+    memory: selectedMemory,
     model,
     onUsage,
     onAutoTitle,
@@ -149,6 +154,9 @@ export default function ChatWindow({
           isUploading={uploading}
           model={model}
           sessionTokens={sessionTokens}
+          memory={selectedMemory}
+          onSelectMemory={onSelectMemory}
+          expertEnabled={expertEnabled}
         />
       </div>
 

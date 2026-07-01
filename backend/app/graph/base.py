@@ -60,6 +60,7 @@ class GraphEdge:
     valid_at: str | None = None
     invalid_at: str | None = None
     expired_at: str | None = None
+    created_at: str | None = None  # when Graphiti learned this fact (ingestion time)
 
     @property
     def is_current(self) -> bool:

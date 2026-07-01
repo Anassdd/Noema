@@ -31,6 +31,23 @@ export function resetGraph(domain = "default") {
   return fetch(`${API_BASE}/graphmem/reset?domain=${domain}`, { method: "POST" }).then(asJson);
 }
 
+// Save / restore full-graph checkpoints (so you can experiment and roll back).
+export function listSaves(domain = "default") {
+  return fetch(`${API_BASE}/graphmem/saves?domain=${domain}`).then(asJson);
+}
+
+function savePost(path, name, domain) {
+  return fetch(`${API_BASE}/graphmem/${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, domain }),
+  }).then(asJson);
+}
+
+export const saveGraph = (name, domain = "default") => savePost("save", name, domain);
+export const restoreGraph = (name, domain = "default") => savePost("restore", name, domain);
+export const deleteSave = (name, domain = "default") => savePost("delete-save", name, domain);
+
 // Streams the per-page extraction. `onEvent` is called for each NDJSON line:
 // {phase:"parsing"|"parsed"|"page"|"error"|"done", ...}. A "page" event carries a
 // fresh {nodes, links, stats} snapshot.

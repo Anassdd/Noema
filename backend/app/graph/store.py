@@ -133,7 +133,7 @@ class GraphMemory:
         ge = [GraphEdge(uuid=e.uuid, source_uuid=e.source_node_uuid,
                         target_uuid=e.target_node_uuid, name=e.name or "", fact=e.fact or "",
                         valid_at=iso(e.valid_at), invalid_at=iso(e.invalid_at),
-                        expired_at=iso(e.expired_at)) for e in edges]
+                        expired_at=iso(e.expired_at), created_at=iso(e.created_at)) for e in edges]
         return GraphSnapshot(nodes=gn, edges=ge)
 
     # ---- maintenance ------------------------------------------------------

@@ -13,6 +13,15 @@ export const COMMANDS = [
     chip: "bg-cyan-50 text-cyan-700 ring-cyan-200 dark:bg-cyan-950/40 dark:text-cyan-300 dark:ring-cyan-900",
   },
   {
+    cmd: "/note",
+    label: "Note",
+    desc: "Add a note to the current memory",
+    usage: "/note Q1 revenue beat guidance",
+    hint: "Saved to the selected memory's beliefs; the expert weighs it against the sources.",
+    text: "text-teal-600 dark:text-teal-400",
+    chip: "bg-teal-50 text-teal-700 ring-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:ring-teal-900",
+  },
+  {
     cmd: "/character",
     label: "Persona",
     desc: "Set the bot's character or role",

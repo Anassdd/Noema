@@ -102,6 +102,13 @@ export default function App() {
               <PanelIcon size={17} />
             </button>
           )}
+          <HeaderButton
+            icon={<GraphIcon size={17} sw={1.7} />}
+            label="Graph memory"
+            onClick={() =>
+              window.open(`${window.location.origin}/?view=graph`, "_blank", "noopener")
+            }
+          />
           <div
             className="font-serif truncate text-[17px]"
             style={{ fontWeight: "var(--title-weight)", color: "var(--text)" }}
@@ -110,13 +117,6 @@ export default function App() {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <HeaderButton
-              icon={<GraphIcon size={17} sw={1.7} />}
-              label="Graph memory"
-              onClick={() =>
-                window.open(`${window.location.origin}/?view=graph`, "_blank", "noopener")
-              }
-            />
             <ModelSelector
               models={models}
               value={selectedModel}

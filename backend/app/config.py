@@ -67,6 +67,9 @@ class Settings:
 
     # Retrieval: where the embedded vector store persists (empty -> backend/.chroma).
     vector_dir: str = ""
+    # User beliefs: where the per-(user, memory-context) note files persist
+    # (empty -> backend/.beliefs). Small markdown, injected into answers, not indexed.
+    beliefs_dir: str = ""
     # Reranker seam (optional, no-GPU). Empty rerank_model -> a dedicated reranker is
     # not used; the lab/engine can still fall back to LLM-based reranking.
     rerank_model: str = ""
@@ -89,6 +92,7 @@ def load_settings() -> Settings:
         docintel_endpoint=os.getenv("DOCINTEL_ENDPOINT", ""),
         docintel_key=os.getenv("DOCINTEL_KEY", ""),
         vector_dir=os.getenv("VECTOR_DIR", ""),
+        beliefs_dir=os.getenv("BELIEFS_DIR", ""),
         rerank_model=os.getenv("RERANK_MODEL", ""),
         rerank_base_url=os.getenv("RERANK_BASE_URL", ""),
         rerank_api_key=os.getenv("RERANK_API_KEY", ""),

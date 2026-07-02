@@ -32,6 +32,11 @@ tests/results/graph_store/
 
 # Persisted user memory (saved via /remember) — local, can hold personal facts.
 backend/memory.json
+backend/app/memory.json
+backend/app/memory.md
+
+# User beliefs (per-memory-context notes, injected into answers) — local user data.
+backend/.beliefs/
 
 # Persisted co-occurrence graph memory (the InfraNodus-style graph) — local user data.
 backend/app/textgraph_store/

@@ -15,7 +15,7 @@ import asyncio
 import json
 from typing import AsyncIterator
 
-from app import llm_client
+from app import beliefs, llm_client
 from app.graph.manager import graph_manager
 from app.retrieval import ScoredChunk, search_trace
 
@@ -122,13 +122,50 @@ _GROUND_SYS = (
     "Answer the user's question using the numbered sources below as your ground truth. "
     "Cite the sources you rely on inline as [S1], [S2], etc. Prefer the sources over prior "
     "knowledge; if they don't fully cover the question, answer what you can and say plainly "
-    "what's missing. Answer in the question's language."
+    "what's missing. If the user's own notes are provided separately and disagree with the "
+    "sources, surface both and attribute each — do not silently pick. Answer in the "
+    "question's language."
 )
+# The user's own beliefs about this memory context (see app/beliefs.py). Injected as a
+# distinct block so the answer keeps them apart from the retrieved corpus and can say
+# "the sources say X, while your own note holds Y" when they conflict.
+_BELIEFS_SYS = (
+    "Below are the USER'S OWN notes and beliefs about this topic. Treat them as the user's "
+    "personal opinion — not established fact, and not one of the numbered sources. When the "
+    "user's notes and the sources disagree, do NOT merge them or silently choose one: present "
+    "BOTH and attribute each clearly (e.g. \"the sources indicate…, while your own note "
+    "holds…\"). If they are irrelevant to the question, ignore them."
+)
+# Cleans a /note before saving: resolve references against the recent chat so the note stands
+# alone, WITHOUT changing the claim. The "even if you believe it is wrong" clause is load-bearing
+# — the user may be asserting a belief that contradicts the corpus on purpose; we must not "fix" it.
+_NOTE_SYS = (
+    "You clean up a note the user is saving to their personal notes, using the recent conversation "
+    "only for context. Do EXACTLY these two things and nothing else:\n"
+    "1. Resolve pronouns and references (he/she/it/they/this/that/the former/etc.) into the explicit "
+    "entity from the conversation, so the note stands on its own.\n"
+    "2. Remove leading filler such as 'that', 'note that', 'remember that', 'add that'.\n"
+    "Do NOT fact-check, correct, reword, translate, summarize, or change the meaning or opinion in "
+    "ANY way — even if you believe it is wrong. Keep the user's exact claim and language. If nothing "
+    "needs resolving, return it unchanged.\n"
+    'Reply ONLY JSON: {"note": "<the cleaned note>"}.'
+)
+# One call does two jobs, so a follow-up never loses the thread and we add no round-trip:
+# (1) rewrite the latest message into a STANDALONE query by resolving references against the
+# recent turns — language-agnostic, the model decides, no pronoun lists; (2) route it. The
+# rewrite is used for search only; the answer is still generated on the real conversation.
 _ROUTE_SYS = (
-    "Decide whether answering the user's latest message needs searching a document library "
-    '(the knowledge base). Reply ONLY JSON: {"retrieve": true|false, "reason": "<short>"}. '
-    "Retrieve for questions about facts, content, or knowledge that would live in documents. "
-    "Do NOT retrieve for greetings, small talk, or meta questions about the conversation."
+    "You prepare a user's latest message for retrieval in a chat assistant. Given the recent "
+    "conversation and the latest message, do two things:\n"
+    "1. Rewrite the latest message into a STANDALONE query: resolve pronouns, ellipsis and "
+    "follow-up references (\"him\", \"that\", \"and its causes?\", \"why\") into the explicit "
+    "entities from the conversation, so the query is self-contained and searchable on its own. "
+    "If the message is already self-contained, return it unchanged. Keep it in the SAME "
+    "LANGUAGE as the latest message. Do not answer it — only rewrite it.\n"
+    "2. Decide whether answering it needs searching a document library (the knowledge base). "
+    "Retrieve for questions about facts, content, or knowledge that would live in documents; "
+    "do NOT retrieve for greetings, small talk, or meta questions about the conversation.\n"
+    'Reply ONLY JSON: {"standalone": "<rewritten query>", "retrieve": true|false}.'
 )
 _SUFF_SYS = (
     "Grade whether the provided sources contain enough to answer the question. Reply ONLY "
@@ -152,6 +189,26 @@ def _last_user(messages: list[dict]) -> str:
     return ""
 
 
+def _recent_context(messages: list[dict], *, max_turns: int = 6, clip: int = 400,
+                    drop_last: bool = True) -> str:
+    """The last few turns compacted, so a reference can be resolved against them. Capped
+    (turns + per-message length) to stay cheap; empty when there's nothing prior. `drop_last`
+    skips the final message (the current question) for the query path; pass False when the
+    text to resolve is NOT already in `messages` (e.g. a /note typed after the last turn)."""
+    src = messages[:-1] if drop_last else messages
+    lines = []
+    for m in src[-max_turns:]:
+        role = m.get("role")
+        if role not in ("user", "assistant"):
+            continue
+        text = " ".join((m.get("content") or "").split())
+        if len(text) > clip:
+            text = text[:clip] + "…"
+        if text:
+            lines.append(f"{'User' if role == 'user' else 'Assistant'}: {text}")
+    return "\n".join(lines)
+
+
 def _judge_sync(system: str, user: str) -> dict:
     """One cheap buffered LLM judgement, parsed leniently from its JSON reply."""
     res = llm_client.chat(
@@ -165,11 +222,35 @@ def _judge_sync(system: str, user: str) -> dict:
         return {}
 
 
-def _generate_sync(messages: list[dict], chunks: list[ScoredChunk], model: str | None):
-    """Grounded answer, layering the sources onto the existing conversation (persona, user
-    memory, history stay intact) just before the latest question."""
-    grounding = {"role": "system", "content": f"{_GROUND_SYS}\n\nSources:\n{_sources_block(chunks)}"}
-    convo = list(messages[:-1]) + [grounding, messages[-1]] if messages else [grounding]
+def contextualize_note(note: str, messages: list[dict]) -> str:
+    """Make a /note stand alone: resolve references against the recent chat and strip leading
+    filler, WITHOUT altering the claim (see _NOTE_SYS). Fails open to the raw note — cleanup must
+    never block or distort saving. No chat context → nothing to resolve → verbatim."""
+    note = " ".join((note or "").split())
+    if not note:
+        return note
+    ctx = _recent_context(messages, drop_last=False)  # the note isn't in `messages`
+    if not ctx:
+        return note
+    j = _judge_sync(_NOTE_SYS, f"Recent conversation:\n{ctx}\n\nNote to clean: {note}")
+    cleaned = (j.get("note") or "").strip()
+    return cleaned or note
+
+
+def _beliefs_msg(beliefs_text: str) -> dict:
+    return {"role": "system", "content": f"{_BELIEFS_SYS}\n\nThe user's notes:\n{beliefs_text}"}
+
+
+def _generate_sync(messages: list[dict], chunks: list[ScoredChunk], model: str | None,
+                   beliefs_text: str = ""):
+    """Grounded answer, layering the sources (and the user's own notes, if any) onto the
+    existing conversation (persona, user memory, history stay intact) just before the latest
+    question."""
+    blocks = []
+    if beliefs_text:
+        blocks.append(_beliefs_msg(beliefs_text))
+    blocks.append({"role": "system", "content": f"{_GROUND_SYS}\n\nSources:\n{_sources_block(chunks)}"})
+    convo = list(messages[:-1]) + blocks + [messages[-1]] if messages else blocks
     return llm_client.chat(convo, model=model, temperature=0.0)
 
 
@@ -206,18 +287,34 @@ async def answer_stream(
 
     `memory` selects a saved snapshot to answer from (its graph + RAG); None = live memory.
     """
+    # The user's own notes for THIS memory context (the selected save, else the live domain).
+    # Read before domain_id is swapped for the save key — beliefs are keyed by the context the
+    # user picks, not by the snapshot's internal store name.
+    belief_text = await asyncio.to_thread(beliefs.read_beliefs, domain_id, memory)
     if memory:
         from app.saves import save_key
         domain_id = save_key(domain_id, memory)  # retrieve from the saved snapshot's stores
     query = _last_user(messages)
 
-    yield {"type": "status", "stage": "routing", "detail": "Deciding if this needs the knowledge base…"}
-    j = await asyncio.to_thread(_judge_sync, _ROUTE_SYS, query)
+    yield {"type": "status", "stage": "routing", "detail": "Reading the question in context…"}
+    context = _recent_context(messages)
+    route_input = f"Recent conversation:\n{context}\n\nLatest message: {query}" if context else query
+    j = await asyncio.to_thread(_judge_sync, _ROUTE_SYS, route_input)
+    search_query = (j.get("standalone") or "").strip() or query  # fail open to the raw message
     need = bool(j.get("retrieve", True))  # fail open to grounding
+
+    if context and search_query.strip().lower() != query.strip().lower():
+        yield {"type": "status", "stage": "contextualized", "detail": f"Understood as: “{search_query}”"}
+
+    if belief_text:
+        yield {"type": "status", "stage": "beliefs", "detail": "Weighing your own notes alongside the answer"}
 
     if not need:
         yield {"type": "status", "stage": "direct", "detail": "Answering directly — no retrieval needed"}
-        res = await asyncio.to_thread(lambda: llm_client.chat(messages, model=model))
+        convo = messages
+        if belief_text and messages:
+            convo = list(messages[:-1]) + [_beliefs_msg(belief_text)] + [messages[-1]]
+        res = await asyncio.to_thread(lambda: llm_client.chat(convo, model=model))
         for piece in _stream_pieces(res.text or ""):
             yield {"type": "delta", "text": piece}
         yield {"type": "usage", "usage": res.usage.__dict__ if res.usage else None}
@@ -231,7 +328,7 @@ async def answer_stream(
     for attempt in range(1, max_tries + 1):
         detail = "Searching the vector base + graph…" if attempt == 1 else "Retrieving more and re-fusing…"
         yield {"type": "status", "stage": "retrieving", "detail": detail}
-        chunks, meta = await retrieve(query, domain_id=domain_id, k=8 * attempt)
+        chunks, meta = await retrieve(search_query, domain_id=domain_id, k=8 * attempt)
         final_chunks = chunks
         yield {"type": "status", "stage": "retrieved",
                "detail": f"{meta['fused']} sources · {meta['vector']} vector · {meta['graph']} graph"}
@@ -244,7 +341,7 @@ async def answer_stream(
             break
 
         yield {"type": "status", "stage": "grading", "detail": "Checking the sources cover the question…"}
-        js = await asyncio.to_thread(_judge_sync, _SUFF_SYS, f"Question: {query}\n\nSources:\n{_sources_block(chunks)}")
+        js = await asyncio.to_thread(_judge_sync, _SUFF_SYS, f"Question: {search_query}\n\nSources:\n{_sources_block(chunks)}")
         enough = bool(js.get("enough", True))
         if not enough and attempt < max_tries:
             covered = False
@@ -254,13 +351,13 @@ async def answer_stream(
         covered = enough
 
         yield {"type": "status", "stage": "answering", "detail": "Composing a grounded answer…"}
-        res = await asyncio.to_thread(_generate_sync, messages, chunks, model)
+        res = await asyncio.to_thread(_generate_sync, messages, chunks, model, belief_text)
         answer_text, usage = res.text or "", res.usage
 
         yield {"type": "status", "stage": "verifying", "detail": "Checking the answer is grounded in the sources…"}
         jf = await asyncio.to_thread(
             _judge_sync, _FAITH_SYS,
-            f"Question: {query}\n\nSources:\n{_sources_block(chunks)}\n\nAnswer:\n{answer_text}")
+            f"Question: {search_query}\n\nSources:\n{_sources_block(chunks)}\n\nAnswer:\n{answer_text}")
         grounded = bool(jf.get("grounded", True))
         if grounded or attempt == max_tries:
             yield {"type": "status", "stage": "grounded" if grounded else "ungrounded",

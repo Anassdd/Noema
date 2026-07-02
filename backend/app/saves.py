@@ -16,3 +16,12 @@ def save_key(domain: str, name: str) -> str:
 
 def save_prefix(domain: str) -> str:
     return f"{SAVE_PREFIX}{domain}__"
+
+
+def base_group_id(domain_id: str) -> str:
+    """The group_id the DATA carries. A save graph is a raw copy of its base domain, so its
+    nodes keep the base domain's group_id (e.g. '__save__default__v1' → 'default'). The graph
+    to CONNECT to is `domain_id`; the group_id to FILTER by is this. They differ only for saves."""
+    if domain_id.startswith(SAVE_PREFIX):
+        return domain_id[len(SAVE_PREFIX):].split("__", 1)[0]
+    return domain_id

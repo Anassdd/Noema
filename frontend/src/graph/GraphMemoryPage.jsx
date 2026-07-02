@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import ForceGraph3D from "3d-force-graph";
+import { forceCollide } from "d3-force-3d"; // bundled with 3d-force-graph
 import SpriteText from "three-spritetext";
 import * as THREE from "three";
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
@@ -16,6 +17,7 @@ import {
   restoreGraph,
   deleteSave,
 } from "../api/graphmem.js";
+import { getBeliefs, saveBeliefs } from "../api/beliefs.js";
 import { fetchModels } from "../api/models.js";
 import { enrich, topicsFrom } from "./graph3d.js";
 
@@ -42,6 +44,44 @@ function diskTexture() {
   return _diskTexture;
 }
 
+// A gentle pull toward the origin. Disconnected clusters share no edge, so nothing counters
+// the charge repulsion and they drift off to infinity — out of reach. This nudges every
+// node's velocity back toward 0 each tick, keeping all clusters within a bounded radius.
+function gravityForce(strength = 0.06) {
+  let nodes = [];
+  function force(alpha) {
+    for (const n of nodes) {
+      n.vx -= n.x * strength * alpha;
+      n.vy -= n.y * strength * alpha;
+      if (n.z != null) n.vz -= n.z * strength * alpha;
+    }
+  }
+  force.initialize = (n) => (nodes = n);
+  force.strength = (s) => (s === undefined ? strength : ((strength = s), force));
+  return force;
+}
+
+// Collision radius ≈ the node's on-screen size + padding, so the layout never overlaps nodes
+// (the main cause of a dense graph looking messy). Mirrors the geometry size formulas below.
+function collideRadius(nd, isTopics) {
+  const val = nd.val || 1;
+  const half = isTopics
+    ? (9 + Math.pow(val, 0.65) * 4.6) / 2 // topic cube half-size
+    : (3.5 + Math.pow(val, 0.85) * 3.2) / 2; // concept sphere radius
+  return half + 7; // breathing room between neighbours
+}
+
+// Edges follow the same facing cue as the nodes, with a strong front-to-back contrast: an
+// edge facing the camera is vivid (EDGE_OPACITY); one on the far side falls off to
+// EDGE_BACK_OPACITY (very transparent). Front stays punchy, the far web recedes.
+const EDGE_OPACITY = 0.85; // facing the camera — strong, vivid colour
+const EDGE_BACK_OPACITY = 0.07; // far side — very transparent
+
+// Facing depth cue for nodes: a node facing the camera is fully opaque; one on the far side
+// eases down to this opacity floor (transparent), linearly across the depth — the same cue as
+// EDGE_BACK_OPACITY, so the whole graph recedes together. Zoom-independent (view angle, not range).
+const NODE_BACK_OPACITY = 0.18;
+
 // A standalone tab (?view=graph) showing the REAL memory — Graphiti's entities and
 // temporal facts — in 3D. Drop a PDF: each page is extracted by the LLM and the graph
 // grows live (streamed per page). The graph persists in FalkorDB, so it's here next time.
@@ -62,10 +102,15 @@ export default function GraphMemoryPage() {
   const [selection, setSelection] = useState(null); // clicked node's group inspector
   const [hoveredFact, setHoveredFact] = useState(null); // edge description shown on hover
   const [hoveredNode, setHoveredNode] = useState(null); // node info shown on hover
+  const [selectedFact, setSelectedFact] = useState(null); // edge pinned in the panel by click
   const [confirmReset, setConfirmReset] = useState(false);
   const [savesOpen, setSavesOpen] = useState(false);
   const [saves, setSaves] = useState([]);
   const [saveName, setSaveName] = useState("");
+  const [beliefsOpen, setBeliefsOpen] = useState(false);
+  const [beliefContext, setBeliefContext] = useState(""); // "" = live memory, else a save name
+  const [beliefText, setBeliefText] = useState("");
+  const [beliefSaved, setBeliefSaved] = useState(false);
   const [viewMode, setViewMode] = useState("concepts"); // "concepts" | "topics"
 
   const viewModeRef = useRef("concepts");
@@ -73,6 +118,7 @@ export default function GraphMemoryPage() {
   const conceptNodesRef = useRef(null);
   const conceptLinksRef = useRef(null);
   const entranceRafRef = useRef(0);
+  const graphRadiusRef = useRef(120); // current graph extent — normalizes the facing falloff
 
   const showHistoryRef = useRef(true);
   const lastSnapRef = useRef(null);
@@ -85,6 +131,7 @@ export default function GraphMemoryPage() {
   const highlightLinksRef = useRef(new Set());
   const currentLinksRef = useRef([]);
   const selectedNodeRef = useRef(null); // sticky node selected by click
+  const selectedLinkRef = useRef(null); // sticky edge pinned by click (identity → toggle off)
   const hoveredEdgeRef = useRef(null);
 
   // time slider — scrub to see the memory "as of" a date
@@ -96,6 +143,17 @@ export default function GraphMemoryPage() {
   const DAY = 86400000;
 
   const linkKey = (l) => `${l.source}\t${l.target}\t${l.name}`;
+
+  // A render-ready fact from a link, for both hover preview and click-to-pin. source/target
+  // are node objects once the sim resolves them, so read their names.
+  const factOf = (l) => ({
+    source: typeof l.source === "object" ? l.source.name : l.source,
+    target: typeof l.target === "object" ? l.target.name : l.target,
+    name: l.name,
+    fact: l.fact,
+    is_current: l.is_current,
+    invalid_at: l.invalid_at,
+  });
 
   // ---- one-time 3D graph setup ----------------------------------------------
   useEffect(() => {
@@ -121,7 +179,7 @@ export default function GraphMemoryPage() {
               color: n.color || "#9fb0d0",
               transparent: true,
               depthWrite: true,
-              fog: false,
+              fog: false, // depth is cued per-frame by facing, not scene fog
             }),
           );
           cube.renderOrder = 3;
@@ -155,7 +213,7 @@ export default function GraphMemoryPage() {
             color: n.color || "#9fb0d0",
             transparent: true,
             depthWrite: true, // occlude edges inside/behind the sphere
-            fog: false,
+            fog: false, // depth is cued per-frame by facing, not scene fog
           }),
         );
         disk.scale.setScalar(entering ? 0.01 : 1); // new nodes grow in from ~0
@@ -190,7 +248,8 @@ export default function GraphMemoryPage() {
       .linkColor(() => "#000000") // default line hidden — the gradient Line2 below is what shows
       .linkLabel(() => "")
       .linkDirectionalParticles((l) => {
-        if (hoverNodeRef.current && !highlightLinksRef.current.has(l)) return 0;
+        const focusing = hoverNodeRef.current || selectedLinkRef.current;
+        if (focusing && !highlightLinksRef.current.has(l)) return 0;
         return l.is_current || l.recent || l.timeView ? 2 : 0;
       })
       .linkDirectionalParticleColor((l) => (l.recent ? "#ffffff" : l.__srcColor || "#8aa0c8"))
@@ -202,6 +261,7 @@ export default function GraphMemoryPage() {
         const width = l.__topic
           ? 1.4 + Math.min(3, (l.weight || 1) * 0.5) // topic edges thicker, by cross-cluster weight
           : l.recent ? 1.4 : dashed ? 0.8 : 0.9;
+        l.__w = width; // base width, so focus can thicken a clicked edge and restore it
         const cS = new THREE.Color(l.recent ? "#ffffff" : l.__srcColor || "#6f86b3");
         const cT = new THREE.Color(l.recent ? "#ffffff" : l.__tgtColor || l.__srcColor || "#6f86b3");
         const geom = new LineGeometry();
@@ -217,7 +277,7 @@ export default function GraphMemoryPage() {
             dashSize: 1.4,
             gapSize: 1.1,
             transparent: true,
-            opacity: 1,
+            opacity: EDGE_OPACITY, // fainter than the nodes — the web sits behind them
           }),
         );
         line.__cS = cS;
@@ -258,55 +318,107 @@ export default function GraphMemoryPage() {
           focusNode(null);
         } else {
           selectedNodeRef.current = node;
-          focusNode(node);
+          focusNode(node); // also clears any edge focus
         }
       })
       .onBackgroundClick(() => {
         selectedNodeRef.current = null;
         focusNode(null);
       })
-      // Hover an edge → its fact appears in the left panel (no on-graph label).
+      // Hover an edge → its fact previews in the left panel (no on-graph label).
       .onLinkHover((link) => {
-        setHoveredFact(
-          link
-            ? {
-                source: typeof link.source === "object" ? link.source.name : link.source,
-                target: typeof link.target === "object" ? link.target.name : link.target,
-                name: link.name,
-                fact: link.fact,
-                is_current: link.is_current,
-                invalid_at: link.invalid_at,
-              }
-            : null,
-        );
+        setHoveredFact(link ? factOf(link) : null);
+      })
+      // Click an edge → spotlight it (thicken it, light its two endpoints, dim the rest) and
+      // pin its fact in the left panel. Click it again to clear. Works with or without a node
+      // already focused — an edge focus replaces a node focus.
+      .onLinkClick((link) => {
+        if (selectedLinkRef.current === link) {
+          focusEdge(null);
+        } else {
+          selectedNodeRef.current = null;
+          focusEdge(link);
+        }
       });
     fgRef.current = fg;
 
     // Per-frame loop: (1) smooth entrance grow/fade for new nodes; (2) keep every label to
     // the camera's RIGHT so it stays on the right of the node from any angle (screen-space).
     const camRight = new THREE.Vector3();
+    const camFwd = new THREE.Vector3();
+    // Depth along the view axis, normalized over the whole graph, as a front-weight in [0,1]:
+    // 1 = nearest the camera, 0 = farthest behind. Linear so the gradient shows at every step.
+    const frontWeight = (x, y, z, radius) => {
+      const u = Math.max(-1, Math.min(1, (x * camFwd.x + y * camFwd.y + z * camFwd.z) / radius));
+      return (1 - u) / 2;
+    };
+    // Far-weight: 0 across the WHOLE near (facing) half, rising to 1 at the far back — so the
+    // facing half stays fully opaque and only the far half fades.
+    const backWeight = (x, y, z, radius) =>
+      Math.max(0, Math.min(1, (x * camFwd.x + y * camFwd.y + z * camFwd.z) / radius));
     const entranceStep = () => {
       const cam = fgRef.current && fgRef.current.camera();
-      if (cam) camRight.setFromMatrixColumn(cam.matrixWorld, 0).normalize();
+      if (cam) {
+        camRight.setFromMatrixColumn(cam.matrixWorld, 0).normalize();
+        camFwd.setFromMatrixColumn(cam.matrixWorld, 2).negate().normalize(); // where the camera looks
+      }
       const now = performance.now();
+      const R = graphRadiusRef.current || 120; // last frame's extent → zoom-independent falloff
+      const focusing = !!hoverNodeRef.current || !!selectedLinkRef.current;
+      const hn = highlightNodesRef.current;
+      const hl = highlightLinksRef.current;
+      let maxR = 1;
       for (const n of renderedNodesRef.current) {
+        // Entrance grow/fade-in for new nodes → a multiplier on the final opacity.
+        let e = 1;
         if (n.__enterT0 != null) {
           const p = Math.min(1, (now - n.__enterT0) / 650);
-          const e = 1 - Math.pow(1 - p, 3);
-          const r = n.__r || 8;
-          if (n.__disk) {
-            n.__disk.scale.setScalar(e);
-            n.__disk.material.opacity = e;
-          }
+          e = 1 - Math.pow(1 - p, 3);
+          if (n.__disk) n.__disk.scale.setScalar(e);
+          if (p >= 1) n.__enterT0 = null;
+        }
+        if (cam) {
+          const x = n.x || 0, y = n.y || 0, z = n.z || 0;
+          const dist = Math.sqrt(x * x + y * y + z * z);
+          if (dist > maxR) maxR = dist;
+          // Fade by FACING: the whole near half (facing the camera) stays fully opaque; only
+          // the far half fades toward NODE_BACK_OPACITY (transparent). Focus overrides —
+          // highlighted nodes stay solid, the rest drop back. Entrance fade multiplies in.
+          const facing = 1 - (1 - NODE_BACK_OPACITY) * backWeight(x, y, z, R);
+          const op = (focusing ? (hn.has(n) ? 1 : 0.2) : facing) * e;
+          if (n.__disk) n.__disk.material.opacity = op;
           if (n.__label) {
             n.__label.material.transparent = true;
-            n.__label.material.opacity = e;
+            n.__label.material.opacity = op;
           }
-          if (p >= 1) n.__enterT0 = null;
         }
         if (n.__label && cam) {
           const off = n.__labelOff || (n.__r || 8) / 2 + 5.5;
           n.__label.position.set(camRight.x * off, camRight.y * off, camRight.z * off);
+        }
+      }
+      graphRadiusRef.current = maxR;
+
+      // Edges follow the same facing gradient (measured at the edge midpoint), so nodes and
+      // their links recede together. Focus overrides — a clicked/highlighted edge stays full.
+      if (cam) {
+        const sel = selectedLinkRef.current;
+        const Rn = maxR > 1 ? maxR : R;
+        for (const l of currentLinksRef.current) {
+          if (!l.__line) continue;
+          if (focusing) {
+            l.__line.material.opacity = l === sel ? 1 : hl.has(l) ? 1 : 0.06;
+            continue;
+          }
+          const s = l.source, t = l.target;
+          if (typeof s === "object" && typeof t === "object") {
+            const mx = ((s.x || 0) + (t.x || 0)) / 2;
+            const my = ((s.y || 0) + (t.y || 0)) / 2;
+            const mz = ((s.z || 0) + (t.z || 0)) / 2;
+            l.__line.material.opacity = EDGE_BACK_OPACITY + (EDGE_OPACITY - EDGE_BACK_OPACITY) * frontWeight(mx, my, mz, Rn);
+          } else {
+            l.__line.material.opacity = EDGE_OPACITY;
+          }
         }
       }
       entranceRafRef.current = requestAnimationFrame(entranceStep);
@@ -317,14 +429,17 @@ export default function GraphMemoryPage() {
     const controls = fg.controls();
     if (controls) {
       controls.rotateSpeed = 2.4;
-      controls.zoomSpeed = 3.4; // faster zoom in/out
+      controls.zoomSpeed = 6.5; // snappier zoom — bigger step per scroll, reaches far clusters faster
       controls.panSpeed = 1.2;
       controls.dynamicDampingFactor = 0.35;
     }
 
-    // Depth cue — geometry further from the camera fades toward black, so whatever
-    // faces the screen stands out and the rest goes shady (like the video).
-    fg.scene().fog = new THREE.FogExp2(0x000000, 0.0011);
+    // Keep disconnected clusters reachable — strength tuned per view in renderView.
+    fg.d3Force("gravity", gravityForce());
+
+    // Depth is cued by FACING (see entranceStep), not distance: the back side of the graph
+    // dims toward black while the near side stays bright — and it doesn't wash the whole graph
+    // out when you zoom away the way absolute fog did. So: no scene fog.
     // Bright ambient so the LIT edge cylinders show their full colour (nodes are unlit).
     fg.scene().add(new THREE.AmbientLight(0xffffff, 2.2));
 
@@ -538,17 +653,31 @@ export default function GraphMemoryPage() {
       fgRef.current.graphData({ nodes, links });
     }
 
-    // Spread the topic squares far apart; normal spacing for concepts.
+    // Layout forces scaled to the graph's size. Collision keeps nodes from overlapping (the
+    // main cause of a dense graph looking messy). For concepts, charge range + link distance
+    // grow with the node count so a big graph spreads instead of clumping, and gravity weakens
+    // as it grows so clusters stay reachable without balling up. distanceMax caps the range.
     const fg = fgRef.current;
+    const n = nodes.length;
     const charge = fg.d3Force("charge");
     const linkF = fg.d3Force("link");
+    const gravity = fg.d3Force("gravity");
     if (viewModeRef.current === "topics") {
-      if (charge) charge.strength(-750); // spread the few topic squares apart, but on-screen
+      if (charge) charge.strength(-750).distanceMax(900); // spread the few topic squares apart, but on-screen
       if (linkF) linkF.distance(95);
+      if (gravity) gravity.strength(0.07);
     } else {
-      if (charge) charge.strength(-130);
-      if (linkF) linkF.distance(32);
+      if (charge) charge.strength(-150).distanceMax(Math.max(300, n * 5));
+      if (linkF) linkF.distance(Math.min(85, 28 + n * 0.3));
+      if (gravity) gravity.strength(Math.min(0.055, 3.5 / n));
     }
+    fg.d3Force(
+      "collide",
+      forceCollide()
+        .radius((nd) => collideRadius(nd, viewModeRef.current === "topics"))
+        .strength(0.9)
+        .iterations(2),
+    );
     fg.d3ReheatSimulation();
   }
 
@@ -595,6 +724,7 @@ export default function GraphMemoryPage() {
     const hl = highlightLinksRef.current;
     hn.clear();
     hl.clear();
+    selectedLinkRef.current = null; // a node focus replaces any edge focus
     if (node) {
       hn.add(node);
       (node.__neighbors || []).forEach((n) => hn.add(n));
@@ -603,24 +733,39 @@ export default function GraphMemoryPage() {
     hoverNodeRef.current = node || null;
     applyFocus();
     setSelection(node ? buildSelection(node) : null);
+    setSelectedFact(null);
     setHoveredFact(null);
   }
 
-  function applyFocus() {
-    const focusing = !!hoverNodeRef.current;
+  // Focus a single edge: spotlight the edge + its two endpoints, dim the rest, pin its fact.
+  function focusEdge(link) {
     const hn = highlightNodesRef.current;
     const hl = highlightLinksRef.current;
-    for (const n of renderedNodesRef.current) {
-      const on = !focusing || hn.has(n);
-      if (n.__disk) n.__disk.material.opacity = on ? 1 : 0.2; // dim, but still see behind
-      if (n.__label) {
-        n.__label.material.transparent = true;
-        n.__label.material.opacity = on ? 1 : 0.12;
-      }
+    hn.clear();
+    hl.clear();
+    hoverNodeRef.current = null; // this is an edge focus, not a node focus
+    selectedLinkRef.current = link || null;
+    if (link) {
+      hl.add(link);
+      const a = typeof link.source === "object" ? link.source : nodesRef.current.get(link.source);
+      const b = typeof link.target === "object" ? link.target : nodesRef.current.get(link.target);
+      if (a) hn.add(a);
+      if (b) hn.add(b);
+      setSelection(null);
+      setSelectedFact(factOf(link));
+      setHoveredFact(null);
+    } else {
+      setSelectedFact(null);
     }
+    applyFocus();
+  }
+
+  function applyFocus() {
+    const sel = selectedLinkRef.current;
+    // Node + edge opacity are set every frame by the render loop (facing + focus aware); here
+    // we only thicken the clicked edge and re-evaluate which edges carry particles.
     for (const l of currentLinksRef.current) {
-      // Gradient edge lines fade when out of focus.
-      if (l.__line) l.__line.material.opacity = !focusing || hl.has(l) ? 1 : 0.08;
+      if (l.__line) l.__line.material.linewidth = l === sel ? (l.__w || 1) * 2.4 : l.__w || 1;
     }
     const fg = fgRef.current;
     fg.linkDirectionalParticles(fg.linkDirectionalParticles()); // re-eval particle visibility for focus
@@ -735,7 +880,10 @@ export default function GraphMemoryPage() {
 
   function toggleSaves() {
     setSavesOpen((o) => {
-      if (!o) refreshSaves();
+      if (!o) {
+        setBeliefsOpen(false);
+        refreshSaves();
+      }
       return !o;
     });
   }
@@ -785,6 +933,47 @@ export default function GraphMemoryPage() {
     }
   }
 
+  // ---- beliefs (the user's own notes, per memory context) -------------------
+  async function loadBeliefs(context) {
+    setBeliefSaved(false);
+    try {
+      const res = await getBeliefs("default", context || null);
+      setBeliefText(res.text || "");
+    } catch {
+      setBeliefText("");
+    }
+  }
+
+  function toggleBeliefs() {
+    setBeliefsOpen((o) => {
+      if (!o) {
+        setSavesOpen(false);
+        refreshSaves(); // populate the context dropdown
+        loadBeliefs(beliefContext);
+      }
+      return !o;
+    });
+  }
+
+  function selectBeliefContext(context) {
+    setBeliefContext(context);
+    loadBeliefs(context);
+  }
+
+  async function handleSaveBeliefs() {
+    setError("");
+    setBusy(true);
+    try {
+      await saveBeliefs(beliefText, "default", beliefContext || null);
+      setBeliefSaved(true);
+      setStatus(`Saved your notes for “${beliefContext || "Live memory"}”.`);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   // Timeline granularity: fine steps + a time-of-day label when the whole history spans
   // less than ~2 days (e.g. several uploads in one day), coarser when it spans longer.
   const timeSpan = timeRange.max - timeRange.min;
@@ -796,16 +985,25 @@ export default function GraphMemoryPage() {
     return `${date} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   };
 
-  // Left-panel detail: a hovered edge's fact, else a hovered node's info, else a hint.
-  const factCard = hoveredFact && (
+  // Left-panel detail: a hovered edge's fact, else a hovered node's info, else the pinned
+  // (clicked) edge, else a hint. `pinned` adds a header + ✕ so a clicked edge stays put.
+  const renderFact = (f, pinned) => (
     <div>
+      {pinned && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+          <span style={{ fontSize: 10, color: "#7a87a6", textTransform: "uppercase", letterSpacing: 0.4 }}>Fact</span>
+          <button onClick={() => focusEdge(null)} style={{ ...ghostBtn, padding: "2px 8px" }}>
+            ✕
+          </button>
+        </div>
+      )}
       <div style={{ fontFamily: "ui-monospace, monospace", fontSize: 11, color: "#9b8cff", marginBottom: 4 }}>
-        {hoveredFact.source} —{hoveredFact.name}→ {hoveredFact.target}
+        {f.source} —{f.name}→ {f.target}
       </div>
-      <div style={{ fontSize: 12.5, color: "#dfe7f5", lineHeight: 1.5 }}>{hoveredFact.fact}</div>
-      {hoveredFact.invalid_at && (
+      <div style={{ fontSize: 12.5, color: "#dfe7f5", lineHeight: 1.5 }}>{f.fact}</div>
+      {f.invalid_at && (
         <div style={{ fontSize: 11, color: "#ff8da3", marginTop: 4 }}>
-          no longer active · {hoveredFact.invalid_at.slice(0, 10)}
+          no longer active · {f.invalid_at.slice(0, 10)}
         </div>
       )}
     </div>
@@ -824,12 +1022,14 @@ export default function GraphMemoryPage() {
     </div>
   );
   const detail = hoveredFact
-    ? factCard
+    ? renderFact(hoveredFact, false)
     : hoveredNode
       ? nodeCard
-      : selection
-        ? <div style={{ fontSize: 11.5, color: "#6b7693" }}>Hover a node or edge to read it.</div>
-        : null;
+      : selectedFact
+        ? renderFact(selectedFact, true)
+        : selection
+          ? <div style={{ fontSize: 11.5, color: "#6b7693" }}>Hover a node or edge to read it.</div>
+          : null;
 
   return (
     <div
@@ -942,6 +1142,45 @@ export default function GraphMemoryPage() {
               </div>
             )}
           </div>
+          <div style={{ position: "relative" }}>
+            <button onClick={toggleBeliefs} disabled={busy} style={ghostBtn}>
+              ✎ Beliefs
+            </button>
+            {beliefsOpen && (
+              <div style={{ ...savesPanel, width: 320 }}>
+                <div style={{ fontSize: 11, color: "#7a87a6", marginBottom: 6 }}>Your own notes for</div>
+                <select
+                  value={beliefContext}
+                  onChange={(e) => selectBeliefContext(e.target.value)}
+                  style={{ ...selectStyle, marginBottom: 9 }}
+                >
+                  <option value="">Live memory</option>
+                  {saves.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+                <textarea
+                  value={beliefText}
+                  onChange={(e) => {
+                    setBeliefText(e.target.value);
+                    setBeliefSaved(false);
+                  }}
+                  placeholder="What you believe or want the expert to know — e.g. your own view on a topic. When you chat with this memory, answers weigh this against the sources and flag any disagreement."
+                  rows={7}
+                  style={{ ...textareaStyle, marginBottom: 9 }}
+                />
+                <button onClick={handleSaveBeliefs} disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.5 : 1 }}>
+                  {beliefSaved ? "Saved ✓" : "Save notes"}
+                </button>
+                <div style={{ fontSize: 10.5, color: "#6b7693", marginTop: 8, lineHeight: 1.5 }}>
+                  Not added to the graph or RAG — kept as your notes and shown to the expert when you chat
+                  with this memory.
+                </div>
+              </div>
+            )}
+          </div>
           {confirmReset ? (
             <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 12, color: "#ff8da3" }}>Clear the whole memory?</span>
@@ -999,8 +1238,8 @@ export default function GraphMemoryPage() {
         ))}
       </div>
 
-      {/* left panel — group inspector on click, node/edge info on hover */}
-      {(selection || hoveredNode || hoveredFact) && (
+      {/* left panel — group inspector on click, node/edge info on hover, pinned edge on click */}
+      {(selection || selectedFact || hoveredNode || hoveredFact) && (
         <div style={leftPanel}>
           {selection ? (
             <>

@@ -43,11 +43,14 @@ export default function ChatWindow({
   const { runCommand, forgetCandidates, confirmForget, cancelForget } =
     useCommands({
       setMessages,
+      messages,
       memories,
       memoryEnabled,
       onRemember,
       onSetCharacter,
       onForgetMemory,
+      selectedMemory,
+      expertEnabled,
     });
 
   const { isStreaming, error, sendMessage, stop } = useChatStream({

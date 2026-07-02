@@ -1,16 +1,21 @@
 import { useState } from "react";
 
+import { addBelief } from "../api/beliefs.js";
+
 // Slash-command dispatch — these are handled locally, with no model call.
 // `runCommand(text)` returns true when the text was a command (and has been
 // handled), or false to let it fall through to a chat request. Also owns the
 // /forget confirmation dialog state (multi-match never deletes blindly).
 export function useCommands({
   setMessages,
+  messages,
   memories,
   memoryEnabled,
   onRemember,
   onSetCharacter,
   onForgetMemory,
+  selectedMemory,
+  expertEnabled,
 }) {
   const [forgetCandidates, setForgetCandidates] = useState([]);
 
@@ -35,6 +40,35 @@ export function useCommands({
           ? `Saved to memory: “${fact}”`
           : "Usage: /remember <fact to keep across all chats>",
       );
+      return true;
+    }
+
+    // /note <text>: append a note to the CURRENT memory context's beliefs (the save
+    // selected in the composer, else live memory). Separate from /remember, which stores
+    // user facts across all chats — this is domain knowledge the expert weighs vs the sources.
+    if (lower.startsWith("/note")) {
+      const note = trimmed.slice("/note".length).trim();
+      if (!note) {
+        addNote("Usage: /note <something to remember in this memory>");
+        return true;
+      }
+      const where = selectedMemory || "Live memory";
+      // Send recent turns (role/content only) so the backend can resolve "he"/"that" against
+      // the conversation; the claim itself is never changed. The pill shows what was saved.
+      const recent = (messages || [])
+        .filter((m) => (m.role === "user" || m.role === "assistant") && m.content)
+        .slice(-8)
+        .map((m) => ({ role: m.role, content: m.content }));
+      addBelief(note, "default", selectedMemory || null, recent)
+        .then((res) => {
+          const saved = res.note || note;
+          addNote(
+            expertEnabled
+              ? `Noted in “${where}”: “${saved}”`
+              : `Noted in “${where}”: “${saved}” — turn on Expert mode to use it in answers.`,
+          );
+        })
+        .catch((e) => addNote(`Couldn't save the note: ${e.message}`));
       return true;
     }
 

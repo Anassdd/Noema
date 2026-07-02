@@ -20,7 +20,7 @@ from app import parsing
 from app.graph import GraphMemory, GraphSnapshot
 from app.graph.config import graph_config
 from app.graph.manager import graph_manager
-from app.retrieval import VectorStore, ingest_parsed_doc
+from app.retrieval import VectorStore, ingest_markdown, ingest_parsed_doc
 from app.saves import save_key, save_prefix
 
 router = APIRouter(prefix="/graphmem")
@@ -103,9 +103,16 @@ async def ingest(body: IngestText) -> dict:
     if not body.text.strip():
         raise HTTPException(status_code=400, detail="Nothing to add — the text is empty.")
     domain = body.domain or DOMAIN_DEFAULT
+    source = body.source or "pasted text"
     mem = await _mgr.get(domain, body.model or "")
     async with _mgr.lock(domain):
-        await mem.add_episode(body.text, name=body.source or "pasted text")
+        await mem.add_episode(body.text, name=source)
+    # Same text → also into the RAG vector base, so pasted text is queryable both ways
+    # (chunk → contextualize → embed → store). Best-effort: never lose the graph write.
+    try:
+        await asyncio.to_thread(ingest_markdown, body.text, source, domain_id=domain)
+    except Exception:
+        pass
     return _payload(await (await _mgr.get(domain)).snapshot())
 
 

@@ -24,6 +24,7 @@ from app.graph.base import GraphEdge, GraphFact, GraphNode, GraphSnapshot, iso
 from app.graph.config import GraphConfig, graph_config
 from app.graph.providers import build_embedder, build_llm_client
 from app.graph.schema import InducedSchema, load_schema, schema_instructions
+from app.saves import base_group_id
 
 
 # Graphiti's default extraction is tuned for formal named entities and yields nothing
@@ -69,7 +70,10 @@ class GraphMemory:
     def __init__(self, domain_id: str = "default", *, config: GraphConfig | None = None,
                  extract_model: str | None = None, extraction_instructions: str | None = None,
                  schema: InducedSchema | None = None, use_saved_schema: bool = True):
-        self.domain_id = domain_id
+        self.domain_id = domain_id  # the graph/database to CONNECT to
+        # the group_id the data carries — differs from domain_id only for save snapshots,
+        # whose graph is a raw copy that keeps the base domain's group_id.
+        self.group_id = base_group_id(domain_id)
         self.config = config or graph_config
         self._base_instructions = extraction_instructions or DEFAULT_EXTRACTION_INSTRUCTIONS
         self.schema = schema if schema is not None else (load_schema(domain_id) if use_saved_schema else None)
@@ -109,14 +113,14 @@ class GraphMemory:
             source=EpisodeType.text,
             source_description=source_description,
             reference_time=ref,
-            group_id=self.domain_id,
+            group_id=self.group_id,
             update_communities=update_communities,
             custom_extraction_instructions=extraction_instructions or self.extraction_instructions,
         )
 
     # ---- retrieval --------------------------------------------------------
     async def search(self, query: str, limit: int = 10) -> list[GraphFact]:
-        edges = await self.graphiti.search(query, group_ids=[self.domain_id], num_results=limit)
+        edges = await self.graphiti.search(query, group_ids=[self.group_id], num_results=limit)
         names = await self._node_names()
         return [self._to_fact(e, names) for e in edges]
 
@@ -138,7 +142,7 @@ class GraphMemory:
         including invalidated ones, so the temporal history stays visible."""
         nodes = await self._nodes()
         try:
-            edges = await EntityEdge.get_by_group_ids(self._driver, [self.domain_id])
+            edges = await EntityEdge.get_by_group_ids(self._driver, [self.group_id])
         except Exception:
             edges = []  # empty graph before any fact exists
         gn = [GraphNode(uuid=n.uuid, name=n.name, labels=list(n.labels or []),
@@ -151,7 +155,7 @@ class GraphMemory:
 
     # ---- maintenance ------------------------------------------------------
     async def reset(self):
-        await clear_data(self._driver, group_ids=[self.domain_id])
+        await clear_data(self._driver, group_ids=[self.group_id])
 
     async def close(self):
         try:
@@ -162,7 +166,7 @@ class GraphMemory:
     # ---- internals --------------------------------------------------------
     async def _nodes(self):
         try:
-            return await EntityNode.get_by_group_ids(self._driver, [self.domain_id])
+            return await EntityNode.get_by_group_ids(self._driver, [self.group_id])
         except Exception:
             return []
 

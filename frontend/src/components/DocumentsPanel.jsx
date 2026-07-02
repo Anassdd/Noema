@@ -1,6 +1,7 @@
 import { useRef } from "react";
 
 import { estimateTokens } from "../lib/tokens.js";
+import { DOC_STUFF_MAX_TOKENS, documentsFit } from "../lib/systemPrompt.js";
 
 // Right-side drawer to manage the conversation's attached PDFs: list them,
 // remove individual ones, or add another. Click the backdrop or × to close.
@@ -16,6 +17,7 @@ export default function DocumentsPanel({
     (sum, d) => sum + estimateTokens(d.text),
     0,
   );
+  const fits = documentsFit(documents);
 
   const onFileChange = (e) => {
     const file = e.target.files?.[0];
@@ -86,11 +88,18 @@ export default function DocumentsPanel({
         </div>
 
         <div className="space-y-2 border-t border-zinc-200 p-3 dark:border-white/10">
-          {documents.length > 0 && (
-            <p className="text-center text-xs text-zinc-400">
-              ~{totalTokens.toLocaleString()} tokens added to every message
-            </p>
-          )}
+          {documents.length > 0 &&
+            (fits ? (
+              <p className="text-center text-xs text-zinc-400">
+                ~{totalTokens.toLocaleString()} tokens added to every message
+              </p>
+            ) : (
+              <p className="text-center text-xs text-amber-600 dark:text-amber-400">
+                ~{totalTokens.toLocaleString()} tokens — over the ~
+                {DOC_STUFF_MAX_TOKENS.toLocaleString()}-token limit, so these aren’t sent to the
+                model. Add them on the Graph page to index them.
+              </p>
+            ))}
           <input
             ref={fileRef}
             type="file"

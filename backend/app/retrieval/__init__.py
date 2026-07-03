@@ -16,12 +16,12 @@ from app.retrieval.base import Answer, RetrievalTrace, ScoredChunk
 from app.retrieval.contextual import (ContextualChunk, contextualize_chunk,
                                       contextualize_chunks)
 from app.retrieval.ingest import ingest_markdown, ingest_parsed_doc, ingest_pdf
-from app.retrieval.search import search, search_trace
+from app.retrieval.search import rrf, search, search_trace
 from app.retrieval.store import VectorStore
 
 __all__ = [
     "ContextualChunk", "contextualize_chunk", "contextualize_chunks",
     "ingest_pdf", "ingest_parsed_doc", "ingest_markdown", "VectorStore",
-    "search", "search_trace", "answer", "answer_from",
+    "rrf", "search", "search_trace", "answer", "answer_from",
     "ScoredChunk", "RetrievalTrace", "Answer",
 ]

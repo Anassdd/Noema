@@ -29,6 +29,7 @@ from app import llm_client
 from app.graph.base import GraphSnapshot
 from app.graph.config import graph_config
 from app.graph.manager import graph_manager
+from app.graph.server import copy_graph, drop_graph
 from app.graph.store import GraphMemory
 
 GRACE_DAYS = int(os.getenv("DREAM_GRACE_DAYS", "7"))
@@ -58,34 +59,6 @@ def _checkpoint_name(domain: str) -> str:
     return f"__dream_checkpoint__{domain}"
 
 
-def _falkor(fn):
-    from falkordb import FalkorDB
-
-    db = FalkorDB(host=graph_config.host, port=graph_config.port)
-    try:
-        return fn(db)
-    finally:
-        try:
-            db.close()
-        except Exception:
-            pass
-
-
-def _copy_graph(src: str, dest: str) -> None:
-    def _do(db):
-        if dest in db.list_graphs():
-            db.select_graph(dest).delete()
-        db.select_graph(src).copy(dest)
-
-    _falkor(_do)
-
-
-def _drop_graph(name: str) -> None:
-    def _do(db):
-        if name in db.list_graphs():
-            db.select_graph(name).delete()
-
-    _falkor(_do)
 
 
 async def _query(mem: GraphMemory, cypher: str, **params) -> list[dict]:
@@ -390,7 +363,7 @@ async def dream(domain: str, model: str | None = None) -> AsyncIterator[dict]:
     summary: dict[str, dict] = {}
     try:
         for planned in passes:
-            await asyncio.to_thread(_copy_graph, domain, checkpoint)
+            await asyncio.to_thread(copy_graph, domain, checkpoint)
             yield {"phase": "pass_start", "pass": planned.key, "reason": planned.reason}
 
             before = await mem.snapshot()
@@ -408,10 +381,10 @@ async def dream(domain: str, model: str | None = None) -> AsyncIterator[dict]:
                 yield {"phase": "pass_done", "pass": planned.key, "changes": changes,
                        "snapshot": await mem.snapshot()}
             else:
-                await asyncio.to_thread(_copy_graph, checkpoint, domain)
+                await asyncio.to_thread(copy_graph, checkpoint, domain)
                 yield {"phase": "pass_rolled_back", "pass": planned.key, "why": why,
                        "snapshot": await mem.snapshot()}
     finally:
-        await asyncio.to_thread(_drop_graph, checkpoint)
+        await asyncio.to_thread(drop_graph, checkpoint)
 
     yield {"phase": "done", "summary": summary}

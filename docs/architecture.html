@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Noema — Architecture Explorer</title>
+<style>
+  :root {
+    --bg: #070a14;
+    --card: rgba(13, 18, 32, 0.88);
+    --card-hover: rgba(20, 27, 46, 0.95);
+    --border: rgba(120, 135, 175, 0.22);
+    --border-glow: rgba(92, 200, 255, 0.45);
+    --text: #e7ecf7;
+    --muted: #7a87a6;
+    --faint: #566078;
+    --cyan: #5cc8ff;
+    --violet: #9b8cff;
+    --teal: #8fd6c2;
+    --amber: #ffd28f;
+    --rose: #ff9db0;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+  }
+  #stars { position: fixed; inset: 0; z-index: 0; }
+  .glow {
+    position: fixed; border-radius: 50%; filter: blur(120px); opacity: 0.16;
+    pointer-events: none; z-index: 0;
+  }
+  .glow.a { width: 560px; height: 560px; background: #2a6fdb; top: -180px; left: -120px; }
+  .glow.b { width: 480px; height: 480px; background: #7c5cff; bottom: -160px; right: -100px; }
+
+  .wrap {
+    position: relative; z-index: 1;
+    max-width: 1240px; margin: 0 auto; padding: 34px 26px 80px;
+  }
+
+  header { text-align: center; margin-bottom: 26px; }
+  .wordmark {
+    font-size: 42px; font-weight: 800; letter-spacing: 0.14em;
+    background: linear-gradient(95deg, var(--cyan), var(--violet));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .subtitle { color: var(--muted); font-size: 14px; margin-top: 6px; letter-spacing: 0.02em; }
+  .hint { color: var(--faint); font-size: 12px; margin-top: 10px; }
+
+  .toolbar {
+    display: flex; gap: 10px; justify-content: center; align-items: center;
+    margin: 18px 0 26px; flex-wrap: wrap;
+  }
+  .tbtn {
+    background: rgba(120,135,175,0.12); border: 1px solid var(--border);
+    color: #cdd5ea; font-size: 12.5px; padding: 6px 14px; border-radius: 9px;
+    cursor: pointer; transition: all 0.25s ease; font-family: inherit;
+  }
+  .tbtn:hover { background: rgba(92,200,255,0.14); border-color: var(--border-glow); color: #fff; }
+  #filter {
+    background: rgba(7,10,20,0.7); border: 1px solid var(--border); border-radius: 9px;
+    color: var(--text); font-size: 12.5px; padding: 6px 12px; outline: none; width: 210px;
+    font-family: inherit; transition: border-color 0.25s;
+  }
+  #filter:focus { border-color: var(--border-glow); }
+
+  .legend { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); }
+  .legend span { display: flex; align-items: center; gap: 5px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+  .layout { display: grid; grid-template-columns: 1fr 320px; gap: 22px; align-items: start; }
+  @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } .inspector { position: static !important; } }
+
+  /* ---- tree nodes ---- */
+  .node { margin: 8px 0; }
+  .node-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 13px;
+    backdrop-filter: blur(10px); overflow: hidden;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
+  }
+  .node-card:hover { border-color: rgba(120,135,175,0.45); }
+  .node.selected > .node-card {
+    border-color: var(--border-glow);
+    box-shadow: 0 0 24px rgba(92,200,255,0.12), 0 12px 40px rgba(0,0,0,0.4);
+  }
+  .node-head {
+    display: flex; align-items: center; gap: 11px; padding: 11px 15px;
+    cursor: pointer; user-select: none;
+  }
+  .node-head:hover { background: rgba(92,200,255,0.04); }
+  .chev {
+    width: 9px; height: 9px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+    transform: rotate(-45deg); transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+    flex-shrink: 0; margin-top: -2px;
+  }
+  .node.open > .node-card > .node-head .chev { transform: rotate(45deg); margin-top: -4px; }
+  .leafdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .node-name { font-size: 14px; font-weight: 650; letter-spacing: 0.01em; white-space: nowrap; }
+  .node-desc {
+    color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; flex: 1; min-width: 0;
+  }
+  .badge {
+    font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 2.5px 8px; border-radius: 20px; flex-shrink: 0;
+  }
+  .count { color: var(--faint); font-size: 11px; flex-shrink: 0; }
+
+  .children {
+    max-height: 0; opacity: 0; overflow: hidden;
+    transition: max-height 0.55s cubic-bezier(0.4,0,0.2,1), opacity 0.4s ease, padding 0.4s ease;
+    padding: 0 12px 0 26px;
+  }
+  .node.open > .node-card > .children { opacity: 1; padding: 2px 12px 12px 26px; }
+  .children .node { animation: none; }
+  .node.open > .node-card > .children > .node { animation: rise 0.45s cubic-bezier(0.2,0.8,0.3,1) both; }
+  @keyframes rise { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  /* kind colors */
+  .k-root  { --kc: var(--cyan); }
+  .k-pkg   { --kc: var(--violet); }
+  .k-mod   { --kc: var(--teal); }
+  .k-store { --kc: var(--amber); }
+  .k-ui    { --kc: #f2a6ff; }
+  .k-doc   { --kc: #9fb4d8; }
+  .node-name { color: var(--kc, var(--text)); }
+  .leafdot, .dot { background: var(--kc, var(--muted)); box-shadow: 0 0 8px var(--kc, transparent); }
+  .badge { background: color-mix(in srgb, var(--kc) 14%, transparent); color: var(--kc); border: 1px solid color-mix(in srgb, var(--kc) 35%, transparent); }
+
+  .dormant .node-name { opacity: 0.55; }
+  .dormant .node-desc::after { content: " · dormant"; color: var(--rose); opacity: 0.8; }
+
+  /* ---- inspector ---- */
+  .inspector {
+    position: sticky; top: 24px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 20px; backdrop-filter: blur(12px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+    min-height: 300px;
+    transition: border-color 0.4s;
+  }
+  .inspector.pulse { border-color: var(--border-glow); }
+  .ins-kind { font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 8px; }
+  .ins-name { font-size: 21px; font-weight: 750; margin-bottom: 3px; }
+  .ins-path { font-size: 11px; color: var(--faint); font-family: ui-monospace, "SF Mono", Menlo, monospace; margin-bottom: 14px; word-break: break-all; }
+  .ins-desc { font-size: 13px; line-height: 1.65; color: #c3ccdf; margin-bottom: 16px; }
+  .ins-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); margin: 14px 0 8px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    font-size: 11px; padding: 3.5px 10px; border-radius: 20px;
+    background: rgba(92,200,255,0.10); border: 1px solid rgba(92,200,255,0.28); color: #bfe4ff;
+  }
+  .chip.fw { background: rgba(155,140,255,0.10); border-color: rgba(155,140,255,0.30); color: #d3caff; }
+
+  .stack-section { margin-top: 30px; }
+  .stack-title {
+    text-align: center; font-size: 16px; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 16px;
+  }
+  .stack-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; }
+  .stack-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px;
+    transition: border-color 0.3s, transform 0.3s;
+  }
+  .stack-card:hover { border-color: var(--border-glow); transform: translateY(-3px); }
+  .stack-card h3 { font-size: 13px; margin-bottom: 10px; letter-spacing: 0.06em; }
+  .stack-card ul { list-style: none; }
+  .stack-card li { font-size: 12px; color: #b8c2d9; padding: 3px 0; display: flex; justify-content: space-between; gap: 10px; }
+  .stack-card li b { color: var(--text); font-weight: 600; }
+  .stack-card li span { color: var(--faint); text-align: right; }
+
+  footer { text-align: center; color: var(--faint); font-size: 11.5px; margin-top: 44px; }
+  .hidden-by-filter { display: none !important; }
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<div class="glow a"></div><div class="glow b"></div>
+
+<div class="wrap">
+  <header>
+    <div class="wordmark">NOEMA</div>
+    <div class="subtitle">Architecture Explorer — every layer, module, and library, from orbit to source file</div>
+    <div class="hint">Click a card to unfold what's inside · click a name to inspect it on the right</div>
+  </header>
+
+  <div class="toolbar">
+    <button class="tbtn" onclick="expandAll(true)">Unfold everything</button>
+    <button class="tbtn" onclick="expandAll(false)">Fold everything</button>
+    <input id="filter" placeholder="filter… (e.g. graph, rrf, hook)" oninput="applyFilter(this.value)">
+  </div>
+
+  <div class="legend">
+    <span class="k-root"><i class="dot"></i> system</span>
+    <span class="k-pkg"><i class="dot"></i> package</span>
+    <span class="k-mod"><i class="dot"></i> module</span>
+    <span class="k-store"><i class="dot"></i> store / data</span>
+    <span class="k-ui"><i class="dot"></i> UI</span>
+    <span class="k-doc"><i class="dot"></i> docs / tests</span>
+  </div>
+
+  <div class="layout">
+    <div id="tree"></div>
+    <aside class="inspector" id="inspector">
+      <div class="ins-kind" style="color: var(--cyan)">System</div>
+      <div class="ins-name">Noema</div>
+      <div class="ins-path">/</div>
+      <div class="ins-desc">A domain-expert chatbot whose knowledge is an evolving memory built from documents.
+        Two synchronized memories — a contextual vector base and a temporal knowledge graph — feed an agentic
+        answer pipeline with citations, while the graph stays visible, versionable, annotatable, and self-maintaining.
+        <br><br>Start clicking on the left — each card opens up to reveal what lives inside it.</div>
+      <div class="ins-label">Core stack</div>
+      <div class="chips">
+        <span class="chip fw">FastAPI</span><span class="chip fw">React 19</span>
+        <span class="chip">Graphiti</span><span class="chip">FalkorDB</span><span class="chip">Chroma</span>
+        <span class="chip fw">Vite</span><span class="chip fw">three.js</span>
+      </div>
+    </aside>
+  </div>
+
+  <div class="stack-section">
+    <div class="stack-title">Libraries & Frameworks</div>
+    <div class="stack-grid">
+      <div class="stack-card k-pkg"><h3 style="color:var(--violet)">Backend · Python 3.12</h3><ul>
+        <li><b>FastAPI</b><span>HTTP API + SSE/NDJSON streaming</span></li>
+        <li><b>uvicorn</b><span>ASGI server</span></li>
+        <li><b>OpenAI SDK</b><span>only inside llm_client.py</span></li>
+        <li><b>Pydantic</b><span>request schemas + config</span></li>
+        <li><b>pypdfium2</b><span>PDF page rendering</span></li>
+        <li><b>Azure Document Intelligence</b><span>optional parser</span></li>
+      </ul></div>
+      <div class="stack-card k-store"><h3 style="color:var(--amber)">Memory & Storage</h3><ul>
+        <li><b>graphiti-core</b><span>temporal knowledge graph</span></li>
+        <li><b>FalkorDB</b><span>graph store (bundled server)</span></li>
+        <li><b>ChromaDB</b><span>vector store (embedded)</span></li>
+        <li><b>SQLite</b><span>conversations</span></li>
+        <li><b>Markdown files</b><span>personal memory + beliefs</span></li>
+        <li><b>tiktoken</b><span>exact token counts</span></li>
+      </ul></div>
+      <div class="stack-card k-ui"><h3 style="color:#f2a6ff">Frontend · React 19</h3><ul>
+        <li><b>Vite 7</b><span>dev server + build</span></li>
+        <li><b>Tailwind CSS 4</b><span>styling</span></li>
+        <li><b>react-markdown + GFM</b><span>answer rendering</span></li>
+        <li><b>rehype-highlight</b><span>code blocks</span></li>
+        <li><b>gpt-tokenizer</b><span>live token estimates</span></li>
+      </ul></div>
+      <div class="stack-card k-mod"><h3 style="color:var(--teal)">3D Graph View</h3><ul>
+        <li><b>3d-force-graph</b><span>force-directed 3D rendering</span></li>
+        <li><b>three.js</b><span>WebGL engine underneath</span></li>
+        <li><b>graphology</b><span>graph data structures</span></li>
+        <li><b>louvain communities</b><span>cluster colors</span></li>
+        <li><b>three-spritetext</b><span>node labels</span></li>
+      </ul></div>
+      <div class="stack-card k-doc"><h3 style="color:#9fb4d8">Testing & Lab</h3><ul>
+        <li><b>Streamlit</b><span>interactive component lab</span></li>
+        <li><b>scripted suites</b><span>parser · chunker · contextual · retrieval · graph</span></li>
+      </ul></div>
+      <div class="stack-card k-root"><h3 style="color:var(--cyan)">Models (via .env)</h3><ul>
+        <li><b>chat / judges</b><span>gpt-4.1-mini default</span></li>
+        <li><b>graph extraction</b><span>strong model (gpt-4o class)</span></li>
+        <li><b>embeddings</b><span>text-embedding-3-large</span></li>
+        <li><b>providers</b><span>openai (dev) · llmaas (prod)</span></li>
+      </ul></div>
+    </div>
+  </div>
+
+  <footer>Noema · generated from the live codebase · see docs/01-overview.md for the narrative version</footer>
+</div>
+
+<script>
+/* ------------------------------ the architecture data ------------------------------ */
+const ARCH = {
+  name: "Noema", kind: "root", path: "/", desc: "The whole system — two apps, one provider seam, two synchronized memories.",
+  tech: ["FastAPI", "React 19", "Graphiti", "Chroma"],
+  children: [
+    { name: "backend/", kind: "pkg", path: "backend/", desc: "Python 3.12 · FastAPI · one venv for API + vector base + graph",
+      tech: ["FastAPI", "uvicorn", "Pydantic"],
+      long: "The server: HTTP API on :8000, the expert pipeline, both memories, and (by default) an auto-started local FalkorDB. Everything provider-specific comes from backend/.env.",
+      children: [
+        { name: "app/", kind: "pkg", path: "backend/app/", desc: "the application package",
+          long: "All backend code. The two golden rules: only llm_client.py imports the OpenAI SDK, and only config.py reads environment variables.",
+          children: [
+            { name: "llm_client.py", kind: "mod", path: "backend/app/llm_client.py",
+              desc: "THE provider seam — every LLM & embedding call",
+              long: "The single module allowed to import the OpenAI SDK. chat() (buffered or streamed), embed(), transcribe_image(), list_models(). Handles both providers (openai dev key ↔ llmaas corporate OpenAI-compatible endpoint), retries parameter rejections from reasoning models, returns usage for the token UI. Swapping providers is a .env change — never a code change.",
+              tech: ["openai SDK", "streaming", "vision"] },
+            { name: "config.py", kind: "mod", path: "backend/app/config.py",
+              desc: "every env var is read here, once",
+              long: "Loads backend/.env into a Settings object: provider choice, model names, parser backend, reranker, store paths, history limits. The rest of the codebase reads settings — never os.getenv.",
+              tech: ["python-dotenv"] },
+            { name: "pipeline.py", kind: "mod", path: "backend/app/pipeline.py",
+              desc: "the expert brain — route → retrieve → grade → answer → verify",
+              long: "One LLM call contextualizes the message (resolves 'him'/'that' into a standalone query, any language) AND routes it. Retrieval fuses vector ⊕ graph rankings with shared RRF. CRAG grades evidence before answering; Self-RAG verifies faithfulness after; both bounded at 2 retries. Beliefs are injected as a separate epistemic block. Streams status/delta/sources/usage events.",
+              tech: ["CRAG", "Self-RAG", "RRF fusion"] },
+            { name: "main.py", kind: "mod", path: "backend/app/main.py", desc: "app factory — registers the 8 routers + CORS", tech: ["FastAPI"] },
+            { name: "schemas.py", kind: "mod", path: "backend/app/schemas.py", desc: "Pydantic request bodies", tech: ["Pydantic"] },
+            { name: "saves.py", kind: "store", path: "backend/app/saves.py",
+              desc: "whole-memory checkpoints — graph + vectors under one key",
+              long: "Owns create/restore/delete/list of named saves. A save copies the FalkorDB graph (GRAPH.COPY) and the Chroma collection under the same key so both stores restore together. Also the base_group_id() subtlety: a save's graph keeps the base domain's group_id.",
+              tech: ["GRAPH.COPY", "Chroma"] },
+            { name: "beliefs.py", kind: "store", path: "backend/app/beliefs.py",
+              desc: "your own notes per memory context",
+              long: "One small Markdown file per (user, memory-context). Injected verbatim into expert answers as the user's personal opinion — kept apart from the corpus so disagreements are surfaced ('the sources say X, your note holds Y'), never merged.",
+              tech: ["Markdown", "8k char cap"] },
+            { name: "memory_store.py + judge", kind: "store", path: "backend/app/memory_store.py",
+              desc: "personal memory — /remember facts, Markdown, LLM-judged",
+              long: "Durable user facts as an editable memory.md (one '- ' line per fact); the judge extracts new facts from conversation automatically. Global across chats by design.",
+              tech: ["Markdown", "LLM judge"] },
+            { name: "conversation_store.py", kind: "store", path: "backend/app/conversation_store.py", desc: "durable chats — SQLite, no ORM", tech: ["SQLite"] },
+            { name: "routers/", kind: "pkg", path: "backend/app/routers/",
+              desc: "thin HTTP layer — 8 routers",
+              long: "system (/health /models) · chat (SSE) · conversations · documents (/upload) · memory · beliefs · graphmem (ingest/stream/dream/saves) · textgraph (dormant). Business logic lives in the modules; routers translate HTTP.",
+              tech: ["SSE", "NDJSON"] },
+            { name: "parsing/", kind: "pkg", path: "backend/app/parsing/",
+              desc: "PDF → Markdown, page by page",
+              long: "Tiered vision parsing by default: clean text pages use the free embedded text layer; complex pages (formulas, tables, figures) go to a vision LLM. Azure Document Intelligence available via PARSER=docintel (wired, not yet validated live). Page-level provenance throughout.",
+              tech: ["pypdfium2", "vision LLM", "Azure DI"],
+              children: [
+                { name: "vision.py", kind: "mod", path: "backend/app/parsing/vision.py", desc: "tiered router: free text layer vs vision LLM per page", tech: ["pypdfium2"] },
+                { name: "docintel.py", kind: "mod", path: "backend/app/parsing/docintel.py", desc: "Azure DI backend (untested against live resource)", tech: ["azure-ai-documentintelligence"] },
+                { name: "dispatch.py", kind: "mod", path: "backend/app/parsing/dispatch.py", desc: "PARSER env var picks the backend" },
+              ] },
+            { name: "chunking/", kind: "pkg", path: "backend/app/chunking/",
+              desc: "structure-aware Markdown chunker",
+              long: "Cuts on headings, then paragraphs/sentences; ~512-token chunks with 64 overlap; code/math/tables never split. Every chunk carries doc, pages, section path.",
+              tech: ["tiktoken"] },
+            { name: "retrieval/", kind: "pkg", path: "backend/app/retrieval/",
+              desc: "the contextual vector base (Anthropic Contextual Retrieval)",
+              long: "Each chunk gets an LLM-written situating blurb before embedding + BM25 indexing (−49% retrieval failures per Anthropic). Search = dense + BM25 fused with RRF, optional rerank, full per-stage trace. The shared rrf() also fuses graph results in the pipeline.",
+              tech: ["ChromaDB", "BM25", "RRF", "rerank"],
+              children: [
+                { name: "contextual.py", kind: "mod", path: "backend/app/retrieval/contextual.py", desc: "the LLM situating blurb per chunk (cached prompt)", tech: ["prompt caching"] },
+                { name: "store.py", kind: "mod", path: "backend/app/retrieval/store.py", desc: "Chroma wrapper — embeds via llm_client; copy_into() powers saves", tech: ["ChromaDB"] },
+                { name: "search.py", kind: "mod", path: "backend/app/retrieval/search.py", desc: "hybrid dense+BM25 → the ONE shared rrf() → trace", tech: ["RRF"] },
+                { name: "bm25.py", kind: "mod", path: "backend/app/retrieval/bm25.py", desc: "pure-Python Okapi BM25 — no deps" },
+                { name: "ingest.py", kind: "mod", path: "backend/app/retrieval/ingest.py", desc: "parse → chunk → contextualize → embed → store" },
+                { name: "rerank.py", kind: "mod", path: "backend/app/retrieval/rerank.py", desc: "off | llm (RankGPT) | endpoint (Cohere/Jina)" },
+                { name: "answer.py", kind: "mod", path: "backend/app/retrieval/answer.py", desc: "grounded cited answer from chunks (lab path)" },
+              ] },
+            { name: "graph/", kind: "pkg", path: "backend/app/graph/",
+              desc: "the temporal knowledge graph (Graphiti) + Dream",
+              long: "The second memory: entities + facts with bi-temporal validity. Contradictions invalidate (never delete) so history stays queryable. Includes the Dream self-maintenance cycle, the bundled FalkorDB server, per-domain schema induction, and the provider bridge.",
+              tech: ["graphiti-core", "FalkorDB"],
+              children: [
+                { name: "store.py", kind: "mod", path: "backend/app/graph/store.py",
+                  desc: "GraphMemory — build/add_episode/search/snapshot per domain",
+                  long: "The whole public surface. add_episode: extract → resolve → relate → invalidate. search filters Dream-archived facts. snapshot keeps invalidated edges so time travel works — and refuses to mistake a failed edge-read for an empty graph.",
+                  tech: ["Graphiti"] },
+                { name: "evolution.py", kind: "mod", path: "backend/app/graph/evolution.py",
+                  desc: "✦ Dream — gated self-maintenance",
+                  long: "analyze → plan → per-pass GRAPH.COPY checkpoint → dedupe (LLM-confirmed alias merge) / forget (archive superseded past grace; prune orphans) / consolidate (off by default) → sanity-check → commit or roll back. One attempt per pass; episodes and current facts must survive; node loss must match the pass's own report.",
+                  tech: ["GRAPH.COPY", "vecf32", "LLM judge"] },
+                { name: "server.py", kind: "mod", path: "backend/app/graph/server.py", desc: "auto-starts bundled FalkorDB + raw admin (falkor_ops/copy/drop)", tech: ["falkordblite"] },
+                { name: "schema.py", kind: "mod", path: "backend/app/graph/schema.py", desc: "induces a per-domain entity/relation schema to bound extraction", tech: ["auto-tuning"] },
+                { name: "manager.py", kind: "mod", path: "backend/app/graph/manager.py", desc: "instance cache + per-domain write lock" },
+                { name: "providers.py", kind: "mod", path: "backend/app/graph/providers.py", desc: "builds Graphiti's LLM/embedder from the same .env settings" },
+                { name: "config.py", kind: "mod", path: "backend/app/graph/config.py", desc: "GRAPH_BACKEND: falkor_local (default) · falkor_server · neo4j" },
+                { name: "viz.py", kind: "mod", path: "backend/app/graph/viz.py", desc: "static HTML render for the lab" },
+              ] },
+            { name: "textgraph/", kind: "pkg", path: "backend/app/textgraph/", dormant: true,
+              desc: "instant co-occurrence graph (InfraNodus-style)",
+              long: "A no-LLM word co-occurrence network — built, then parked when the product graph page was repointed to Graphiti. Kept as a possible future 'instant lens'; not used by the current UI.",
+              tech: ["pure Python"] },
+          ] },
+      ] },
+    { name: "frontend/", kind: "ui", path: "frontend/", desc: "React 19 · Vite · Tailwind v4 — two views, hooks own all state",
+      tech: ["React 19", "Vite 7", "Tailwind 4"],
+      long: "The SPA on :5173. No router library, no global store: a query param picks the view, hooks own state, components render.",
+      children: [
+        { name: "src/api/", kind: "ui", path: "frontend/src/api/",
+          desc: "one module per backend router — client.js is the shared plumbing",
+          long: "client.js holds the base URL, error shape, and the NDJSON stream reader. chat.js hand-parses SSE frames; graphmem.js streams ingestion + Dream; the rest are thin JSON calls.",
+          tech: ["fetch", "SSE", "NDJSON"] },
+        { name: "src/hooks/", kind: "ui", path: "frontend/src/hooks/",
+          desc: "all state — conversations, stream, commands, memory, settings…",
+          long: "useConversations (CRUD + 800ms debounced saves + auto-title), useChatStream (SSE consumption, trace/sources/usage), useCommands (slash dispatch incl. /note), useMemory, useModels, useSettings, usePdfUpload, useFileDrop.",
+          tech: ["React hooks"] },
+        { name: "src/components/", kind: "ui", path: "frontend/src/components/",
+          desc: "the chat surface",
+          long: "Sidebar · ChatWindow (MessageList with paced reveal + trace + sources · MessageInput with command autocomplete + memory selector · DocumentsPanel with the token-budget gate · ForgetDialog) · SettingsModal · MemoryPanel · Markdown renderer.",
+          tech: ["react-markdown", "gpt-tokenizer"] },
+        { name: "src/graph/", kind: "ui", path: "frontend/src/graph/",
+          desc: "the 3D graph page (?view=graph)",
+          long: "GraphMemoryPage: 3D force graph with Louvain community colors, degree sizing, topics view, time scrubber, live per-page growth during ingest, ✦ Dream narration, Saves + Beliefs panels (panels.jsx), shared styles.js.",
+          tech: ["3d-force-graph", "three.js", "graphology"] },
+        { name: "src/lib/", kind: "ui", path: "frontend/src/lib/",
+          desc: "systemPrompt builder · command registry · token counting",
+          long: "systemPrompt.js assembles persona + attached PDFs (stuffed only if the total fits DOC_STUFF_MAX_TOKENS ≈150k, per Anthropic's ~200k guidance) + remembered facts. commands.js registers the six slash commands. tokens.js lazy-loads the tokenizer.",
+          tech: ["gpt-tokenizer"] },
+      ] },
+    { name: "tests/", kind: "doc", path: "tests/", desc: "Streamlit lab + scripted suites",
+      long: "An interactive lab (playground + parser/chunker/contextualizer/retrieval inspectors with saved traces), two graph playgrounds, and five scripted suites — chunking, contextual, textlayer, retrieval are free (mocked); the graph suite makes real LLM calls.",
+      tech: ["Streamlit"] },
+    { name: "docs/", kind: "doc", path: "docs/", desc: "the book — numbered reading path 01→11",
+      long: "01 overview · 02 getting started · 03 configuration · 04 backend tour · 05 expert pipeline · 06 graph memory · 07 Dream · 08 API reference · 09 frontend · 10 testing · 11 roadmap. Plus this page." },
+    { name: "studies/", kind: "doc", path: "studies/", desc: "the research behind the design decisions",
+      long: "SOTA surveys and decision logs: memory representation, parsing, memory UX, the evolutive-memory survey, and the evolution contract every memory type's self-maintenance must respect." },
+  ]
+};
+
+/* ------------------------------ render ------------------------------ */
+const KIND_LABEL = { root: "system", pkg: "package", mod: "module", store: "store / data", ui: "UI", doc: "docs / tests" };
+const KIND_COLOR = { root: "var(--cyan)", pkg: "var(--violet)", mod: "var(--teal)", store: "var(--amber)", ui: "#f2a6ff", doc: "#9fb4d8" };
+
+function renderNode(n, depth) {
+  const el = document.createElement("div");
+  el.className = `node k-${n.kind}` + (n.dormant ? " dormant" : "");
+  el.dataset.name = n.name.toLowerCase();
+  const hasKids = n.children && n.children.length;
+
+  const card = document.createElement("div");
+  card.className = "node-card";
+  const head = document.createElement("div");
+  head.className = "node-head";
+  head.innerHTML = `
+    ${hasKids ? '<div class="chev"></div>' : '<div class="leafdot"></div>'}
+    <span class="node-name">${n.name}</span>
+    <span class="node-desc">${n.desc || ""}</span>
+    ${hasKids ? `<span class="count">${n.children.length}</span>` : ""}
+    <span class="badge">${KIND_LABEL[n.kind]}</span>`;
+  head.addEventListener("click", (e) => {
+    select(n, el);
+    if (hasKids) toggle(el);
+  });
+  card.appendChild(head);
+
+  if (hasKids) {
+    const kids = document.createElement("div");
+    kids.className = "children";
+    n.children.forEach((c, i) => {
+      const childEl = renderNode(c, depth + 1);
+      childEl.style.animationDelay = `${i * 0.05}s`;
+      kids.appendChild(childEl);
+    });
+    card.appendChild(kids);
+  }
+  el.appendChild(card);
+  return el;
+}
+
+function toggle(el, force) {
+  const open = force !== undefined ? force : !el.classList.contains("open");
+  el.classList.toggle("open", open);
+  const kids = el.querySelector(":scope > .node-card > .children");
+  if (kids) kids.style.maxHeight = open ? "4000px" : "0";
+}
+
+function select(n, el) {
+  document.querySelectorAll(".node.selected").forEach((x) => x.classList.remove("selected"));
+  el.classList.add("selected");
+  const ins = document.getElementById("inspector");
+  ins.classList.remove("pulse");
+  void ins.offsetWidth; // restart animation
+  ins.classList.add("pulse");
+  ins.innerHTML = `
+    <div class="ins-kind" style="color:${KIND_COLOR[n.kind]}">${KIND_LABEL[n.kind]}${n.dormant ? " · dormant" : ""}</div>
+    <div class="ins-name" style="color:${KIND_COLOR[n.kind]}">${n.name}</div>
+    <div class="ins-path">${n.path || ""}</div>
+    <div class="ins-desc">${n.long || n.desc || ""}</div>
+    ${n.tech && n.tech.length ? `<div class="ins-label">Built with</div>
+      <div class="chips">${n.tech.map((t) => `<span class="chip">${t}</span>`).join("")}</div>` : ""}
+    ${n.children && n.children.length ? `<div class="ins-label">Contains</div>
+      <div class="chips">${n.children.map((c) => `<span class="chip fw">${c.name}</span>`).join("")}</div>` : ""}`;
+}
+
+function expandAll(open) {
+  document.querySelectorAll("#tree .node").forEach((el) => {
+    if (el.querySelector(":scope > .node-card > .children")) toggle(el, open);
+  });
+}
+
+function applyFilter(q) {
+  q = q.trim().toLowerCase();
+  const nodes = document.querySelectorAll("#tree .node");
+  if (!q) { nodes.forEach((el) => el.classList.remove("hidden-by-filter")); return; }
+  nodes.forEach((el) => el.classList.add("hidden-by-filter"));
+  nodes.forEach((el) => {
+    const head = el.querySelector(":scope > .node-card > .node-head");
+    const ownText = (el.dataset.name + " " + (head?.textContent || "")).toLowerCase();
+    if (ownText.includes(q)) {
+      // show this node and all ancestors, opening the path down to it
+      let cur = el;
+      while (cur && cur.id !== "tree") {
+        if (cur.classList?.contains("node")) { cur.classList.remove("hidden-by-filter"); toggle(cur, true); }
+        cur = cur.parentElement;
+      }
+      el.querySelectorAll(".node").forEach((k) => k.classList.remove("hidden-by-filter"));
+    }
+  });
+}
+
+const treeRoot = renderNode(ARCH, 0);
+document.getElementById("tree").appendChild(treeRoot);
+toggle(treeRoot, true); // root starts open
+
+/* ------------------------------ starfield ------------------------------ */
+const cv = document.getElementById("stars"), ctx = cv.getContext("2d");
+let stars = [];
+function sizeCanvas() {
+  cv.width = innerWidth; cv.height = innerHeight;
+  stars = Array.from({ length: 110 }, () => ({
+    x: Math.random() * cv.width, y: Math.random() * cv.height,
+    r: Math.random() * 1.3 + 0.2, s: Math.random() * 0.14 + 0.02,
+    tw: Math.random() * Math.PI * 2,
+  }));
+}
+addEventListener("resize", sizeCanvas); sizeCanvas();
+(function draw(t) {
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  for (const st of stars) {
+    st.y -= st.s; if (st.y < -2) st.y = cv.height + 2;
+    const a = 0.35 + 0.3 * Math.sin(t / 900 + st.tw);
+    ctx.beginPath(); ctx.arc(st.x, st.y, st.r, 0, 7);
+    ctx.fillStyle = `rgba(160,190,255,${a})`; ctx.fill();
+  }
+  requestAnimationFrame(draw);
+})(0);
+</script>
+</body>
+</html>

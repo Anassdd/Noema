@@ -1,8 +1,11 @@
-"""Naming for saved memory snapshots.
+"""Saved memory snapshots ("saves") — named checkpoints of a domain's whole memory.
 
-A "save" is a named checkpoint of a domain's memory. It captures BOTH stores — the
-Graphiti graph (a FalkorDB graph) and the RAG vector base (a Chroma collection) — under
-one key, so the graph store, the vector store, and the retrieval pipeline all agree on it.
+A save captures BOTH stores under one key so they stay in lockstep: the Graphiti graph
+(a FalkorDB graph, copied via GRAPH.COPY) and the RAG vector base (a Chroma collection).
+This module owns the naming scheme AND the operations; routers stay thin.
+
+Imports of the graph/retrieval layers are lazy — app.graph.store imports base_group_id
+from here at module load, so a top-level import back into app.graph would be circular.
 """
 
 from __future__ import annotations
@@ -25,3 +28,58 @@ def base_group_id(domain_id: str) -> str:
     if domain_id.startswith(SAVE_PREFIX):
         return domain_id[len(SAVE_PREFIX):].split("__", 1)[0]
     return domain_id
+
+
+# ---- operations (sync — async callers wrap in asyncio.to_thread) -------------
+def list_saves(domain: str) -> list[str]:
+    from app.graph.server import list_graphs
+
+    prefix = save_prefix(domain)
+    return sorted(g[len(prefix):] for g in list_graphs() if g.startswith(prefix))
+
+
+def create_save(domain: str, name: str) -> int:
+    """Checkpoint both stores under the save key. Returns the chunk count captured
+    from the vector base. Raises ValueError if the graph is empty."""
+    from app.graph.server import falkor_ops
+    from app.retrieval import VectorStore
+
+    dest = save_key(domain, name)
+
+    def _copy(db):
+        if domain not in db.list_graphs():
+            raise ValueError("empty")
+        if dest in db.list_graphs():
+            db.select_graph(dest).delete()
+        db.select_graph(domain).copy(dest)
+
+    falkor_ops(_copy)
+    return VectorStore(domain).copy_into(dest)
+
+
+def restore_save(domain: str, name: str) -> None:
+    """Overwrite the live domain with the save — both stores. Raises ValueError if
+    the save doesn't exist. An old graph-only save restores an empty vector base."""
+    from app.graph.server import falkor_ops
+    from app.retrieval import VectorStore
+
+    src = save_key(domain, name)
+
+    def _copy(db):
+        if src not in db.list_graphs():
+            raise ValueError("missing")
+        if domain in db.list_graphs():
+            db.select_graph(domain).delete()
+        db.select_graph(src).copy(domain)
+
+    falkor_ops(_copy)
+    VectorStore(src).copy_into(domain)
+
+
+def delete_save(domain: str, name: str) -> None:
+    from app.graph.server import drop_graph
+    from app.retrieval import VectorStore
+
+    src = save_key(domain, name)
+    drop_graph(src)
+    VectorStore(src).drop()

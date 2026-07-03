@@ -30,6 +30,11 @@ backend/uploads/
 # Regenerable; the kept edge-case results live as JSON in tests/results/graph_runs/.
 tests/results/graph_store/
 
+# Lab RAG store (Chroma sqlite + HNSW binaries) — regenerated on every lab run;
+# churns as binary noise in git. Untrack once with:
+#   git rm -r --cached tests/results/rag_store/
+tests/results/rag_store/
+
 # Persisted user memory (saved via /remember) — local, can hold personal facts.
 backend/memory.json
 backend/app/memory.json

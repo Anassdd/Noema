@@ -1,20 +1,7 @@
 // The user's own notes/beliefs for a memory context (the selected save, else the live
 // domain). Small editable markdown — injected into answers, not indexed. Keyed the same way
 // the chat answers (memory || domain), so the editor and the pipeline always agree.
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
-
-async function asJson(res) {
-  if (!res.ok) {
-    let detail = `HTTP ${res.status}`;
-    try {
-      detail = (await res.json()).detail ?? detail;
-    } catch {
-      /* keep generic */
-    }
-    throw new Error(detail);
-  }
-  return res.json();
-}
+import { API_BASE, asJson } from "./client.js";
 
 export function getBeliefs(domain = "default", memory = null) {
   const params = new URLSearchParams({ domain });

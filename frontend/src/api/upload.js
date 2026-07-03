@@ -1,6 +1,6 @@
 // Uploads a PDF to the backend, which extracts and returns its text.
 // Returns { filename, pages, chars, text }.
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+import { API_BASE } from "./client.js";
 
 export async function uploadPdf(file) {
   const form = new FormData();

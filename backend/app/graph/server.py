@@ -75,3 +75,43 @@ def stop_local_server():
         except Exception:
             _proc.kill()
     _proc = None
+
+
+# ---- raw graph admin (sync client, run in a thread by async callers) ---------
+def falkor_ops(fn):
+    """Run one operation against the FalkorDB server with a short-lived sync client.
+    The shared helper behind whole-graph admin: saves, Dream checkpoints."""
+    from falkordb import FalkorDB
+
+    from app.graph.config import graph_config
+
+    db = FalkorDB(host=graph_config.host, port=graph_config.port)
+    try:
+        return fn(db)
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+
+def list_graphs() -> list[str]:
+    return falkor_ops(lambda db: db.list_graphs())
+
+
+def copy_graph(src: str, dest: str) -> None:
+    """Full copy via GRAPH.COPY, overwriting any existing dest."""
+    def _do(db):
+        if dest in db.list_graphs():
+            db.select_graph(dest).delete()
+        db.select_graph(src).copy(dest)
+
+    falkor_ops(_do)
+
+
+def drop_graph(name: str) -> None:
+    def _do(db):
+        if name in db.list_graphs():
+            db.select_graph(name).delete()
+
+    falkor_ops(_do)

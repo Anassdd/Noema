@@ -5,7 +5,7 @@
 // the ReadableStream by hand — frames are separated by a blank line ("\n\n"),
 // each carries one `data: <json>` line.
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+import { API_BASE } from "./client.js";
 
 /**
  * Stream a chat completion.

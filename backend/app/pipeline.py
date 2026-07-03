@@ -17,18 +17,7 @@ from typing import AsyncIterator
 
 from app import beliefs, llm_client
 from app.graph.manager import graph_manager
-from app.retrieval import ScoredChunk, search_trace
-
-_RRF_K = 60
-
-
-def _rrf(rankings: list[list[str]], k: int = _RRF_K) -> dict[str, float]:
-    """Reciprocal Rank Fusion: a chunk found high by several retrievers rises."""
-    scores: dict[str, float] = {}
-    for ranking in rankings:
-        for rank, cid in enumerate(ranking):
-            scores[cid] = scores.get(cid, 0.0) + 1.0 / (k + rank + 1)
-    return scores
+from app.retrieval import ScoredChunk, rrf, search_trace
 
 
 def _fact_to_chunk(fact, episode_names: dict[str, str], domain_id: str) -> ScoredChunk:
@@ -104,7 +93,7 @@ async def retrieve(
         rankings.append([c.chunk_id for c in gchunks])
         meta["graph"] = len(gchunks)
 
-    fused = _rrf(rankings)
+    fused = rrf(rankings)
     for cid, s in fused.items():
         if cid in by_id:
             by_id[cid].scores["fused"] = round(s, 5)

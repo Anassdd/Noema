@@ -1,7 +1,7 @@
 // Client for the persistent memory store (facts saved via /remember). The
 // backend keeps these in a JSON file, so they survive reloads and are shared
 // across sessions — unlike the per-session character.
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+import { API_BASE } from "./client.js";
 
 export async function fetchMemories() {
   const res = await fetch(`${API_BASE}/memory`);

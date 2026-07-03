@@ -18,11 +18,13 @@ from app.retrieval.store import VectorStore
 _RRF_K = 60
 
 
-def _rrf(rankings: list[list[str]]) -> dict[str, float]:
+def rrf(rankings: list[list[str]], k: int = _RRF_K) -> dict[str, float]:
+    """Reciprocal Rank Fusion: an id ranked high by several retrievers rises. The ONE
+    shared implementation — the expert pipeline fuses graph + vector with it too."""
     scores: dict[str, float] = {}
     for ranking in rankings:
         for rank, cid in enumerate(ranking):
-            scores[cid] = scores.get(cid, 0.0) + 1.0 / (_RRF_K + rank + 1)
+            scores[cid] = scores.get(cid, 0.0) + 1.0 / (k + rank + 1)
     return scores
 
 
@@ -59,7 +61,7 @@ def search_trace(query: str, *, k: int = 8, domain_id: str = "default",
     trace.timings["bm25_ms"] = round((time.perf_counter() - t0) * 1000, 1)
 
     # fuse (RRF)
-    fused_scores = _rrf([dense_ranking, bm25_ranking])
+    fused_scores = rrf([dense_ranking, bm25_ranking])
     for cid, s in fused_scores.items():
         by_id[cid].scores["rrf"] = round(s, 5)
         by_id[cid].score = round(s, 5)

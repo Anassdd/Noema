@@ -1,28 +1,32 @@
+# Versions are PINNED to the combination verified on the dev machine — the prod
+# (locked-down Windows) install must be reproducible, not drift to whatever is
+# newest. To upgrade: bump a pin, re-run the test suites, commit the new pin.
+
 # Provider-swap layer (this step)
-openai>=1.40.0
-python-dotenv>=1.0.0
+openai==2.44.0
+python-dotenv==1.2.2
 
 # Backend API
-fastapi>=0.110.0
-uvicorn[standard]>=0.29.0
-python-multipart>=0.0.9
+fastapi==0.138.2
+uvicorn[standard]==0.49.0
+python-multipart==0.0.32
 
 # PDF parsing — render pages to images locally (light, no ML models). The actual
 # parsing is done by a vision LLM via the provider abstraction (OpenAI/Azure), so
 # nothing heavy runs on the machine. We dropped local Docling because it needs
 # heavy models + a strong PC and can't run on the locked-down Azure-only target —
 # see NOEMA_PARSING_SOTA.md.
-pypdfium2>=4.0.0
+pypdfium2==5.11.0
 
 # Azure Document Intelligence — the deterministic parser backbone, used only when
 # PARSER=docintel. Lightweight (no torch). Safe to keep installed even on the
 # vision default.
-azure-ai-documentintelligence>=1.0.0
+azure-ai-documentintelligence==1.0.2
 
 # RAG vector store — embedded, on-disk, no server/GPU. Holds the contextual vector base.
 # We pass our own embeddings (via the provider abstraction), so Chroma's bundled
 # embedding models aren't used. BM25 (keyword search) is pure-Python, no dependency.
-chromadb>=1.0.0
+chromadb==1.5.9
 
 # Graph memory — Graphiti temporal knowledge graph over an EMBEDDED FalkorDB (the
 # falkordblite extra bundles a FalkorDB server binary + redislite, no Docker/GPU). The
@@ -30,5 +34,5 @@ chromadb>=1.0.0
 # networkx is used only for the graph-viz layout in the test bench.
 # NOTE: this is why the whole project targets Python 3.12 — graphiti-core's dependency
 # tree isn't ready for 3.14. One venv now holds the contextual base AND the graph.
-graphiti-core[falkordblite]>=0.29.2
-networkx>=3.6
+graphiti-core[falkordblite]==0.29.2
+networkx==3.6.1

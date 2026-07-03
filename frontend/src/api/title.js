@@ -1,5 +1,5 @@
 // Asks the backend to name a conversation from its first exchange.
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+import { API_BASE } from "./client.js";
 
 export async function fetchTitle(messages) {
   const res = await fetch(`${API_BASE}/title`, {

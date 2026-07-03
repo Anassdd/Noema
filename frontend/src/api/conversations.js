@@ -1,7 +1,7 @@
 // Client for the durable conversation store (SQLite on the backend). The
 // sidebar loads lightweight summaries; a conversation's full messages + PDFs
 // load only when opened. Saving is an upsert keyed by the conversation id.
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+import { API_BASE } from "./client.js";
 
 export async function listConversations() {
   const res = await fetch(`${API_BASE}/conversations`);

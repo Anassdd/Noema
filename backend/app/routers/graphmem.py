@@ -16,34 +16,15 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app import parsing
-from app.graph import GraphMemory, GraphSnapshot
-from app.graph import evolution
-from app.graph.config import graph_config
+from app import parsing, saves
+from app.graph import GraphSnapshot, evolution
 from app.graph.manager import graph_manager
-from app.retrieval import VectorStore, ingest_markdown, ingest_parsed_doc
-from app.saves import save_key, save_prefix
+from app.retrieval import ingest_markdown, ingest_parsed_doc
 
 router = APIRouter(prefix="/graphmem")
 
 DOMAIN_DEFAULT = "default"
 MAX_PDF_BYTES = 25 * 1024 * 1024
-
-
-def _falkor_ops(fn):
-    """Run a FalkorDB graph operation on the local server (a sync client in a thread).
-    Used for full-graph save/restore via GRAPH.COPY — preserves everything."""
-    from falkordb import FalkorDB
-
-    db = FalkorDB(host=graph_config.host, port=graph_config.port)
-    try:
-        return fn(db)
-    finally:
-        try:
-            db.close()
-        except Exception:
-            pass
-
 
 # One shared cache of GraphMemory instances (also used by the retrieval pipeline).
 _mgr = graph_manager
@@ -210,9 +191,7 @@ class SaveBody(BaseModel):
 
 @router.get("/saves")
 async def list_saves(domain: str = DOMAIN_DEFAULT) -> dict:
-    prefix = save_prefix(domain)
-    graphs = await asyncio.to_thread(_falkor_ops, lambda db: db.list_graphs())
-    return {"saves": sorted(g[len(prefix):] for g in graphs if g.startswith(prefix))}
+    return {"saves": await asyncio.to_thread(saves.list_saves, domain)}
 
 
 @router.post("/save")
@@ -222,46 +201,23 @@ async def save_graph(body: SaveBody) -> dict:
         raise HTTPException(status_code=400, detail="Give the save a name.")
     domain = body.domain or DOMAIN_DEFAULT
     await _mgr.get(domain)  # ensure the server is up and the graph exists
-    dest = save_key(domain, name)
-
-    def _do(db):
-        if domain not in db.list_graphs():
-            raise ValueError("empty")
-        if dest in db.list_graphs():
-            db.select_graph(dest).delete()  # overwrite an existing save of the same name
-        db.select_graph(domain).copy(dest)
-
     async with _mgr.lock(domain):
         try:
-            await asyncio.to_thread(_falkor_ops, _do)
+            chunks = await asyncio.to_thread(saves.create_save, domain, name)
         except ValueError:
             raise HTTPException(status_code=400, detail="Nothing to save — the graph is empty.")
-        # Snapshot the RAG vector base under the same key, so the save captures BOTH stores.
-        chunks = await asyncio.to_thread(lambda: VectorStore(domain).copy_into(dest))
     return {"saved": name, "chunks": chunks}
 
 
 @router.post("/restore")
 async def restore_graph(body: SaveBody) -> dict:
-    name = body.name.strip()
     domain = body.domain or DOMAIN_DEFAULT
-    src = save_key(domain, name)
     await _mgr.get(domain)
-
-    def _do(db):
-        if src not in db.list_graphs():
-            raise ValueError("missing")
-        if domain in db.list_graphs():
-            db.select_graph(domain).delete()
-        db.select_graph(src).copy(domain)
-
     async with _mgr.lock(domain):
         try:
-            await asyncio.to_thread(_falkor_ops, _do)
+            await asyncio.to_thread(saves.restore_save, domain, body.name.strip())
         except ValueError:
             raise HTTPException(status_code=404, detail="That save doesn't exist.")
-        # Restore the RAG store too (an old graph-only save has none → clears to empty).
-        await asyncio.to_thread(lambda: VectorStore(src).copy_into(domain))
     mem = await _mgr.get(domain)
     return _payload(await mem.snapshot())
 
@@ -270,12 +226,5 @@ async def restore_graph(body: SaveBody) -> dict:
 async def delete_save(body: SaveBody) -> dict:
     domain = body.domain or DOMAIN_DEFAULT
     name = body.name.strip()
-    src = save_key(domain, name)
-
-    def _do(db):
-        if src in db.list_graphs():
-            db.select_graph(src).delete()
-
-    await asyncio.to_thread(_falkor_ops, _do)
-    await asyncio.to_thread(lambda: VectorStore(src).drop())  # drop the RAG snapshot too
+    await asyncio.to_thread(saves.delete_save, domain, name)
     return {"deleted": name}

@@ -21,6 +21,18 @@ import {
 import { getBeliefs, saveBeliefs } from "../api/beliefs.js";
 import { fetchModels } from "../api/models.js";
 import { enrich, topicsFrom } from "./graph3d.js";
+import { SavesPanel, BeliefsPanel } from "./panels.jsx";
+import {
+  ghostBtn,
+  selectStyle,
+  textareaStyle,
+  uploadBtn,
+  primaryBtn,
+  viewToolbar,
+  leftPanel,
+  timeBar,
+  spinner,
+} from "./styles.js";
 
 // A flat, camera-facing disk (like the InfraNodus video) — a white circle with a soft
 // rim, tinted per node. Built once and shared; SpriteMaterial.color does the tinting.
@@ -1127,106 +1139,32 @@ export default function GraphMemoryPage() {
               )}
             </span>
           )}
-          <div style={{ position: "relative" }}>
-            <button onClick={toggleSaves} disabled={busy} style={ghostBtn}>
-              ⧉ Saves{saves.length ? ` (${saves.length})` : ""}
-            </button>
-            {savesOpen && (
-              <div style={savesPanel}>
-                <div style={{ fontSize: 11, color: "#7a87a6", marginBottom: 6 }}>Save current graph</div>
-                <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-                  <input
-                    value={saveName}
-                    onChange={(e) => setSaveName(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSave()}
-                    placeholder="name this checkpoint…"
-                    disabled={busy}
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      background: "rgba(7,10,20,0.7)",
-                      border: "1px solid rgba(120,135,175,0.2)",
-                      borderRadius: 8,
-                      padding: "5px 8px",
-                      color: "#e7ecf7",
-                      fontSize: 12,
-                      outline: "none",
-                    }}
-                  />
-                  <button
-                    onClick={handleSave}
-                    disabled={busy || !saveName.trim()}
-                    style={{ ...primaryBtn, width: "auto", padding: "5px 12px", opacity: busy || !saveName.trim() ? 0.5 : 1 }}
-                  >
-                    Save
-                  </button>
-                </div>
-                <div style={{ fontSize: 11, color: "#7a87a6", marginBottom: 4, borderTop: "1px solid rgba(120,135,175,0.15)", paddingTop: 8 }}>
-                  Saved checkpoints
-                </div>
-                {saves.length === 0 ? (
-                  <div style={{ fontSize: 11.5, color: "#6b7693", padding: "4px 0" }}>None yet.</div>
-                ) : (
-                  saves.map((s) => (
-                    <div key={s} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0" }}>
-                      <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "#e7ecf7", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {s}
-                      </span>
-                      <button onClick={() => handleRestore(s)} disabled={busy} style={{ ...ghostBtn, padding: "3px 9px", fontSize: 11.5 }}>
-                        Restore
-                      </button>
-                      <button
-                        onClick={() => handleDeleteSave(s)}
-                        title="Delete this save"
-                        style={{ ...ghostBtn, padding: "3px 7px", color: "#ff9db0" }}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-          <div style={{ position: "relative" }}>
-            <button onClick={toggleBeliefs} disabled={busy} style={ghostBtn}>
-              ✎ Beliefs
-            </button>
-            {beliefsOpen && (
-              <div style={{ ...savesPanel, width: 320 }}>
-                <div style={{ fontSize: 11, color: "#7a87a6", marginBottom: 6 }}>Your own notes for</div>
-                <select
-                  value={beliefContext}
-                  onChange={(e) => selectBeliefContext(e.target.value)}
-                  style={{ ...selectStyle, marginBottom: 9 }}
-                >
-                  <option value="">Live memory</option>
-                  {saves.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-                <textarea
-                  value={beliefText}
-                  onChange={(e) => {
-                    setBeliefText(e.target.value);
-                    setBeliefSaved(false);
-                  }}
-                  placeholder="What you believe or want the expert to know — e.g. your own view on a topic. When you chat with this memory, answers weigh this against the sources and flag any disagreement."
-                  rows={7}
-                  style={{ ...textareaStyle, marginBottom: 9 }}
-                />
-                <button onClick={handleSaveBeliefs} disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.5 : 1 }}>
-                  {beliefSaved ? "Saved ✓" : "Save notes"}
-                </button>
-                <div style={{ fontSize: 10.5, color: "#6b7693", marginTop: 8, lineHeight: 1.5 }}>
-                  Not added to the graph or RAG — kept as your notes and shown to the expert when you chat
-                  with this memory.
-                </div>
-              </div>
-            )}
-          </div>
+          <SavesPanel
+            busy={busy}
+            saves={saves}
+            open={savesOpen}
+            onToggle={toggleSaves}
+            name={saveName}
+            onName={setSaveName}
+            onSave={handleSave}
+            onRestore={handleRestore}
+            onDelete={handleDeleteSave}
+          />
+          <BeliefsPanel
+            busy={busy}
+            saves={saves}
+            open={beliefsOpen}
+            onToggle={toggleBeliefs}
+            context={beliefContext}
+            onSelectContext={selectBeliefContext}
+            text={beliefText}
+            onText={(v) => {
+              setBeliefText(v);
+              setBeliefSaved(false);
+            }}
+            saved={beliefSaved}
+            onSave={handleSaveBeliefs}
+          />
           <button
             onClick={handleDream}
             disabled={busy || !stats?.node_count}
@@ -1558,129 +1496,3 @@ export default function GraphMemoryPage() {
     </div>
   );
 }
-
-const ghostBtn = {
-  background: "rgba(120,135,175,0.12)",
-  border: "1px solid rgba(120,135,175,0.22)",
-  color: "#cdd5ea",
-  fontSize: 12.5,
-  fontWeight: 500,
-  padding: "5px 11px",
-  borderRadius: 8,
-  cursor: "pointer",
-};
-
-const selectStyle = {
-  width: "100%",
-  background: "rgba(7,10,20,0.7)",
-  border: "1px solid rgba(120,135,175,0.2)",
-  borderRadius: 8,
-  padding: "6px 8px",
-  color: "#e7ecf7",
-  fontSize: 12,
-  outline: "none",
-  cursor: "pointer",
-};
-
-const textareaStyle = {
-  width: "100%",
-  resize: "none",
-  background: "rgba(7,10,20,0.7)",
-  border: "1px solid rgba(120,135,175,0.2)",
-  borderRadius: 9,
-  padding: "8px 10px",
-  color: "#e7ecf7",
-  fontSize: 12.5,
-  outline: "none",
-};
-
-const uploadBtn = {
-  display: "block",
-  textAlign: "center",
-  background: "rgba(92,200,255,0.14)",
-  border: "1px solid rgba(92,200,255,0.35)",
-  color: "#bfe4ff",
-  fontSize: 13,
-  fontWeight: 600,
-  padding: "9px 0",
-  borderRadius: 9,
-  cursor: "pointer",
-};
-
-const primaryBtn = {
-  width: "100%",
-  background: "linear-gradient(95deg,#5cc8ff,#9b8cff)",
-  border: "none",
-  color: "#0a0e1a",
-  fontSize: 13,
-  fontWeight: 700,
-  padding: "9px 0",
-  borderRadius: 9,
-  cursor: "pointer",
-};
-
-const savesPanel = {
-  position: "absolute",
-  top: 34,
-  right: 0,
-  width: 280,
-  background: "rgba(13,18,32,0.96)",
-  border: "1px solid rgba(120,135,175,0.22)",
-  borderRadius: 12,
-  padding: 12,
-  backdropFilter: "blur(10px)",
-  boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
-  zIndex: 20,
-};
-
-const viewToolbar = {
-  position: "absolute",
-  top: 58,
-  left: "50%",
-  transform: "translateX(-50%)",
-  display: "flex",
-  background: "rgba(13,18,32,0.85)",
-  border: "1px solid rgba(120,135,175,0.2)",
-  borderRadius: 10,
-  overflow: "hidden",
-  backdropFilter: "blur(10px)",
-};
-
-const leftPanel = {
-  position: "absolute",
-  left: 18,
-  top: 64,
-  width: 320,
-  maxHeight: "46vh",
-  overflowY: "auto",
-  background: "rgba(13,18,32,0.92)",
-  border: "1px solid rgba(120,135,175,0.2)",
-  borderRadius: 14,
-  padding: 14,
-  backdropFilter: "blur(10px)",
-  boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
-};
-
-const timeBar = {
-  position: "absolute",
-  left: "50%",
-  transform: "translateX(-50%)",
-  bottom: 18,
-  width: "min(520px, 42vw)",
-  background: "rgba(13,18,32,0.85)",
-  border: "1px solid rgba(120,135,175,0.18)",
-  borderRadius: 12,
-  padding: "10px 14px",
-  backdropFilter: "blur(10px)",
-  boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
-};
-
-const spinner = {
-  width: 11,
-  height: 11,
-  border: "2px solid rgba(143,214,194,0.35)",
-  borderTopColor: "#8fd6c2",
-  borderRadius: "50%",
-  display: "inline-block",
-  animation: "spin 0.7s linear infinite",
-};

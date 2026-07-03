@@ -11,6 +11,7 @@ import {
   getGraph,
   ingestText,
   uploadPdfStream,
+  dreamStream,
   resetGraph,
   listSaves,
   saveGraph,
@@ -847,6 +848,51 @@ export default function GraphMemoryPage() {
     }
   }
 
+  const DREAM_LABELS = {
+    dedupe: "merging duplicate entities",
+    forget: "archiving stale facts",
+    consolidate: "refreshing community summaries",
+  };
+
+  function describeDream(summary) {
+    const bits = [];
+    if (summary.dedupe?.merged) bits.push(`${summary.dedupe.merged} duplicates merged`);
+    if (summary.forget?.archived) bits.push(`${summary.forget.archived} stale facts archived`);
+    if (summary.forget?.pruned_orphans) bits.push(`${summary.forget.pruned_orphans} orphans pruned`);
+    if (summary.consolidate?.communities) bits.push(`${summary.consolidate.communities} communities`);
+    return bits.length ? `Dream done — ${bits.join(" · ")}.` : "Dream done — nothing needed changing.";
+  }
+
+  async function handleDream() {
+    setError("");
+    setBusy(true);
+    setStatus("Dreaming — analyzing the memory…");
+    try {
+      await dreamStream((ev) => {
+        if (ev.phase === "plan") {
+          const keys = (ev.passes || []).map((p) => p.key);
+          if (keys.length) setStatus(`Dream plan: ${keys.join(" → ")}`);
+        } else if (ev.phase === "pass_start") {
+          setStatus(`Dream — ${DREAM_LABELS[ev.pass] || ev.pass}… (${ev.reason})`);
+        } else if (ev.phase === "pass_done") {
+          applySnapshot(ev);
+          setStatus(`Dream — ${DREAM_LABELS[ev.pass] || ev.pass} ✓`);
+        } else if (ev.phase === "pass_rolled_back") {
+          applySnapshot(ev);
+          setStatus(`Dream — ${DREAM_LABELS[ev.pass] || ev.pass} rolled back (${ev.why})`);
+        } else if (ev.phase === "done") {
+          setStatus(ev.detail || describeDream(ev.summary || {}));
+        } else if (ev.phase === "error") {
+          setError(ev.detail);
+        }
+      }, model);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleReset() {
     setBusy(true);
     setStatus("Clearing memory…");
@@ -1181,6 +1227,19 @@ export default function GraphMemoryPage() {
               </div>
             )}
           </div>
+          <button
+            onClick={handleDream}
+            disabled={busy || !stats?.node_count}
+            title="Self-maintain the memory: merge duplicate entities, archive stale facts, refresh community summaries — each step checked and rolled back if it loses knowledge."
+            style={{
+              ...ghostBtn,
+              background: "rgba(150,110,255,0.14)",
+              border: "1px solid rgba(150,110,255,0.35)",
+              color: "#c9b8ff",
+            }}
+          >
+            ✦ Dream
+          </button>
           {confirmReset ? (
             <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 12, color: "#ff8da3" }}>Clear the whole memory?</span>

@@ -121,8 +121,34 @@ class GraphMemory:
     # ---- retrieval --------------------------------------------------------
     async def search(self, query: str, limit: int = 10) -> list[GraphFact]:
         edges = await self.graphiti.search(query, group_ids=[self.group_id], num_results=limit)
+        archived = await self._archived_uuids()
         names = await self._node_names()
-        return [self._to_fact(e, names) for e in edges]
+        return [self._to_fact(e, names) for e in edges if e.uuid not in archived]
+
+    async def _edge_count(self) -> int:
+        """Raw fact-edge count straight from Cypher — independent of edge parsing."""
+        try:
+            res = await self._driver.execute_query(
+                "MATCH ()-[r:RELATES_TO]->() WHERE r.group_id = $g RETURN count(r) AS n",
+                g=self.group_id,
+            )
+            records = res[0] if isinstance(res, tuple) else res
+            return records[0]["n"] if records else 0
+        except Exception:
+            return 0
+
+    async def _archived_uuids(self) -> set[str]:
+        """Facts Dream demoted out of active retrieval (still in snapshots/history)."""
+        try:
+            res = await self._driver.execute_query(
+                "MATCH ()-[r:RELATES_TO]->() WHERE r.group_id = $g AND r.archived = true "
+                "RETURN r.uuid AS uuid",
+                g=self.group_id,
+            )
+            records = res[0] if isinstance(res, tuple) else res
+            return {row["uuid"] for row in (records or [])}
+        except Exception:
+            return set()
 
     async def episode_names(self, uuids: list[str]) -> dict[str, str]:
         """Resolve episode UUIDs → their names (we name episodes '<file> · p<N>'), so a
@@ -144,7 +170,11 @@ class GraphMemory:
         try:
             edges = await EntityEdge.get_by_group_ids(self._driver, [self.group_id])
         except Exception:
-            edges = []  # empty graph before any fact exists
+            # Only an edgeless graph may read as empty — a parse failure on a graph
+            # that HAS edges must surface, or callers would mistake it for "no facts".
+            if await self._edge_count() > 0:
+                raise
+            edges = []
         gn = [GraphNode(uuid=n.uuid, name=n.name, labels=list(n.labels or []),
                         summary=n.summary or "") for n in nodes]
         ge = [GraphEdge(uuid=e.uuid, source_uuid=e.source_node_uuid,

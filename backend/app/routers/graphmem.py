@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from app import parsing
 from app.graph import GraphMemory, GraphSnapshot
+from app.graph import evolution
 from app.graph.config import graph_config
 from app.graph.manager import graph_manager
 from app.retrieval import VectorStore, ingest_markdown, ingest_parsed_doc
@@ -167,6 +168,29 @@ async def upload(
         except Exception as exc:  # noqa: BLE001 — surface, keep the stream alive
             yield _line({"phase": "rag_error", "filename": doc.filename, "detail": str(exc)})
         yield _line({"phase": "done"})
+
+    return StreamingResponse(stream(), media_type="application/x-ndjson")
+
+
+class DreamBody(BaseModel):
+    domain: str | None = None
+    model: str | None = None
+
+
+@router.post("/dream")
+async def dream(body: DreamBody) -> StreamingResponse:
+    """One gated self-maintenance cycle (dedupe → forget → consolidate), streamed as
+    NDJSON so the page can narrate each pass and redraw the graph as it changes."""
+    domain = body.domain or DOMAIN_DEFAULT
+    await _mgr.get(domain, body.model or "")
+
+    async def stream():
+        async with _mgr.lock(domain):
+            async for ev in evolution.dream(domain, body.model):
+                snap = ev.pop("snapshot", None)
+                if snap is not None:
+                    ev.update(_payload(snap))
+                yield _line(ev)
 
     return StreamingResponse(stream(), media_type="application/x-ndjson")
 

@@ -48,16 +48,7 @@ export const saveGraph = (name, domain = "default") => savePost("save", name, do
 export const restoreGraph = (name, domain = "default") => savePost("restore", name, domain);
 export const deleteSave = (name, domain = "default") => savePost("delete-save", name, domain);
 
-// Streams the per-page extraction. `onEvent` is called for each NDJSON line:
-// {phase:"parsing"|"parsed"|"page"|"error"|"done", ...}. A "page" event carries a
-// fresh {nodes, links, stats} snapshot.
-export async function uploadPdfStream(file, model, onEvent, domain = "default") {
-  const form = new FormData();
-  form.append("file", file);
-  if (model) form.append("model", model);
-  form.append("domain", domain);
-
-  const res = await fetch(`${API_BASE}/graphmem/upload`, { method: "POST", body: form });
+async function readNdjsonStream(res, onEvent) {
   if (!res.ok) {
     let detail = `HTTP ${res.status}`;
     try {
@@ -67,7 +58,6 @@ export async function uploadPdfStream(file, model, onEvent, domain = "default") 
     }
     throw new Error(detail);
   }
-
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -83,4 +73,28 @@ export async function uploadPdfStream(file, model, onEvent, domain = "default") 
     }
   }
   if (buffer.trim()) onEvent(JSON.parse(buffer.trim()));
+}
+
+// Streams the per-page extraction. `onEvent` is called for each NDJSON line:
+// {phase:"parsing"|"parsed"|"page"|"error"|"done", ...}. A "page" event carries a
+// fresh {nodes, links, stats} snapshot.
+export async function uploadPdfStream(file, model, onEvent, domain = "default") {
+  const form = new FormData();
+  form.append("file", file);
+  if (model) form.append("model", model);
+  form.append("domain", domain);
+  const res = await fetch(`${API_BASE}/graphmem/upload`, { method: "POST", body: form });
+  await readNdjsonStream(res, onEvent);
+}
+
+// Streams one Dream self-maintenance cycle: {phase:"analyze"|"plan"|"pass_start"|
+// "pass_done"|"pass_rolled_back"|"done"|"error", ...}. pass_done / pass_rolled_back
+// carry a fresh {nodes, links, stats} snapshot.
+export async function dreamStream(onEvent, model, domain = "default") {
+  const res = await fetch(`${API_BASE}/graphmem/dream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ domain, model }),
+  });
+  await readNdjsonStream(res, onEvent);
 }

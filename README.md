@@ -19,6 +19,7 @@ can be checkpointed and restored ("saves"), carries your own notes alongside the
 |---|---|---|
 | **Chat** | `http://localhost:5173/` | Streaming chat with conversations, personas, slash commands, per-chat PDFs, persistent user memory — and **Expert mode**, which grounds answers in the ingested corpus with inline `[S1]` citations and a visible reasoning trace. |
 | **Graph Memory** | `http://localhost:5173/?view=graph` | The memory itself: drop PDFs to watch the knowledge graph grow page by page in 3D, travel through time with the scrubber, save/restore named checkpoints, edit your beliefs, and press **✦ Dream** to let the memory self-maintain. |
+| **Bench** | `http://localhost:5173/?view=bench` | Compare memory methods on fixed datasets: prepare a corpus, approve gold questions, run closed-book / RAG / graph / hybrid over ONE shared build (never rebuilt, checkpointed as a graph-page save), and read the fixed-schema report. |
 
 ### Feature highlights
 

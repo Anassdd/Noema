@@ -30,9 +30,9 @@ the rest of the app just passes them through.
 
 | Variable | Default | Applies to | What it does |
 |---|---|---|---|
-| `OPENAI_CHAT_MODEL` | `gpt-4.1-mini` | `openai` | Chat/judge/answer model (routing, grading, grounded answers). |
+| `OPENAI_CHAT_MODEL` | `gpt-5.4-mini` | `openai` | Chat/judge/answer model (routing, grading, grounded answers). |
 | `OPENAI_EMBED_MODEL` | `text-embedding-3-large` | `openai` | Embedding model for the RAG vector base. Dimension is read dynamically downstream, so swapping is safe. Chosen for multilingual retrieval (French corpus). |
-| `OPENAI_PARSE_MODEL` | `gpt-4o` | `openai` | Vision model used to parse PDF pages (render → image → Markdown + LaTeX). Must be vision-capable. |
+| `OPENAI_PARSE_MODEL` | `gpt-5.4` | `openai` | The STRONG model: parses PDF pages (render → image → Markdown + LaTeX) and extracts the graph. Must be vision-capable. |
 | `LLMAAS_CHAT_MODEL` | — **required** | `llmaas` | Chat model name exactly as the endpoint exposes it. |
 | `LLMAAS_EMBED_MODEL` | `""` | `llmaas` | Embedding model on the endpoint. **Required in practice for RAG retrieval** — without it the vector base cannot index or search (the graph path still works). |
 | `LLMAAS_PARSE_MODEL` | falls back to `LLMAAS_CHAT_MODEL` | `llmaas` | Vision-capable deployment for PDF parsing. |
@@ -60,6 +60,23 @@ Read in `backend/app/config.py` (`_common`).
 | `RERANK_MODEL` | `""` | Optional dedicated reranker (no-GPU seam). Empty = no dedicated reranker; the engine can still fall back to LLM-based reranking. |
 | `RERANK_BASE_URL` | `""` | Base URL of the reranker endpoint. |
 | `RERANK_API_KEY` | `""` | Key for the reranker endpoint. |
+
+## Bench judge
+
+Read in `backend/app/config.py` (`_common`), used only by the Bench page's scoring
+(`app/bench/scoring.py` → `llm_client.judge_chat`). Lets the judge be a **different
+model family** than the generator (kills self-preference bias). All three unset →
+the judge falls back to the main provider + chat model (what the company machine does).
+
+| Variable | Default | What it does |
+|---|---|---|
+| `JUDGE_MODEL` | `""` | Judge model name, e.g. `gemini-2.5-flash`. |
+| `JUDGE_BASE_URL` | `""` | OpenAI-compatible endpoint, e.g. `https://generativelanguage.googleapis.com/v1beta/openai/`. |
+| `JUDGE_API_KEY` | `""` | Key for that endpoint (a free Google AI Studio key works for Gemini). |
+
+Bench data locations (optional overrides): `BENCH_DATA_DIR` (raw jsonl datasets,
+default `backend/data/bench/`) and `BENCH_WORK_DIR` (prepared corpora, gold questions,
+manifests, reports — default `tests/results/bench/`).
 
 ## Graph
 
@@ -125,9 +142,9 @@ LLM_PROVIDER=openai
 OPENAI_API_KEY=sk-...
 
 # Optional — these are the code defaults if unset:
-# OPENAI_CHAT_MODEL=gpt-4.1-mini
+# OPENAI_CHAT_MODEL=gpt-5.4-mini
 # OPENAI_EMBED_MODEL=text-embedding-3-large
-# OPENAI_PARSE_MODEL=gpt-4o
+# OPENAI_PARSE_MODEL=gpt-5.4
 
 # Optional knobs:
 # PARSER=vision

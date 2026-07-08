@@ -1,0 +1,73 @@
+{
+ "dataset": "qasper_mini",
+ "builds": [
+  {
+   "fingerprint": "7ddbde1bd1",
+   "save_name": "bench-qasper_mini-10k-7ddbde",
+   "domain": "__save__default__bench-qasper_mini-10k-7ddbde",
+   "cap_tokens": 10000,
+   "corpus_hash": "9cb0193bad75eeb3",
+   "models": {
+    "extract": "gpt-5.4-mini",
+    "embed": "text-embedding-3-large"
+   },
+   "built_at": "2026-07-07 15:17",
+   "build_seconds": 27,
+   "nodes": 4,
+   "edges": 2,
+   "chunks": 5,
+   "tokens": {
+    "rag": {
+     "prompt_tokens": 963,
+     "completion_tokens": 0,
+     "cached_tokens": 0
+    },
+    "graph_episodes": 2
+   },
+   "graph_health": {
+    "orphans": 1,
+    "episodes": 2,
+    "archived_facts": 0,
+    "duplicate_name_suspects": 0
+   }
+  },
+  {
+   "fingerprint": "7ddbde1bd1",
+   "save_name": "bench-qasper_mini-10k-7ddbde",
+   "domain": "__save__default__bench-qasper_mini-10k-7ddbde",
+   "cap_tokens": 10000,
+   "corpus_hash": "9cb0193bad75eeb3",
+   "models": {
+    "extract": "gpt-5.4-mini",
+    "embed": "text-embedding-3-large"
+   },
+   "built_at": "2026-07-08 10:55",
+   "build_seconds": 22,
+   "nodes": 4,
+   "edges": 2,
+   "chunks": 5,
+   "tokens": {
+    "rag": {
+     "prompt_tokens": 967,
+     "completion_tokens": 0,
+     "cached_tokens": 0
+    },
+    "graph_episodes": 2
+   },
+   "graph_health": {
+    "orphans": 1,
+    "episodes": 2,
+    "archived_facts": 0,
+    "duplicate_name_suspects": 0
+   }
+  }
+ ],
+ "prepared": {
+  "cap_tokens": 10000,
+  "docs": 2,
+  "tokens": 131,
+  "corpus_hash": "9cb0193bad75eeb3",
+  "unique_contexts_in_file": 2,
+  "gold_source": "human (QASPER annotators — Dasigi et al. 2021)"
+ }
+}

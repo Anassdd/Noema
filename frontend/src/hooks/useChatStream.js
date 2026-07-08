@@ -18,6 +18,7 @@ export function useChatStream({
   prefilterEnabled,
   expertEnabled,
   memory = null,
+  retrieval = null,
   domain = "default",
   model,
   onUsage,
@@ -98,6 +99,7 @@ export function useChatStream({
           useMemory: expertEnabled,
           domain,
           memory,
+          retrieval,
         });
 
         if (isFirstExchange && answer) {
@@ -144,6 +146,7 @@ export function useChatStream({
       prefilterEnabled,
       expertEnabled,
       memory,
+      retrieval,
       domain,
       model,
       onUsage,

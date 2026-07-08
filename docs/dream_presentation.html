@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Noema — Dream: self-maintaining memory</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    background: #070a14;
+    background-image:
+      radial-gradient(ellipse 60% 40% at 50% -10%, rgba(150,110,255,0.16), transparent),
+      radial-gradient(ellipse 40% 30% at 85% 100%, rgba(92,200,255,0.07), transparent);
+    color: #e7ecf7;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+  }
+
+  .deck { width: 100%; max-width: 1240px; }
+
+  /* ---- header ---- */
+  header { text-align: center; margin-bottom: 42px; }
+  .badge {
+    display: inline-block;
+    background: rgba(150,110,255,0.14);
+    border: 1px solid rgba(150,110,255,0.35);
+    color: #c9b8ff;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 6px 16px;
+    border-radius: 999px;
+    margin-bottom: 16px;
+    letter-spacing: 0.4px;
+  }
+  h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.3px; }
+  h1 .accent { color: #c9b8ff; }
+  .subtitle {
+    margin-top: 10px;
+    color: #9aa5c0;
+    font-size: 15.5px;
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.55;
+  }
+
+  /* ---- flow rows ---- */
+  .row-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: #7d88a8;
+    margin: 34px 0 14px 4px;
+  }
+  .flow {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .step {
+    flex: 1 1 0;
+    background: rgba(13,18,32,0.92);
+    border: 1px solid rgba(120,135,175,0.22);
+    border-radius: 14px;
+    padding: 18px 16px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .step .num {
+    width: 26px; height: 26px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+    background: rgba(150,110,255,0.16);
+    border: 1px solid rgba(150,110,255,0.4);
+    color: #c9b8ff;
+  }
+  .step h2 { font-size: 16.5px; font-weight: 700; }
+  .step p { font-size: 12.8px; line-height: 1.55; color: #aab4cf; }
+  .step .example {
+    margin-top: auto;
+    font-size: 12px;
+    color: #c9b8ff;
+    background: rgba(150,110,255,0.09);
+    border: 1px solid rgba(150,110,255,0.2);
+    border-radius: 8px;
+    padding: 6px 9px;
+    line-height: 1.45;
+  }
+
+  .step.off { opacity: 0.55; border-style: dashed; }
+  .step.off .tag {
+    font-size: 10.5px; font-weight: 700; letter-spacing: 1px;
+    color: #ffd28a; text-transform: uppercase;
+  }
+
+  /* ---- arrows ---- */
+  .arrow {
+    flex: 0 0 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .arrow svg { width: 34px; height: 16px; }
+  .arrow path {
+    stroke: #967bff;
+    stroke-width: 2.4;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* ---- safety row ---- */
+  .safety {
+    background: rgba(13,18,32,0.6);
+    border: 1px solid rgba(150,110,255,0.18);
+    border-radius: 18px;
+    padding: 20px;
+  }
+  .safety .flow .step { background: rgba(9,13,24,0.92); }
+  .safety .num { background: rgba(92,200,255,0.14); border-color: rgba(92,200,255,0.4); color: #8fd0ff; }
+
+  .outcomes {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    justify-content: center;
+  }
+  .outcome {
+    border-radius: 12px;
+    padding: 11px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.45;
+  }
+  .outcome small { display: block; font-weight: 400; font-size: 11.8px; margin-top: 2px; opacity: 0.85; }
+  .outcome.keep {
+    background: rgba(143,214,194,0.1);
+    border: 1px solid rgba(143,214,194,0.35);
+    color: #8fd6c2;
+  }
+  .outcome.rollback {
+    background: rgba(255,141,163,0.08);
+    border: 1px solid rgba(255,141,163,0.3);
+    color: #ff8da3;
+  }
+
+  /* ---- guarantees footer ---- */
+  .guarantees {
+    margin-top: 34px;
+    display: flex;
+    gap: 14px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .guarantee {
+    font-size: 12.5px;
+    color: #cdd5ea;
+    background: rgba(120,135,175,0.1);
+    border: 1px solid rgba(120,135,175,0.22);
+    border-radius: 999px;
+    padding: 8px 16px;
+  }
+  .guarantee b { color: #e7ecf7; }
+
+  .models {
+    margin-top: 16px;
+    display: flex;
+    gap: 14px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .model-chip {
+    font-size: 12.5px;
+    color: #cdd5ea;
+    background: rgba(150,110,255,0.07);
+    border: 1px solid rgba(150,110,255,0.22);
+    border-radius: 999px;
+    padding: 8px 16px;
+  }
+  .model-chip b { color: #ffd28a; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+
+  /* ---- narrow screens: stack vertically ---- */
+  @media (max-width: 900px) {
+    .flow { flex-direction: column; }
+    .arrow { flex-basis: 34px; }
+    .arrow svg { transform: rotate(90deg); }
+    .outcomes { flex-direction: row; }
+    .outcome { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<div class="deck">
+
+  <header>
+    <div class="badge">✦ Dream</div>
+    <h1>The memory doesn't just grow — <span class="accent">it maintains itself</span></h1>
+    <p class="subtitle">
+      One press runs a self-maintenance cycle over the knowledge graph — like the brain
+      consolidating memories during sleep. It keeps the memory bounded and high-quality
+      as documents keep arriving, instead of letting it explode.
+    </p>
+  </header>
+
+  <div class="row-label">The cycle</div>
+  <div class="flow">
+    <div class="step">
+      <div class="num">1</div>
+      <h2>Analyze</h2>
+      <p>Snapshot the graph and sanity-check the read. If the graph can't be read
+         consistently, Dream refuses to touch it.</p>
+      <div class="example">Never self-maintains on a bad read</div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 34 16"><path d="M2 8 h24 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+    <div class="step">
+      <div class="num">2</div>
+      <h2>Plan</h2>
+      <p>Decide which passes are actually worth running, and say why.
+         Nothing to improve&nbsp;→ it stops right there.</p>
+      <div class="example">“3 likely duplicates · 5 stale facts”</div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 34 16"><path d="M2 8 h24 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+    <div class="step">
+      <div class="num">3</div>
+      <h2>Dedupe</h2>
+      <p>Merge entities that split over time. Fuzzy matches are confirmed by an LLM
+         before any merge; all facts and provenance are repointed onto the survivor.</p>
+      <div class="example">“BNPP” + “BNP Paribas” → one entity</div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 34 16"><path d="M2 8 h24 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+    <div class="step">
+      <div class="num">4</div>
+      <h2>Forget</h2>
+      <p>Facts superseded by newer information are archived out of active retrieval
+         after a grace period; disconnected leftover entities are pruned.</p>
+      <div class="example">Archived, never deleted — history stays visible</div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 34 16"><path d="M2 8 h24 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+    <div class="step off">
+      <div class="num">5</div>
+      <h2>Consolidate <span class="tag">· off for now</span></h2>
+      <p>Refresh community summaries — big-picture groupings over the graph.
+         Disabled pending a graph-library fix; dedupe + forget carry the load.</p>
+      <div class="example">Re-enabled after the library upgrade</div>
+    </div>
+  </div>
+
+  <div class="row-label">Every pass runs inside a safety net</div>
+  <div class="safety">
+    <div class="flow">
+      <div class="step">
+        <div class="num">⛨</div>
+        <h2>Checkpoint</h2>
+        <p>Before anything changes, the whole graph is copied. The original
+           is always one step away.</p>
+      </div>
+      <div class="arrow"><svg viewBox="0 0 34 16"><path d="M2 8 h24 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+      <div class="step">
+        <div class="num">▶</div>
+        <h2>Run the pass</h2>
+        <p>One attempt, no retry loops — a maintenance step must never be able
+           to spiral.</p>
+      </div>
+      <div class="arrow"><svg viewBox="0 0 34 16"><path d="M2 8 h24 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+      <div class="step">
+        <div class="num">✔</div>
+        <h2>Verify</h2>
+        <p>Source documents intact · no current fact lost · no unexplained node
+           removals · retrieval probes still answer.</p>
+      </div>
+      <div class="arrow"><svg viewBox="0 0 34 16"><path d="M2 8 h24 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+      <div class="outcomes">
+        <div class="outcome keep">✓ Kept
+          <small>Changes applied to the live memory</small>
+        </div>
+        <div class="outcome rollback">↩ Rolled back
+          <small>Graph restored — as if the pass never ran</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="guarantees">
+    <div class="guarantee"><b>Episodes are never touched</b> — ingested documents stay an append-only source of truth</div>
+    <div class="guarantee"><b>Archive, don't delete</b> — superseded knowledge remains inspectable</div>
+    <div class="guarantee"><b>Loses knowledge → rolls back</b> — verified after every single pass</div>
+  </div>
+
+  <div class="models">
+    <div class="model-chip"><b>gpt-5.4-mini</b> — confirms fuzzy duplicate merges (same-entity judge)</div>
+    <div class="model-chip"><b>gpt-5.4</b> — built the graph being maintained (entity &amp; fact extraction)</div>
+    <div class="model-chip"><b>text-embedding-3-large</b> — fact embeddings, kept intact through merges</div>
+  </div>
+
+</div>
+</body>
+</html>

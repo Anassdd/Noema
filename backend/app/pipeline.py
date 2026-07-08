@@ -243,6 +243,21 @@ def _generate_sync(messages: list[dict], chunks: list[ScoredChunk], model: str |
     return llm_client.chat(convo, model=model, temperature=0.0)
 
 
+def grounded_answer(question: str, chunks: list[ScoredChunk], *, model: str | None = None):
+    """One deterministic grounded answer to a standalone question — retrieval already
+    done, no routing/CRAG/verify loop. This is the bench's answer path: every config
+    gets the identical generation step, so only retrieval differs. Returns ChatResult."""
+    return _generate_sync([{"role": "user", "content": question}], chunks, model)
+
+
+def closed_book_answer(question: str, *, model: str | None = None):
+    """The bench's contamination-floor config: the same generator, NO sources. What it
+    scores is what the model already knew — every method's lift is measured above this."""
+    return llm_client.chat(
+        [{"role": "user", "content": question}], model=model, temperature=0.0
+    )
+
+
 def _stream_pieces(text: str, size: int = 44):
     for i in range(0, len(text), size):
         yield text[i: i + size]
@@ -266,7 +281,7 @@ def _sources_payload(chunks: list[ScoredChunk]) -> list[dict]:
 
 async def answer_stream(
     messages: list[dict], *, model: str | None = None, domain_id: str = "default",
-    memory: str | None = None, max_tries: int = 2,
+    memory: str | None = None, retrieval: str = "hybrid", max_tries: int = 2,
 ) -> AsyncIterator[dict]:
     """Drive the whole expert loop, yielding event dicts:
       {"type":"status", stage, detail}  — the live runtime trace
@@ -275,7 +290,11 @@ async def answer_stream(
       {"type":"usage", usage}           — token counts
 
     `memory` selects a saved snapshot to answer from (its graph + RAG); None = live memory.
+    `retrieval` selects which store answers — "hybrid" (both, fused), "rag" (contextual
+    vector base only) or "graph" (knowledge graph only) — so methods can be compared live.
     """
+    use_vector = retrieval != "graph"
+    use_graph = retrieval != "rag"
     # The user's own notes for THIS memory context (the selected save, else the live domain).
     # Read before domain_id is swapped for the save key — beliefs are keyed by the context the
     # user picks, not by the snapshot's internal store name.
@@ -314,10 +333,13 @@ async def answer_stream(
     final_chunks: list[ScoredChunk] = []
     answer_text, usage, grounded, covered = "", None, True, True
 
+    stores = {"hybrid": "vector base + graph", "rag": "vector base only", "graph": "graph only"}
     for attempt in range(1, max_tries + 1):
-        detail = "Searching the vector base + graph…" if attempt == 1 else "Retrieving more and re-fusing…"
+        detail = (f"Searching the {stores.get(retrieval, 'vector base + graph')}…"
+                  if attempt == 1 else "Retrieving more and re-fusing…")
         yield {"type": "status", "stage": "retrieving", "detail": detail}
-        chunks, meta = await retrieve(search_query, domain_id=domain_id, k=8 * attempt)
+        chunks, meta = await retrieve(search_query, domain_id=domain_id, k=8 * attempt,
+                                      use_graph=use_graph, use_vector=use_vector)
         final_chunks = chunks
         yield {"type": "status", "stage": "retrieved",
                "detail": f"{meta['fused']} sources · {meta['vector']} vector · {meta['graph']} graph"}

@@ -76,6 +76,14 @@ class Settings:
     rerank_base_url: str = ""
     rerank_api_key: str = ""
 
+    # Judge seam (optional) — a separate OpenAI-compatible endpoint used ONLY for
+    # scoring bench answers, so the judge can be a different model family than the
+    # generator (e.g. Gemini's OpenAI-compatible endpoint on dev). All three unset ->
+    # the judge falls back to the main provider + chat model.
+    judge_model: str = ""
+    judge_base_url: str = ""
+    judge_api_key: str = ""
+
     # Generation defaults (overridable per call in llm_client.chat()).
     chat_temperature: float = 0.2
     # Cap on conversation turns kept in history; consumed by the chat route, not
@@ -96,19 +104,25 @@ def load_settings() -> Settings:
         rerank_model=os.getenv("RERANK_MODEL", ""),
         rerank_base_url=os.getenv("RERANK_BASE_URL", ""),
         rerank_api_key=os.getenv("RERANK_API_KEY", ""),
+        judge_model=os.getenv("JUDGE_MODEL", ""),
+        judge_base_url=os.getenv("JUDGE_BASE_URL", ""),
+        judge_api_key=os.getenv("JUDGE_API_KEY", ""),
     )
 
     if provider == "openai":
         return Settings(
             provider="openai",
             api_key=_require("OPENAI_API_KEY"),
-            # Default judge/answer model: gpt-4.1-mini — clearly stronger than 4o-mini
-            # (better routing/grading + reasoning) while staying cheap. Override in .env.
-            chat_model=os.getenv("OPENAI_CHAT_MODEL", "gpt-4.1-mini"),
+            # Default judge/answer model: gpt-5.4-mini — current-gen mini tier, strong
+            # routing/grading/reasoning while staying cheap. (Previous default
+            # gpt-4.1-mini is deprecated by OpenAI on 2026-11-04.) Override in .env.
+            chat_model=os.getenv("OPENAI_CHAT_MODEL", "gpt-5.4-mini"),
             # text-embedding-3-large: better retrieval + multilingual (French corpus), still
             # cheap. Dimension is read dynamically downstream, so this is a safe swap.
             embed_model=os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-large"),
-            parse_model=os.getenv("OPENAI_PARSE_MODEL", "gpt-4o"),
+            # The STRONG model: vision PDF parsing + graph extraction (quality is
+            # load-bearing there — see graph/providers.py).
+            parse_model=os.getenv("OPENAI_PARSE_MODEL", "gpt-5.4"),
             chat_temperature=float(os.getenv("CHAT_TEMPERATURE", "0.2")),
             max_history_turns=int(os.getenv("MAX_HISTORY_TURNS", "8")),
             **_common,

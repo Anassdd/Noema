@@ -1,0 +1,1015 @@
+{
+ "schema": 1,
+ "run_id": "20260707-151717",
+ "at": "2026-07-07 15:18",
+ "dataset": "qasper_mini",
+ "prepared": {
+  "cap_tokens": 10000,
+  "docs": 2,
+  "tokens": 131,
+  "corpus_hash": "9cb0193bad75eeb3",
+  "unique_contexts_in_file": 2,
+  "gold_source": "human (QASPER annotators — Dasigi et al. 2021)"
+ },
+ "build": {
+  "fingerprint": "7ddbde1bd1",
+  "save_name": "bench-qasper_mini-10k-7ddbde",
+  "cap_tokens": 10000,
+  "models": {
+   "extract": "gpt-5.4-mini",
+   "embed": "text-embedding-3-large"
+  },
+  "built_at": "2026-07-07 15:17",
+  "build_seconds": 27,
+  "nodes": 4,
+  "edges": 2,
+  "chunks": 5,
+  "tokens": {
+   "rag": {
+    "prompt_tokens": 963,
+    "completion_tokens": 0,
+    "cached_tokens": 0
+   },
+   "graph_episodes": 2
+  }
+ },
+ "answer_model": "gpt-5.4-mini",
+ "gold_source": "human (QASPER annotators — Dasigi et al. 2021)",
+ "examples": [
+  {
+   "type": "factoid",
+   "question": "What benchmark do the authors evaluate on?",
+   "answer": "FROB-2020"
+  },
+  {
+   "type": "synthesis",
+   "question": "How are the surveyed methods categorized?",
+   "answer": "Into three families of methods."
+  },
+  null,
+  {
+   "type": "null",
+   "question": "What is the model's parameter count?",
+   "answer": "Not answerable from the corpus."
+  }
+ ],
+ "graph_health": {
+  "orphans": 1,
+  "episodes": 2,
+  "archived_facts": 0,
+  "duplicate_name_suspects": 0
+ },
+ "usage_totals": {
+  "generation": {
+   "prompt_tokens": 3444,
+   "completion_tokens": 885,
+   "cached_tokens": 0
+  },
+  "judging": {
+   "prompt_tokens": 2589,
+   "completion_tokens": 559,
+   "cached_tokens": 0
+  }
+ },
+ "headline": [
+  {
+   "config": "closed_book",
+   "n": 4,
+   "judge_accuracy": 0.0,
+   "judge_score": 0.09,
+   "em": 0.0,
+   "f1": 0.0273,
+   "evidence_recall": null,
+   "latency_ms_avg": 1248,
+   "tokens_per_q": 110,
+   "errors": 0,
+   "lift_over_closed_book": null
+  },
+  {
+   "config": "rag",
+   "n": 4,
+   "judge_accuracy": 1.0,
+   "judge_score": 0.99,
+   "em": 0.0,
+   "f1": 0.1597,
+   "evidence_recall": 1.0,
+   "latency_ms_avg": 1246,
+   "tokens_per_q": 352,
+   "errors": 0,
+   "lift_over_closed_book": 1.0
+  },
+  {
+   "config": "graph",
+   "n": 4,
+   "judge_accuracy": 1.0,
+   "judge_score": 0.995,
+   "em": 0.0,
+   "f1": 0.1459,
+   "evidence_recall": 0.0,
+   "latency_ms_avg": 1511,
+   "tokens_per_q": 211,
+   "errors": 0,
+   "lift_over_closed_book": 1.0
+  },
+  {
+   "config": "hybrid",
+   "n": 4,
+   "judge_accuracy": 1.0,
+   "judge_score": 0.995,
+   "em": 0.0,
+   "f1": 0.1566,
+   "evidence_recall": 1.0,
+   "latency_ms_avg": 1574,
+   "tokens_per_q": 409,
+   "errors": 0,
+   "lift_over_closed_book": 1.0
+  }
+ ],
+ "verdict": "Best config: rag at 100% (+100% over closed-book). closed-book floor 0% — clean corpus, lifts are real. the graph supplied 18% of the hybrid's context.",
+ "slices": {
+  "factoid": [
+   {
+    "config": "closed_book",
+    "judge_accuracy": 0.0,
+    "f1": 0.0
+   },
+   {
+    "config": "rag",
+    "judge_accuracy": 1.0,
+    "f1": 0.1929
+   },
+   {
+    "config": "graph",
+    "judge_accuracy": 1.0,
+    "f1": 0.2016
+   },
+   {
+    "config": "hybrid",
+    "judge_accuracy": 1.0,
+    "f1": 0.1905
+   }
+  ],
+  "null": [
+   {
+    "config": "closed_book",
+    "judge_accuracy": 0.0,
+    "f1": 0.0615
+   },
+   {
+    "config": "rag",
+    "judge_accuracy": 1.0,
+    "f1": 0.0714
+   },
+   {
+    "config": "graph",
+    "judge_accuracy": 1.0,
+    "f1": 0.0408
+   },
+   {
+    "config": "hybrid",
+    "judge_accuracy": 1.0,
+    "f1": 0.069
+   }
+  ],
+  "synthesis": [
+   {
+    "config": "closed_book",
+    "judge_accuracy": 0.0,
+    "f1": 0.0476
+   },
+   {
+    "config": "rag",
+    "judge_accuracy": 1.0,
+    "f1": 0.1818
+   },
+   {
+    "config": "graph",
+    "judge_accuracy": 1.0,
+    "f1": 0.1395
+   },
+   {
+    "config": "hybrid",
+    "judge_accuracy": 1.0,
+    "f1": 0.1765
+   }
+  ]
+ },
+ "fusion": {
+  "graph_share_of_context": 0.1845,
+  "accuracy_when_graph_present": 1.0,
+  "accuracy_when_graph_absent": 1.0,
+  "questions_with_graph_context": 3
+ },
+ "failure_gallery": [
+  {
+   "config": "closed_book",
+   "qid": "q001",
+   "question": "What benchmark do the authors evaluate on?",
+   "gold": "FROB-2020",
+   "answer": "Which paper or authors are you referring to? If you share the title, link, or a snippet, I can tell you the benchmark they evaluate on.",
+   "note": "The candidate did not answer the benchmark; it asked for clarification instead of giving FROB-2020.",
+   "error": null
+  },
+  {
+   "config": "closed_book",
+   "qid": "q002",
+   "question": "Do the authors use attention?",
+   "gold": "Yes",
+   "answer": "I can answer that, but I need a bit more context: **which authors/paper are you referring to?**\n\nIf you share the paper title, link, or a short excerpt, I can tell you whether they use **attention** and, if so, what kind (e.g., self-attention, cross-attention, multi-head attention).",
+   "note": "The candidate did not answer the question and asked for more context, while the gold answer is simply 'Yes'.",
+   "error": null
+  },
+  {
+   "config": "closed_book",
+   "qid": "q003",
+   "question": "What is the model's parameter count?",
+   "gold": "Not answerable from the corpus.",
+   "answer": "I don’t have access to the exact parameter count of the specific model instance you’re talking to.\n\nIf you mean the underlying OpenAI model behind this API, OpenAI generally does not publicly disclose exact parameter counts for many of its newer models. If you want, I can help you identify the model name from your API response or explain how parameter counts are usually estimated.",
+   "note": "Gold says the question is not answerable from the corpus; candidate gives a general non-answer about OpenAI models instead of matching that exact limitation.",
+   "error": null
+  },
+  {
+   "config": "closed_book",
+   "qid": "q004",
+   "question": "How are the surveyed methods categorized?",
+   "gold": "Into three families of methods.",
+   "answer": "The surveyed methods are typically categorized by **the type of data they use** and **the learning paradigm they follow**. In many surveys on this topic, they fall into groups such as:\n\n1. **Supervised methods**  \n   - Learn from labeled examples.\n   - Often used when ground-truth annotations are available.\n\n2. **Unsupervised methods**  \n   - Discover patterns or structure without labels.\n   - Com",
+   "note": "Gold says the methods are categorized into three families; the candidate gives a different, more detailed taxonomy and does not match the three-family grouping.",
+   "error": null
+  }
+ ],
+ "records": [
+  {
+   "qid": "q001",
+   "config": "closed_book",
+   "type": "factoid",
+   "answer": "Which paper or authors are you referring to? If you share the title, link, or a snippet, I can tell you the benchmark they evaluate on.",
+   "usage": {
+    "prompt_tokens": 14,
+    "completion_tokens": 34,
+    "total_tokens": 48,
+    "cached_tokens": 0
+   },
+   "retrieved": [],
+   "latency_ms": 786,
+   "em": false,
+   "f1": 0.0,
+   "judge": {
+    "correct": false,
+    "score": 0.0,
+    "note": "The candidate did not answer the benchmark; it asked for clarification instead of giving FROB-2020.",
+    "judge_model": "gpt-5.4-mini-2026-03-17"
+   },
+   "judge_usage": {
+    "prompt_tokens": 142,
+    "completion_tokens": 42,
+    "cached_tokens": 0
+   }
+  },
+  {
+   "qid": "q002",
+   "config": "closed_book",
+   "type": "factoid",
+   "answer": "I can answer that, but I need a bit more context: **which authors/paper are you referring to?**\n\nIf you share the paper title, link, or a short excerpt, I can tell you whether they use **attention** and, if so, what kind (e.g., self-attention, cross-attention, multi-head attention).",
+   "usage": {
+    "prompt_tokens": 12,
+    "completion_tokens": 74,
+    "total_tokens": 86,
+    "cached_tokens": 0
+   },
+   "retrieved": [],
+   "latency_ms": 1163,
+   "em": false,
+   "f1": 0.0,
+   "judge": {
+    "correct": false,
+    "score": 0.0,
+    "note": "The candidate did not answer the question and asked for more context, while the gold answer is simply 'Yes'.",
+    "judge_model": "gpt-5.4-mini-2026-03-17"
+   },
+   "judge_usage": {
+    "prompt_tokens": 176,
+    "completion_tokens": 44,
+    "cached_tokens": 0
+   }
+  },
+  {
+   "qid": "q003",
+   "config": "closed_book",
+   "type": "null",
+   "answer": "I don’t have access to the exact parameter count of the specific model instance you’re talking to.\n\nIf you mean the underlying OpenAI model behind this API, OpenAI generally does not publicly disclose exact parameter counts for many of its newer models. If you want, I can help you identify the model name from your API response or explain how parameter counts are usually estimated.",
+   "usage": {
+    "prompt_tokens": 14,
+    "completion_tokens": 77,
+    "total_tokens": 91,
+    "cached_tokens": 0
+   },
+   "retrieved": [],
+   "latency_ms": 1163,
+   "em": false,
+   "f1": 0.0615,
+   "judge": {
+    "correct": false,
+    "score": 0.18,
+    "note": "Gold says the question is not answerable from the corpus; candidate gives a general non-answer about OpenAI models instead of matching that exact limitation.",
+    "judge_model": "gpt-5.4-mini-2026-03-17"
+   },
+   "judge_usage": {
+    "prompt_tokens": 186,
+    "completion_tokens": 46,
+    "cached_tokens": 0
+   }
+  },
+  {
+   "qid": "q004",
+   "config": "closed_book",
+   "type": "synthesis",
+   "answer": "The surveyed methods are typically categorized by **the type of data they use** and **the learning paradigm they follow**. In many surveys on this topic, they fall into groups such as:\n\n1. **Supervised methods**  \n   - Learn from labeled examples.\n   - Often used when ground-truth annotations are available.\n\n2. **Unsupervised methods**  \n   - Discover patterns or structure without labels.\n   - Common for clustering, anomaly detection, or representation learning.\n\n3. **Semi-supervised methods**  \n   - Use a small amount of labeled data plus a larger amount of unlabeled data.\n\n4. **Weakly supervised / self-supervised methods**  \n   - Use indirect, noisy, or automatically generated supervision signals.\n\n5. **Rule-based / heuristic methods**  \n   - Rely on manually designed rules rather than learned models.\n\nIf you want, I can also categorize them by **application area** or **model family** if that’s what your survey refers to.",
+   "usage": {
+    "prompt_tokens": 13,
+    "completion_tokens": 203,
+    "total_tokens": 216,
+    "cached_tokens": 0
+   },
+   "retrieved": [],
+   "latency_ms": 1878,
+   "em": false,
+   "f1": 0.0476,
+   "judge": {
+    "correct": false,
+    "score": 0.18,
+    "note": "Gold says the methods are categorized into three families; the candidate gives a different, more detailed taxonomy and does not match the three-family grouping.",
+    "judge_model": "gpt-5.4-mini-2026-03-17"
+   },
+   "judge_usage": {
+    "prompt_tokens": 310,
+    "completion_tokens": 49,
+    "cached_tokens": 0
+   }
+  },
+  {
+   "qid": "q001",
+   "config": "rag",
+   "type": "factoid",
+   "answer": "The authors evaluate on the **FROB-2020 benchmark** [S1].",
+   "usage": {
+    "prompt_tokens": 315,
+    "completion_tokens": 20,
+    "total_tokens": 335,
+    "cached_tokens": 0
+   },
+   "evidence_hit": true,
+   "retrieved": [
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "Attention Mechanisms in Frobnication Models\n\nWe study frobnication with attention and report a 7.2 point BLEU gain on the FROB-2020 benchmark."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-78600f7f",
+     "pages": [],
+     "text": "## Scope\n\nWe include papers from 2015 to 2020, categorized into three families."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "## Method\n\nOur model applies dot-product attention over frobnication states, trained on 3 million examples."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-78600f7f",
+     "pages": [],
+     "text": "A Survey of Debobulation\n\nWe survey debobulation methods across 40 papers."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "## Introduction\n\nFrobnication has emerged as a key task.\n\nPrior work used recurrent frobnicators without attention."
+    }
+   ],
+   "latency_ms": 1150,
+   "em": false,
+   "f1": 0.2857,
+   "judge": {
+    "correct": true,
+    "score": 1.0,
+    "note": "Matches the gold answer exactly.",
+    "judge_model": "gpt-5.4-mini-2026-03-17"
+   },
+   "judge_usage": {
+    "prompt_tokens": 128,
+    "completion_tokens": 27,
+    "cached_tokens": 0
+   }
+  },
+  {
+   "qid": "q002",
+   "config": "rag",
+   "type": "factoid",
+   "answer": "Yes. The paper explicitly says it studies “frobnication with attention” [S2], and the method uses dot-product attention over frobnication states [S3].",
+   "usage": {
+    "prompt_tokens": 313,
+    "completion_tokens": 38,
+    "total_tokens": 351,
+    "cached_tokens": 0
+   },
+   "evidence_hit": true,
+   "retrieved": [
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "## Introduction\n\nFrobnication has emerged as a key task.\n\nPrior work used recurrent frobnicators without attention."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "Attention Mechanisms in Frobnication Models\n\nWe study frobnication with attention and report a 7.2 point BLEU gain on the FROB-2020 benchmark."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "## Method\n\nOur model applies dot-product attention over frobnication states, trained on 3 million examples."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-78600f7f",
+     "pages": [],
+     "text": "## Scope\n\nWe include papers from 2015 to 2020, categorized into three families."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-78600f7f",
+     "pages": [],
+     "text": "A Survey of Debobulation\n\nWe survey debobulation methods across 40 papers."
+    }
+   ],
+   "latency_ms": 1245,
+   "em": false,
+   "f1": 0.1,
+   "judge": {
+    "correct": true,
+    "score": 1.0,
+    "note": "Candidate agrees with gold answer that attention is used.",
+    "judge_model": "gpt-5.4-mini-2026-03-17"
+   },
+   "judge_usage": {
+    "prompt_tokens": 140,
+    "completion_tokens": 27,
+    "cached_tokens": 0
+   }
+  },
+  {
+   "qid": "q003",
+   "config": "rag",
+   "type": "null",
+   "answer": "The provided sources do not state the model’s parameter count. They mention the attention mechanism, training data size, and benchmark result, but not the number of parameters [S1][S3].",
+   "usage": {
+    "prompt_tokens": 315,
+    "completion_tokens": 42,
+    "total_tokens": 357,
+    "cached_tokens": 0
+   },
+   "retrieved": [
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "## Method\n\nOur model applies dot-product attention over frobnication states, trained on 3 million examples."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-78600f7f",
+     "pages": [],
+     "text": "A Survey of Debobulation\n\nWe survey debobulation methods across 40 papers."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "Attention Mechanisms in Frobnication Models\n\nWe study frobnication with attention and report a 7.2 point BLEU gain on the FROB-2020 benchmark."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "## Introduction\n\nFrobnication has emerged as a key task.\n\nPrior work used recurrent frobnicators without attention."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-78600f7f",
+     "pages": [],
+     "text": "## Scope\n\nWe include papers from 2015 to 2020, categorized into three families."
+    }
+   ],
+   "latency_ms": 1145,
+   "em": false,
+   "f1": 0.0714,
+   "judge": {
+    "correct": true,
+    "score": 0.98,
+    "note": "Matches the gold answer by stating the parameter count is not given in the corpus.",
+    "judge_model": "gpt-5.4-mini-2026-03-17"
+   },
+   "judge_usage": {
+    "prompt_tokens": 151,
+    "completion_tokens": 37,
+    "cached_tokens": 0
+   }
+  },
+  {
+   "qid": "q004",
+   "config": "rag",
+   "type": "synthesis",
+   "answer": "The survey says the papers are categorized into **three families** [S1].  \n\nThe provided sources do **not** name those three families, so I can’t say what they are from the available text [S1][S2].",
+   "usage": {
+    "prompt_tokens": 314,
+    "completion_tokens": 51,
+    "total_tokens": 365,
+    "cached_tokens": 0
+   },
+   "evidence_hit": true,
+   "retrieved": [
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-78600f7f",
+     "pages": [],
+     "text": "## Scope\n\nWe include papers from 2015 to 2020, categorized into three families."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-78600f7f",
+     "pages": [],
+     "text": "A Survey of Debobulation\n\nWe survey debobulation methods across 40 papers."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "## Method\n\nOur model applies dot-product attention over frobnication states, trained on 3 million examples."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "Attention Mechanisms in Frobnication Models\n\nWe study frobnication with attention and report a 7.2 point BLEU gain on the FROB-2020 benchmark."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "## Introduction\n\nFrobnication has emerged as a key task.\n\nPrior work used recurrent frobnicators without attention."
+    }
+   ],
+   "latency_ms": 1442,
+   "em": false,
+   "f1": 0.1818,
+   "judge": {
+    "correct": true,
+    "score": 0.98,
+    "note": "Matches the gold answer that the methods are categorized into three families.",
+    "judge_model": "gpt-5.4-mini-2026-03-17"
+   },
+   "judge_usage": {
+    "prompt_tokens": 158,
+    "completion_tokens": 30,
+    "cached_tokens": 0
+   }
+  },
+  {
+   "qid": "q001",
+   "config": "graph",
+   "type": "factoid",
+   "answer": "The authors evaluate on the **FROB-2020 benchmark** [S1].",
+   "usage": {
+    "prompt_tokens": 157,
+    "completion_tokens": 20,
+    "total_tokens": 177,
+    "cached_tokens": 0
+   },
+   "evidence_hit": false,
+   "retrieved": [
+    {
+     "origin": "graph",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [
+      1
+     ],
+     "text": "Attention Mechanisms in Frobnication Models reports a 7.2 point BLEU gain on the FROB-2020 benchmark."
+    }
+   ],
+   "latency_ms": 1790,
+   "em": false,
+   "f1": 0.2857,
+   "judge": {
+    "correct": true,
+    "score": 1.0,
+    "note": "Matches the gold answer exactly.",
+    "judge_model": "gpt-5.4-mini-2026-03-17"
+   },
+   "judge_usage": {
+    "prompt_tokens": 128,
+    "completion_tokens": 27,
+    "cached_tokens": 0
+   }
+  },
+  {
+   "qid": "q002",
+   "config": "graph",
+   "type": "factoid",
+   "answer": "Yes. The paper says it applies dot-product attention over frobnication states, so the authors do use attention [S1].",
+   "usage": {
+    "prompt_tokens": 194,
+    "completion_tokens": 29,
+    "total_tokens": 223,
+    "cached_tokens": 0
+   },
+   "evidence_hit": false,
+   "retrieved": [
+    {
+     "origin": "graph",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [
+      1
+     ],
+     "text": "Attention Mechanisms in Frobnication Models applies dot-product attention over frobnication states."
+    },
+    {
+     "origin": "graph",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [
+      1
+     ],
+     "text": "Attention Mechanisms in Frobnication Models reports a 7.2 point BLEU gain on the FROB-2020 benchmark."
+    }
+   ],
+   "latency_ms": 1363,
+   "em": false,
+   "f1": 0.1176,
+   "judge": {
+    "correct": true,
+    "score": 1.0,
+    "note": "Candidate agrees with the gold answer that attention is used.",
+    "judge_model": "gpt-5.4-mini-2026-03-17"
+   },
+   "judge_usage": {
+    "prompt_tokens": 131,
+    "completion_tokens": 32,
+    "cached_tokens": 0
+   }
+  },
+  {
+   "qid": "q003",
+   "config": "graph",
+   "type": "null",
+   "answer": "The provided sources do not mention the model’s parameter count. They only state that the paper reports a 7.2 BLEU gain on FROB-2020 and that it uses dot-product attention over frobnication states [S1][S2]. If you have another source or excerpt with the model details, I can help extract the parameter count.",
+   "usage": {
+    "prompt_tokens": 196,
+    "completion_tokens": 75,
+    "total_tokens": 271,
+    "cached_tokens": 0
+   },
+   "retrieved": [
+    {
+     "origin": "graph",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [
+      1
+     ],
+     "text": "Attention Mechanisms in Frobnication Models reports a 7.2 point BLEU gain on the FROB-2020 benchmark."
+    },
+    {
+     "origin": "graph",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [
+      1
+     ],
+     "text": "Attention Mechanisms in Frobnication Models applies dot-product attention over frobnication states."
+    }
+   ],
+   "latency_ms": 1676,
+   "em": false,
+   "f1": 0.0408,
+   "judge": {
+    "correct": true,
+    "score": 1.0,
+    "note": "Matches the gold answer that the parameter count is not answerable from the corpus.",
+    "judge_model": "gpt-5.4-mini-2026-03-17"
+   },
+   "judge_usage": {
+    "prompt_tokens": 184,
+    "completion_tokens": 37,
+    "cached_tokens": 0
+   }
+  },
+  {
+   "qid": "q004",
+   "config": "graph",
+   "type": "synthesis",
+   "answer": "The surveyed methods are categorized into **three groups**:\n\n1. **Methods based on the first-order derivative**\n2. **Methods based on the second-order derivative**\n3. **Methods based on the third-order derivative** [S1]\n\nIf you want, I can also explain what distinguishes these three categories.",
+   "usage": {
+    "prompt_tokens": 108,
+    "completion_tokens": 65,
+    "total_tokens": 173,
+    "cached_tokens": 0
+   },
+   "evidence_hit": false,
+   "retrieved": [],
+   "latency_ms": 1216,
+   "em": false,
+   "f1": 0.1395,
+   "judge": {
+    "correct": true,
+    "score": 0.98,
+    "note": "Matches the gold answer: three categories/families of methods.",
+    "judge_model": "gpt-5.4-mini-2026-03-17"
+   },
+   "judge_usage": {
+    "prompt_tokens": 172,
+    "completion_tokens": 34,
+    "cached_tokens": 0
+   }
+  },
+  {
+   "qid": "q001",
+   "config": "hybrid",
+   "type": "factoid",
+   "answer": "The authors evaluate on the **FROB-2020 benchmark** [S1][S2].",
+   "usage": {
+    "prompt_tokens": 363,
+    "completion_tokens": 23,
+    "total_tokens": 386,
+    "cached_tokens": 0
+   },
+   "evidence_hit": true,
+   "retrieved": [
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "Attention Mechanisms in Frobnication Models\n\nWe study frobnication with attention and report a 7.2 point BLEU gain on the FROB-2020 benchmark."
+    },
+    {
+     "origin": "graph",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [
+      1
+     ],
+     "text": "Attention Mechanisms in Frobnication Models reports a 7.2 point BLEU gain on the FROB-2020 benchmark."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-78600f7f",
+     "pages": [],
+     "text": "## Scope\n\nWe include papers from 2015 to 2020, categorized into three families."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "## Method\n\nOur model applies dot-product attention over frobnication states, trained on 3 million examples."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-78600f7f",
+     "pages": [],
+     "text": "A Survey of Debobulation\n\nWe survey debobulation methods across 40 papers."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "## Introduction\n\nFrobnication has emerged as a key task.\n\nPrior work used recurrent frobnicators without attention."
+    }
+   ],
+   "latency_ms": 1534,
+   "em": false,
+   "f1": 0.2857,
+   "judge": {
+    "correct": true,
+    "score": 1.0,
+    "note": "Matches the gold answer exactly.",
+    "judge_model": "gpt-5.4-mini-2026-03-17"
+   },
+   "judge_usage": {
+    "prompt_tokens": 131,
+    "completion_tokens": 27,
+    "cached_tokens": 0
+   }
+  },
+  {
+   "qid": "q002",
+   "config": "hybrid",
+   "type": "factoid",
+   "answer": "Yes. The paper says the model applies dot-product attention over frobnication states [S2], and the study is explicitly about “frobnication with attention” [S3].",
+   "usage": {
+    "prompt_tokens": 400,
+    "completion_tokens": 40,
+    "total_tokens": 440,
+    "cached_tokens": 0
+   },
+   "evidence_hit": true,
+   "retrieved": [
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "## Introduction\n\nFrobnication has emerged as a key task.\n\nPrior work used recurrent frobnicators without attention."
+    },
+    {
+     "origin": "graph",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [
+      1
+     ],
+     "text": "Attention Mechanisms in Frobnication Models applies dot-product attention over frobnication states."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "Attention Mechanisms in Frobnication Models\n\nWe study frobnication with attention and report a 7.2 point BLEU gain on the FROB-2020 benchmark."
+    },
+    {
+     "origin": "graph",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [
+      1
+     ],
+     "text": "Attention Mechanisms in Frobnication Models reports a 7.2 point BLEU gain on the FROB-2020 benchmark."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "## Method\n\nOur model applies dot-product attention over frobnication states, trained on 3 million examples."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-78600f7f",
+     "pages": [],
+     "text": "## Scope\n\nWe include papers from 2015 to 2020, categorized into three families."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-78600f7f",
+     "pages": [],
+     "text": "A Survey of Debobulation\n\nWe survey debobulation methods across 40 papers."
+    }
+   ],
+   "latency_ms": 1418,
+   "em": false,
+   "f1": 0.0952,
+   "judge": {
+    "correct": true,
+    "score": 1.0,
+    "note": "Candidate agrees with gold answer that the authors use attention.",
+    "judge_model": "gpt-5.4-mini-2026-03-17"
+   },
+   "judge_usage": {
+    "prompt_tokens": 142,
+    "completion_tokens": 28,
+    "cached_tokens": 0
+   }
+  },
+  {
+   "qid": "q003",
+   "config": "hybrid",
+   "type": "null",
+   "answer": "The provided sources do not state the model’s parameter count. They describe the attention mechanism, training data size, and benchmark result, but no parameter count is given [S1][S2][S4][S5].",
+   "usage": {
+    "prompt_tokens": 402,
+    "completion_tokens": 48,
+    "total_tokens": 450,
+    "cached_tokens": 0
+   },
+   "retrieved": [
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "## Method\n\nOur model applies dot-product attention over frobnication states, trained on 3 million examples."
+    },
+    {
+     "origin": "graph",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [
+      1
+     ],
+     "text": "Attention Mechanisms in Frobnication Models reports a 7.2 point BLEU gain on the FROB-2020 benchmark."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-78600f7f",
+     "pages": [],
+     "text": "A Survey of Debobulation\n\nWe survey debobulation methods across 40 papers."
+    },
+    {
+     "origin": "graph",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [
+      1
+     ],
+     "text": "Attention Mechanisms in Frobnication Models applies dot-product attention over frobnication states."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "Attention Mechanisms in Frobnication Models\n\nWe study frobnication with attention and report a 7.2 point BLEU gain on the FROB-2020 benchmark."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "## Introduction\n\nFrobnication has emerged as a key task.\n\nPrior work used recurrent frobnicators without attention."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-78600f7f",
+     "pages": [],
+     "text": "## Scope\n\nWe include papers from 2015 to 2020, categorized into three families."
+    }
+   ],
+   "latency_ms": 1866,
+   "em": false,
+   "f1": 0.069,
+   "judge": {
+    "correct": true,
+    "score": 1.0,
+    "note": "Matches the gold answer that the parameter count is not answerable from the corpus.",
+    "judge_model": "gpt-5.4-mini-2026-03-17"
+   },
+   "judge_usage": {
+    "prompt_tokens": 157,
+    "completion_tokens": 37,
+    "cached_tokens": 0
+   }
+  },
+  {
+   "qid": "q004",
+   "config": "hybrid",
+   "type": "synthesis",
+   "answer": "The survey says the papers are categorized into **three families** [S1]. It does **not** specify what those three families are in the provided source text, so that detail is missing here [S1].",
+   "usage": {
+    "prompt_tokens": 314,
+    "completion_tokens": 46,
+    "total_tokens": 360,
+    "cached_tokens": 0
+   },
+   "evidence_hit": true,
+   "retrieved": [
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-78600f7f",
+     "pages": [],
+     "text": "## Scope\n\nWe include papers from 2015 to 2020, categorized into three families."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-78600f7f",
+     "pages": [],
+     "text": "A Survey of Debobulation\n\nWe survey debobulation methods across 40 papers."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "## Method\n\nOur model applies dot-product attention over frobnication states, trained on 3 million examples."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "Attention Mechanisms in Frobnication Models\n\nWe study frobnication with attention and report a 7.2 point BLEU gain on the FROB-2020 benchmark."
+    },
+    {
+     "origin": "vector",
+     "doc_id": "qasper_mini-5a2115ec",
+     "pages": [],
+     "text": "## Introduction\n\nFrobnication has emerged as a key task.\n\nPrior work used recurrent frobnicators without attention."
+    }
+   ],
+   "latency_ms": 1477,
+   "em": false,
+   "f1": 0.1765,
+   "judge": {
+    "correct": true,
+    "score": 0.98,
+    "note": "Matches the gold answer that the surveyed methods are categorized into three families.",
+    "judge_model": "gpt-5.4-mini-2026-03-17"
+   },
+   "judge_usage": {
+    "prompt_tokens": 153,
+    "completion_tokens": 35,
+    "cached_tokens": 0
+   }
+  }
+ ]
+}

@@ -20,6 +20,15 @@ def _api_key() -> str:
     return settings.api_key or "not-needed"
 
 
+def _reasoning_effort(model: str, small_model: str) -> str:
+    """Graphiti's 'auto' default resolves to 'minimal', which the gpt-5.4 family
+    rejects ('low' is its floor). One client serves both the extract and the small
+    model, so the value must suit whichever of the two is a reasoning model."""
+    if model.startswith("gpt-5.4") or small_model.startswith("gpt-5.4"):
+        return "low"
+    return "auto"
+
+
 def build_llm_client(extract_model: str | None = None):
     """LLM for extraction. Defaults to the strong parse_model — extraction quality
     drives graph quality (a weak extractor yields a sparse, low-value graph)."""
@@ -29,10 +38,12 @@ def build_llm_client(extract_model: str | None = None):
         kw["base_url"] = settings.base_url
     config = LLMConfig(**kw)
     # llmaas = a custom OpenAI-compatible endpoint -> the generic client handles a
-    # custom base_url and looser structured-output support across providers.
+    # custom base_url and looser structured-output support across providers (and
+    # sends no reasoning params, so the effort fix is OpenAI-path only).
     if settings.provider == "llmaas":
         return OpenAIGenericClient(config=config)
-    return OpenAIClient(config=config)
+    return OpenAIClient(config=config,
+                        reasoning=_reasoning_effort(model, settings.chat_model))
 
 
 def build_embedder():

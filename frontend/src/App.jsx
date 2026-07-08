@@ -13,6 +13,7 @@ import {
   SunIcon,
   MoonIcon,
   GraphIcon,
+  BenchIcon,
 } from "./components/icons.jsx";
 import { useConversations } from "./hooks/useConversations.js";
 import { useMemory } from "./hooks/useMemory.js";
@@ -59,6 +60,8 @@ export default function App() {
 
   // Which saved memory snapshot the expert answers from (null = live memory).
   const [selectedMemory, setSelectedMemory] = useState(null);
+  // Which store the expert retrieves from: "hybrid" (default) | "rag" | "graph".
+  const [retrievalMode, setRetrievalMode] = useState("hybrid");
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -107,6 +110,13 @@ export default function App() {
             label="Graph memory"
             onClick={() =>
               window.open(`${window.location.origin}/?view=graph`, "_blank", "noopener")
+            }
+          />
+          <HeaderButton
+            icon={<BenchIcon size={17} sw={1.7} />}
+            label="Bench — compare memory methods"
+            onClick={() =>
+              window.open(`${window.location.origin}/?view=bench`, "_blank", "noopener")
             }
           />
           <div
@@ -159,6 +169,8 @@ export default function App() {
             expertEnabled={settings.expertEnabled}
             selectedMemory={selectedMemory}
             onSelectMemory={setSelectedMemory}
+            retrievalMode={retrievalMode}
+            onSelectRetrieval={setRetrievalMode}
             tokenizerEnabled={settings.tokenizerEnabled}
             character={active.character}
             onSetCharacter={conv.setActiveCharacter}

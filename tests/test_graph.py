@@ -27,7 +27,7 @@ sys.path.insert(0, str(BACKEND))
 from app.config import settings  # noqa: E402
 from app.graph import GraphMemory, graph_config  # noqa: E402
 
-# The STRONG extractor (gpt-4o in dev). Graph quality depends on extraction quality —
+# The STRONG extractor (gpt-5.4 in dev). Graph quality depends on extraction quality —
 # a weak model produces a sparse, low-value graph (CLAUDE.md), and notably misses the
 # subject/relationship that temporal invalidation needs. Worth the few cents.
 MODEL = settings.parse_model or settings.chat_model

@@ -114,7 +114,7 @@ FALKOR_PORT=6379
 
 > Running dev-style on Windows with your **personal OpenAI** key instead? Use
 > `LLM_PROVIDER=openai`, `OPENAI_API_KEY=...`, and the new defaults apply
-> (`gpt-4.1-mini`, `text-embedding-3-large`) — still keep `GRAPH_BACKEND=falkor_server`.
+> (`gpt-5.4-mini`, `text-embedding-3-large`) — still keep `GRAPH_BACKEND=falkor_server`.
 
 ### 3d. Run the backend (single worker)
 ```powershell

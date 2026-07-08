@@ -110,7 +110,7 @@ export default function GraphMemoryPage() {
   const [text, setText] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [models, setModels] = useState([]);
-  const [model, setModel] = useState(""); // "" = backend's strong default (gpt-4o)
+  const [model, setModel] = useState(""); // "" = backend's strong default (gpt-5.4)
   const [showHistory, setShowHistory] = useState(true);
   const [selection, setSelection] = useState(null); // clicked node's group inspector
   const [hoveredFact, setHoveredFact] = useState(null); // edge description shown on hover
@@ -1326,11 +1326,11 @@ export default function GraphMemoryPage() {
             value={model}
             onChange={(e) => setModel(e.target.value)}
             disabled={busy}
-            title="The model that extracts entities + relationships from text. Use a strong model (e.g. gpt-4.1); PDFs are read by the default vision model."
+            title="The model that extracts entities + relationships from text. Use a strong model (e.g. gpt-5.4); PDFs are read by the default vision model."
             style={selectStyle}
           >
             <option value="" style={{ color: "#0a0e1a" }}>
-              Default (strong · gpt-4o)
+              Default (strong · gpt-5.4)
             </option>
             {models.map((m) => (
               <option key={m} value={m} style={{ color: "#0a0e1a" }}>

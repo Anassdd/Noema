@@ -67,7 +67,8 @@ async def chat(req: ChatRequest) -> StreamingResponse:
     async def expert() -> AsyncIterator[str]:
         try:
             async for ev in pipeline.answer_stream(
-                messages, model=req.model, domain_id=req.domain or "default", memory=req.memory
+                messages, model=req.model, domain_id=req.domain or "default",
+                memory=req.memory, retrieval=req.retrieval or "hybrid",
             ):
                 yield _sse(ev.pop("type"), ev)
         except Exception as exc:  # surface any pipeline/provider error to the UI

@@ -71,7 +71,7 @@ report (`tests/results/test_log.json`), which the Home page displays.
 
 Two further Streamlit apps run the Graphiti layer directly (not through the HTTP API).
 Both need the graph backend available (the default `falkor_local` just works on
-macOS/Linux) and use the strong extraction model (`settings.parse_model`, i.e. `gpt-4o` in
+macOS/Linux) and use the strong extraction model (`settings.parse_model`, i.e. `gpt-5.4` in
 dev) — so **adding knowledge in them costs real LLM calls**.
 
 ```bash

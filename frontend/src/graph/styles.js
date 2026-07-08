@@ -50,7 +50,7 @@ export const uploadBtn = {
 
 export const primaryBtn = {
   width: "100%",
-  background: "linear-gradient(95deg,#5cc8ff,#9b8cff)",
+  background: "#5cc8ff",
   border: "none",
   color: "#0a0e1a",
   fontSize: 13,

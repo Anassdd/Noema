@@ -20,6 +20,8 @@ export default function MessageInput({
   sessionTokens,
   memory,
   onSelectMemory,
+  retrieval,
+  onSelectRetrieval,
   expertEnabled,
 }) {
   const [text, setText] = useState("");
@@ -205,6 +207,7 @@ export default function MessageInput({
           </button>
 
           {expertEnabled && <MemorySelector value={memory} onChange={onSelectMemory} />}
+          {expertEnabled && <RetrievalSelector value={retrieval} onChange={onSelectRetrieval} />}
 
           <div className="ml-auto" />
 
@@ -298,6 +301,58 @@ function MemorySelector({ value, onChange }) {
                 No saved memories yet — save one on the graph page.
               </p>
             )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Which store answers: both fused (the product default), the contextual vector base
+// alone, or the knowledge graph alone — so the methods can be compared live in chat.
+const RETRIEVAL_MODES = [
+  { id: "hybrid", label: "Hybrid", hint: "vector base + graph, fused (default)" },
+  { id: "rag", label: "Vector only", hint: "contextual RAG alone — graph off" },
+  { id: "graph", label: "Graph only", hint: "knowledge graph alone — RAG off" },
+];
+
+function RetrievalSelector({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const mode = RETRIEVAL_MODES.find((m) => m.id === value) || RETRIEVAL_MODES[0];
+  const active = mode.id !== "hybrid";
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        title="Which store the expert retrieves from"
+        className="flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs transition"
+        style={{
+          borderColor: active ? "var(--accent-border)" : "var(--border)",
+          color: active ? "var(--accent)" : "var(--text-soft)",
+          background: active ? "var(--accent-soft)" : "transparent",
+        }}
+      >
+        <Icon size={12} sw={1.8}>
+          <circle cx="6" cy="6" r="2.5" />
+          <circle cx="18" cy="6" r="2.5" />
+          <circle cx="12" cy="18" r="2.5" />
+          <path d="M7.8 7.8l3 7.4M16.2 7.8l-3 7.4" />
+        </Icon>
+        <span className="max-w-[110px] truncate">{mode.label}</span>
+        <ChevronDownIcon size={12} sw={2} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
+          <div
+            className="animate-pop-in absolute bottom-full left-0 z-30 mb-2 w-64 rounded-xl border p-1.5"
+            style={{ background: "var(--sidebar-bg)", borderColor: "var(--border)", boxShadow: "var(--win-shadow)" }}
+          >
+            {RETRIEVAL_MODES.map((m) => (
+              <MemoryItem key={m.id} active={mode.id === m.id}
+                onClick={() => { onChange(m.id); setOpen(false); }}
+                label={m.label} hint={m.hint} />
+            ))}
           </div>
         </>
       )}

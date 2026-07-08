@@ -70,3 +70,10 @@ Thumbs.db
 
 # ---- Induced per-domain graph schemas (regenerable playground artifacts) ----
 tests/results/graph_schemas/
+
+# ---- Bench ------------------------------------------------------------------
+# Raw benchmark jsonl files (huge, re-downloadable) and the prepared corpus
+# (derived from them). Gold questions, manifests and reports STAY in git —
+# they are the frozen test set and the results.
+backend/data/bench/
+tests/results/bench/*/corpus.json

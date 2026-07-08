@@ -79,6 +79,12 @@ class GraphMemory:
         self.schema = schema if schema is not None else (load_schema(domain_id) if use_saved_schema else None)
         self.extraction_instructions = self._resolve_instructions()
         self._driver = _build_driver(self.config, domain_id)
+        # Graphiti reroutes WRITES to a database named after the group_id (its
+        # multi-tenant convenience, via driver.clone). For a save-key domain —
+        # writing INTO a checkpoint, e.g. a bench build — that would silently
+        # write into the LIVE base graph instead. Pin the driver to this graph.
+        if self.domain_id != self.group_id:
+            self._driver.clone = lambda database: self._driver
         self.graphiti = Graphiti(
             graph_driver=self._driver,
             llm_client=build_llm_client(extract_model or self.config.extract_model or None),
@@ -98,6 +104,37 @@ class GraphMemory:
     async def build(self) -> "GraphMemory":
         await self.graphiti.build_indices_and_constraints()
         return self
+
+    async def all_episode_names(self) -> set[str]:
+        """Every episode name in this domain — lets an interrupted bulk ingestion
+        resume by skipping pieces that already made it in."""
+        records, _, _ = await self._driver.execute_query(
+            "MATCH (e:Episodic) WHERE e.group_id = $g RETURN e.name AS name",
+            g=self.group_id)
+        return {r["name"] for r in records or []}
+
+    async def graph_health(self) -> dict:
+        """Cheap quality indicators for reports: orphan entities (no facts), archived
+        facts, episode count, and name-collision suspects (same normalized name twice —
+        the dedupe pass's raw material)."""
+        async def _count(cypher: str) -> int:
+            records, _, _ = await self._driver.execute_query(cypher, g=self.group_id)
+            return int(records[0]["n"]) if records else 0
+
+        orphans = await _count(
+            "MATCH (x:Entity) WHERE x.group_id = $g AND NOT (x)-[:RELATES_TO]-() "
+            "RETURN count(x) AS n")
+        episodes = await _count(
+            "MATCH (e:Episodic) WHERE e.group_id = $g RETURN count(e) AS n")
+        archived = await _count(
+            "MATCH ()-[r:RELATES_TO]->() WHERE r.group_id = $g AND r.archived = true "
+            "RETURN count(r) AS n")
+        records, _, _ = await self._driver.execute_query(
+            "MATCH (x:Entity) WHERE x.group_id = $g RETURN x.name AS name", g=self.group_id)
+        names = [" ".join(str(r["name"]).lower().split()) for r in records or []]
+        duplicates = len(names) - len(set(names))
+        return {"orphans": orphans, "episodes": episodes, "archived_facts": archived,
+                "duplicate_name_suspects": duplicates}
 
     async def add_episode(self, body: str, *, name: str | None = None,
                           source_description: str = "user input",

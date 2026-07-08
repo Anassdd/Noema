@@ -21,15 +21,16 @@ import { API_BASE } from "./client.js";
  * @param {boolean} [handlers.useMemory]  ground the answer in the RAG/graph memory
  * @param {string} [handlers.domain]  which knowledge base to ground in
  * @param {string|null} [handlers.memory]  a saved snapshot name to answer from (null = live)
+ * @param {string|null} [handlers.retrieval]  which store answers: "hybrid" | "rag" | "graph"
  */
 export async function streamChat(
   messages,
-  { onDelta, onUsage, onStatus, onSources, signal, model, useMemory = false, domain = "default", memory = null },
+  { onDelta, onUsage, onStatus, onSources, signal, model, useMemory = false, domain = "default", memory = null, retrieval = null },
 ) {
   const res = await fetch(`${API_BASE}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, model, use_memory: useMemory, domain, memory }),
+    body: JSON.stringify({ messages, model, use_memory: useMemory, domain, memory, retrieval }),
     signal,
   });
 

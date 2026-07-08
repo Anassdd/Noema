@@ -137,20 +137,28 @@ def _common_kwargs(model, messages, temperature, max_tokens) -> dict:
     return kwargs
 
 
-def _create(**kwargs):
+def _create(client: OpenAI | None = None, **kwargs):
     """Create a completion, retrying without params the model rejects.
 
-    Reasoning models (gpt-5, o1/o3/o4...) only allow the default temperature, so
-    on a temperature-related 400 we drop it and let the model default. Generic
-    by design — no per-model table to maintain across providers.
+    Reasoning models (gpt-5, o1/o3/o4...) only allow the default temperature and
+    take `max_completion_tokens` instead of the legacy `max_tokens`, so on the
+    matching 400 we adapt and retry. Generic by design — no per-model table to
+    maintain across providers.
     """
-    try:
-        return _client.chat.completions.create(**kwargs)
-    except BadRequestError as exc:
-        if "temperature" in str(exc).lower() and "temperature" in kwargs:
-            kwargs.pop("temperature")
-            return _client.chat.completions.create(**kwargs)
-        raise
+    client = client or _client
+    for _ in range(3):
+        try:
+            return client.chat.completions.create(**kwargs)
+        except BadRequestError as exc:
+            msg = str(exc).lower()
+            if "max_tokens" in msg and "max_tokens" in kwargs:
+                kwargs["max_completion_tokens"] = kwargs.pop("max_tokens")
+                continue
+            if "temperature" in msg and "temperature" in kwargs:
+                kwargs.pop("temperature")
+                continue
+            raise
+    return client.chat.completions.create(**kwargs)
 
 
 def _chat_buffered(messages, model, temperature, max_tokens) -> ChatResult:
@@ -216,6 +224,49 @@ def transcribe_image(
         }
     ]
     resp = _create(**_common_kwargs(model, messages, 0, max_tokens), stream=False)
+    return ChatResult(
+        text=resp.choices[0].message.content or "",
+        usage=_to_usage(resp.usage),
+        model=resp.model,
+    )
+
+
+_judge_client: OpenAI | None = None
+
+
+def judge_chat(
+    messages: Sequence[Message],
+    *,
+    temperature: float = 0.0,
+    max_tokens: int | None = None,
+) -> ChatResult:
+    """A buffered chat call on the JUDGE endpoint (used only to score bench answers).
+
+    With JUDGE_MODEL/JUDGE_BASE_URL configured this reaches a different,
+    OpenAI-compatible endpoint — e.g. Gemini's — so the judge is a different model
+    family than the generator (kills self-preference bias). Unset -> falls back to
+    the main provider and chat model, so the bench works before any judge key exists.
+    """
+    global _judge_client
+    configured = bool(settings.judge_model and settings.judge_base_url
+                      and settings.judge_api_key)
+    if not configured:
+        # Not (fully) configured -> judge on the main provider. A judge_model
+        # WITHOUT a base_url means "different model, same provider"; a base_url
+        # without its key means the key isn't pasted yet — don't call a foreign
+        # endpoint that will reject us, fall back to the chat model instead.
+        model = (settings.judge_model
+                 if settings.judge_model and not settings.judge_base_url
+                 else settings.chat_model)
+        return _chat_buffered(messages, model, temperature, max_tokens)
+    if _judge_client is None:
+        _judge_client = OpenAI(base_url=settings.judge_base_url,
+                               api_key=settings.judge_api_key)
+    resp = _create(
+        _judge_client,
+        **_common_kwargs(settings.judge_model, messages, temperature, max_tokens),
+        stream=False,
+    )
     return ChatResult(
         text=resp.choices[0].message.content or "",
         usage=_to_usage(resp.usage),

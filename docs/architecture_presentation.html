@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Noema — Chatbot architecture</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    background: #070a14;
+    background-image:
+      radial-gradient(ellipse 60% 40% at 50% -10%, rgba(92,200,255,0.14), transparent),
+      radial-gradient(ellipse 40% 30% at 85% 100%, rgba(150,110,255,0.08), transparent);
+    color: #e7ecf7;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+  }
+
+  .deck { width: 100%; max-width: 1240px; }
+
+  /* ---- header ---- */
+  header { text-align: center; margin-bottom: 42px; }
+  .badge {
+    display: inline-block;
+    background: rgba(92,200,255,0.14);
+    border: 1px solid rgba(92,200,255,0.35);
+    color: #8fd0ff;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 6px 16px;
+    border-radius: 999px;
+    margin-bottom: 16px;
+    letter-spacing: 0.4px;
+  }
+  h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.3px; }
+  h1 .accent { color: #8fd0ff; }
+  .subtitle {
+    margin-top: 10px;
+    color: #9aa5c0;
+    font-size: 15.5px;
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.55;
+  }
+
+  /* ---- flow rows ---- */
+  .row-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: #7d88a8;
+    margin: 34px 0 14px 4px;
+  }
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+
+  .step {
+    flex: 1 1 0;
+    background: rgba(13,18,32,0.92);
+    border: 1px solid rgba(120,135,175,0.22);
+    border-radius: 14px;
+    padding: 18px 16px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-self: stretch;
+  }
+  .step .icon { font-size: 18px; }
+  .step h2 { font-size: 16px; font-weight: 700; }
+  .step p { font-size: 12.8px; line-height: 1.55; color: #aab4cf; }
+  .step .model {
+    margin-top: auto;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #ffd28a;
+    background: rgba(255,210,138,0.07);
+    border: 1px solid rgba(255,210,138,0.2);
+    border-radius: 8px;
+    padding: 5px 8px;
+    align-self: flex-start;
+  }
+
+  /* the two memories, stacked */
+  .bases {
+    flex: 1.15 1 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-self: stretch;
+    justify-content: center;
+  }
+  .base {
+    border-radius: 14px;
+    padding: 14px 16px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+  }
+  .base h2 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .base p { font-size: 12.3px; line-height: 1.5; color: #aab4cf; }
+  .base.rag {
+    background: rgba(92,200,255,0.08);
+    border: 1px solid rgba(92,200,255,0.35);
+  }
+  .base.rag h2 { color: #8fd0ff; }
+  .base.graph {
+    background: rgba(150,110,255,0.08);
+    border: 1px solid rgba(150,110,255,0.35);
+  }
+  .base.graph h2 { color: #c9b8ff; }
+
+  /* ---- arrows ---- */
+  .arrow {
+    flex: 0 0 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .arrow svg { width: 34px; height: 16px; }
+  .arrow.wide svg { width: 40px; height: 90px; }
+  .arrow path {
+    stroke: #5cc8ff;
+    stroke-width: 2.4;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* ---- models footer ---- */
+  .models {
+    margin-top: 34px;
+    display: flex;
+    gap: 14px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .model-chip {
+    font-size: 12.5px;
+    color: #cdd5ea;
+    background: rgba(120,135,175,0.1);
+    border: 1px solid rgba(120,135,175,0.22);
+    border-radius: 999px;
+    padding: 8px 16px;
+  }
+  .model-chip b { color: #ffd28a; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+
+  /* ---- narrow screens: stack vertically ---- */
+  @media (max-width: 900px) {
+    .flow { flex-direction: column; align-items: stretch; }
+    .arrow { flex-basis: 34px; }
+    .arrow svg { transform: rotate(90deg); }
+    .arrow.wide svg { transform: rotate(90deg); height: 60px; }
+  }
+</style>
+</head>
+<body>
+<div class="deck">
+
+  <header>
+    <div class="badge">Noema · architecture</div>
+    <h1>One question, <span class="accent">two memories</span>, every claim cited</h1>
+    <p class="subtitle">
+      The expert's knowledge lives in two stores built from the same documents:
+      a contextual RAG base for precise passages, and a knowledge graph for
+      entities and how they relate. Every question searches both.
+    </p>
+  </header>
+
+  <div class="row-label">The answer path</div>
+  <div class="flow">
+    <div class="step">
+      <div class="icon">💬</div>
+      <h2>Question</h2>
+      <p>The user asks. A quick routing check decides if the knowledge base is
+         needed at all — small talk is answered directly.</p>
+      <div class="model">route · gpt-5.4-mini</div>
+    </div>
+
+    <div class="arrow wide">
+      <svg viewBox="0 0 40 90">
+        <path d="M2 45 H10 C18 45 18 22 26 22 H29 m-6 -5 l7 5 l-7 5"/>
+        <path d="M10 45 C18 45 18 68 26 68 H29 m-6 -5 l7 5 l-7 5"/>
+      </svg>
+    </div>
+
+    <div class="bases">
+      <div class="base rag">
+        <h2>Contextual RAG base</h2>
+        <p>Document chunks, each enriched with its context, embedded as vectors —
+           finds the exact passages that talk about the question.</p>
+      </div>
+      <div class="base graph">
+        <h2>Graph base</h2>
+        <p>Entities and facts extracted from the same documents — finds knowledge
+           connected across documents, not just similar wording.</p>
+      </div>
+    </div>
+
+    <div class="arrow wide">
+      <svg viewBox="0 0 40 90">
+        <path d="M2 22 C10 22 10 45 18 45"/>
+        <path d="M2 68 C10 68 10 45 18 45 H29 m-6 -5 l7 5 l-7 5"/>
+      </svg>
+    </div>
+
+    <div class="step">
+      <div class="icon">⚖</div>
+      <h2>Fuse &amp; check</h2>
+      <p>The two result lists are merged into one ranking, and the evidence is
+         graded: is this enough to answer? If not, the search widens.</p>
+      <div class="model">grading · gpt-5.4-mini</div>
+    </div>
+
+    <div class="arrow"><svg viewBox="0 0 34 16"><path d="M2 8 h24 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+    <div class="step">
+      <div class="icon">✒</div>
+      <h2>Grounded answer</h2>
+      <p>The answer is written ONLY from the retrieved evidence, and cites its
+         sources — document and passage.</p>
+      <div class="model">answer · gpt-5.4-mini</div>
+    </div>
+
+    <div class="arrow"><svg viewBox="0 0 34 16"><path d="M2 8 h24 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+    <div class="step">
+      <div class="icon">✔</div>
+      <h2>Self-check</h2>
+      <p>A final faithfulness check: does every claim trace back to the sources?
+         If not, the answer is retried (up to twice) before being shown.</p>
+      <div class="model">verify · gpt-5.4-mini</div>
+    </div>
+  </div>
+
+  <div class="row-label">How the two memories are built (ingestion)</div>
+  <div class="flow">
+    <div class="step">
+      <div class="icon">📄</div>
+      <h2>Documents</h2>
+      <p>PDFs and papers uploaded on the ingestion page — the single source both
+         memories are built from.</p>
+    </div>
+
+    <div class="arrow"><svg viewBox="0 0 34 16"><path d="M2 8 h24 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+    <div class="step">
+      <div class="icon">🔍</div>
+      <h2>Parse</h2>
+      <p>Each page is read by a strong vision model — text, tables and formulas
+         come out clean, with page-level provenance kept.</p>
+      <div class="model">parsing · gpt-5.4</div>
+    </div>
+
+    <div class="arrow wide">
+      <svg viewBox="0 0 40 90">
+        <path d="M2 45 H10 C18 45 18 22 26 22 H29 m-6 -5 l7 5 l-7 5"/>
+        <path d="M10 45 C18 45 18 68 26 68 H29 m-6 -5 l7 5 l-7 5"/>
+      </svg>
+    </div>
+
+    <div class="bases">
+      <div class="base rag">
+        <h2>→ Contextual RAG base</h2>
+        <p>Chunks get a short context blurb, then are embedded
+           (text-embedding-3-large) into the vector store.</p>
+      </div>
+      <div class="base graph">
+        <h2>→ Graph base</h2>
+        <p>Entities and relationships are extracted (gpt-5.4) page by page into
+           the temporal knowledge graph — the one ✦ Dream maintains.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="models">
+    <div class="model-chip"><b>gpt-5.4</b> — the strong model: PDF parsing &amp; graph extraction (memory quality)</div>
+    <div class="model-chip"><b>gpt-5.4-mini</b> — routing, grading, answering, self-checks</div>
+    <div class="model-chip"><b>text-embedding-3-large</b> — multilingual embeddings (French corpus ready)</div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -30,7 +30,7 @@ always has something to select.
 
 ```bash
 curl http://localhost:8000/models
-# {"models": ["gpt-4.1-mini", "gpt-4o", ...], "default": "gpt-4.1-mini"}
+# {"models": ["gpt-5.4-mini", "gpt-5.4", ...], "default": "gpt-5.4-mini"}
 ```
 
 ## Chat (`routers/chat.py`)

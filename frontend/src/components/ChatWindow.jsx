@@ -25,6 +25,8 @@ export default function ChatWindow({
   expertEnabled,
   selectedMemory,
   onSelectMemory,
+  retrievalMode,
+  onSelectRetrieval,
   tokenizerEnabled,
   character,
   onSetCharacter,
@@ -63,6 +65,7 @@ export default function ChatWindow({
     prefilterEnabled,
     expertEnabled,
     memory: selectedMemory,
+    retrieval: retrievalMode,
     model,
     onUsage,
     onAutoTitle,
@@ -159,6 +162,8 @@ export default function ChatWindow({
           sessionTokens={sessionTokens}
           memory={selectedMemory}
           onSelectMemory={onSelectMemory}
+          retrieval={retrievalMode}
+          onSelectRetrieval={onSelectRetrieval}
           expertEnabled={expertEnabled}
         />
       </div>

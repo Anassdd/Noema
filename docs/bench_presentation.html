@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Noema — Benchmarking the memories</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    background: #070a14;
+    background-image:
+      radial-gradient(ellipse 60% 40% at 50% -10%, rgba(143,214,194,0.13), transparent),
+      radial-gradient(ellipse 40% 30% at 85% 100%, rgba(92,200,255,0.07), transparent);
+    color: #e7ecf7;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+  }
+
+  .deck { width: 100%; max-width: 1240px; }
+
+  /* ---- header ---- */
+  header { text-align: center; margin-bottom: 38px; }
+  .badge {
+    display: inline-block;
+    background: rgba(143,214,194,0.12);
+    border: 1px solid rgba(143,214,194,0.35);
+    color: #8fd6c2;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 6px 16px;
+    border-radius: 999px;
+    margin-bottom: 16px;
+    letter-spacing: 0.4px;
+  }
+  h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.3px; }
+  h1 .accent { color: #8fd6c2; }
+  .subtitle {
+    margin-top: 10px;
+    color: #9aa5c0;
+    font-size: 15.5px;
+    max-width: 760px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.55;
+  }
+
+  /* ---- flow rows ---- */
+  .row-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: #7d88a8;
+    margin: 30px 0 14px 4px;
+  }
+  .flow { display: flex; align-items: stretch; gap: 0; }
+
+  .step {
+    flex: 1 1 0;
+    background: rgba(13,18,32,0.92);
+    border: 1px solid rgba(120,135,175,0.22);
+    border-radius: 14px;
+    padding: 16px 15px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .step .num {
+    width: 26px; height: 26px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+    background: rgba(143,214,194,0.14);
+    border: 1px solid rgba(143,214,194,0.4);
+    color: #8fd6c2;
+  }
+  .step h2 { font-size: 15.5px; font-weight: 700; }
+  .step p { font-size: 12.4px; line-height: 1.5; color: #aab4cf; }
+  .step .example {
+    margin-top: auto;
+    font-size: 11.6px;
+    color: #8fd6c2;
+    background: rgba(143,214,194,0.07);
+    border: 1px solid rgba(143,214,194,0.2);
+    border-radius: 8px;
+    padding: 5px 8px;
+    line-height: 1.45;
+  }
+
+  /* ---- arrows ---- */
+  .arrow { flex: 0 0 40px; display: flex; align-items: center; justify-content: center; }
+  .arrow svg { width: 32px; height: 16px; }
+  .arrow path {
+    stroke: #8fd6c2;
+    stroke-width: 2.4;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* ---- the 4 configurations ---- */
+  .configs { display: flex; gap: 14px; }
+  .config {
+    flex: 1 1 0;
+    border-radius: 14px;
+    padding: 15px 16px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+  }
+  .config h2 { font-size: 15px; font-weight: 700; margin-bottom: 5px; }
+  .config p { font-size: 12.3px; line-height: 1.5; color: #aab4cf; }
+  .config.floor { background: rgba(255,210,138,0.06); border: 1px solid rgba(255,210,138,0.3); }
+  .config.floor h2 { color: #ffd28a; }
+  .config.rag { background: rgba(92,200,255,0.07); border: 1px solid rgba(92,200,255,0.35); }
+  .config.rag h2 { color: #8fd0ff; }
+  .config.graph { background: rgba(150,110,255,0.07); border: 1px solid rgba(150,110,255,0.35); }
+  .config.graph h2 { color: #c9b8ff; }
+  .config.hybrid { background: rgba(143,214,194,0.07); border: 1px solid rgba(143,214,194,0.35); }
+  .config.hybrid h2 { color: #8fd6c2; }
+
+  .config .score { font-size: 22px; font-weight: 800; margin-top: 8px; }
+  .config .score small { font-size: 12px; font-weight: 600; opacity: 0.75; margin-left: 4px; }
+  .config.floor .score { color: #ffd28a; }
+  .config.rag .score { color: #8fd0ff; }
+  .config.graph .score { color: #c9b8ff; }
+  .config.hybrid .score { color: #8fd6c2; }
+
+  .finding {
+    margin-top: 14px;
+    text-align: center;
+    font-size: 13.5px;
+    color: #cdd5ea;
+    background: rgba(13,18,32,0.7);
+    border: 1px solid rgba(120,135,175,0.2);
+    border-radius: 12px;
+    padding: 12px 18px;
+    line-height: 1.55;
+  }
+  .finding b { color: #e7ecf7; }
+  .pilot-note { font-size: 11.5px; color: #7d88a8; text-align: center; margin-top: 8px; }
+
+  /* ---- guarantees + models footer ---- */
+  .guarantees, .models {
+    margin-top: 30px;
+    display: flex;
+    gap: 14px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .models { margin-top: 14px; }
+  .guarantee {
+    font-size: 12.5px;
+    color: #cdd5ea;
+    background: rgba(120,135,175,0.1);
+    border: 1px solid rgba(120,135,175,0.22);
+    border-radius: 999px;
+    padding: 8px 16px;
+  }
+  .guarantee b { color: #e7ecf7; }
+  .model-chip {
+    font-size: 12.5px;
+    color: #cdd5ea;
+    background: rgba(143,214,194,0.06);
+    border: 1px solid rgba(143,214,194,0.22);
+    border-radius: 999px;
+    padding: 8px 16px;
+  }
+  .model-chip b { color: #ffd28a; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+
+  /* ---- narrow screens ---- */
+  @media (max-width: 900px) {
+    .flow { flex-direction: column; }
+    .arrow { flex-basis: 32px; }
+    .arrow svg { transform: rotate(90deg); }
+    .configs { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="deck">
+
+  <header>
+    <div class="badge">⚗ Bench</div>
+    <h1>Testing the memories on <span class="accent">real, human-written questions</span></h1>
+    <p class="subtitle">
+      A one-press benchmark page: pick a public dataset, build the memories once,
+      ask the same questions through four configurations, and get a finished,
+      comparable report. No LLM-generated gold — the questions and answers were
+      written by human researchers (QASPER, NAACL 2021).
+    </p>
+  </header>
+
+  <div class="row-label">The pipeline</div>
+  <div class="flow">
+    <div class="step">
+      <div class="num">1</div>
+      <h2>Dataset</h2>
+      <p>Public research-paper corpus with questions written and answered by
+         human annotators, with the evidence marked.</p>
+      <div class="example">QASPER — 1,585 NLP papers, human Q&amp;A</div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 34 16"><path d="M2 8 h24 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+    <div class="step">
+      <div class="num">2</div>
+      <h2>Prepare</h2>
+      <p>Whole papers are selected up to a token cap; only the human questions
+         whose papers made the cut are kept as gold.</p>
+      <div class="example">Pilot: 16 papers · ~100k tokens · 46 questions</div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 34 16"><path d="M2 8 h24 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+    <div class="step">
+      <div class="num">3</div>
+      <h2>Build once</h2>
+      <p>The corpus is ingested into BOTH memories exactly once — fingerprinted,
+         so re-running never rebuilds or re-pays. Pause/resume safe.</p>
+      <div class="example">The graph lands in a save — explorable in 3D after</div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 34 16"><path d="M2 8 h24 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+    <div class="step">
+      <div class="num">4</div>
+      <h2>Ask ×4</h2>
+      <p>Every question is asked through the four configurations below — same
+         generator model, same prompts, only the memory changes.</p>
+      <div class="example">46 questions × 4 configs = 184 answers</div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 34 16"><path d="M2 8 h24 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+    <div class="step">
+      <div class="num">5</div>
+      <h2>Judge</h2>
+      <p>An independent judge from a different model family compares each answer
+         to the human gold. Plus word-overlap scores and evidence recall.</p>
+      <div class="example">Judge = Gemini — can't favor its own answers</div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 34 16"><path d="M2 8 h24 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+    <div class="step">
+      <div class="num">6</div>
+      <h2>Report</h2>
+      <p>A finished, versioned deliverable: verdict, per-question-type slices,
+         worst-failure gallery, costs — comparable run to run.</p>
+      <div class="example">Downloadable markdown, kept per run</div>
+    </div>
+  </div>
+
+  <div class="row-label">The four configurations — and the pilot result</div>
+  <div class="configs">
+    <div class="config floor">
+      <h2>Closed book</h2>
+      <p>No memory at all — measures what the model already knows. This is the
+         honest floor every method must beat.</p>
+      <div class="score">28%<small>floor</small></div>
+    </div>
+    <div class="config rag">
+      <h2>Contextual RAG</h2>
+      <p>Vector base only — precise passages.</p>
+      <div class="score">65%<small>+37 over floor</small></div>
+    </div>
+    <div class="config graph">
+      <h2>Graph</h2>
+      <p>Knowledge graph only — connected facts.</p>
+      <div class="score">33%<small>+5 over floor</small></div>
+    </div>
+    <div class="config hybrid">
+      <h2>Hybrid</h2>
+      <p>Both, fused — the app's default mode.</p>
+      <div class="score">59%<small>+31 over floor</small></div>
+    </div>
+  </div>
+
+  <div class="finding">
+    <b>Each memory wins somewhere:</b> RAG is strongest on factual questions
+    (69% vs hybrid's 56%), but on synthesis questions — “explain how / why” —
+    hybrid overtakes it (50% vs 37.5%). The graph adds understanding, the
+    vectors add precision.
+  </div>
+  <div class="pilot-note">Pilot run on QASPER, 46 human questions — judge accuracy vs human gold. Larger runs planned on the company environment.</div>
+
+  <div class="guarantees">
+    <div class="guarantee"><b>100% human gold</b> — no LLM-generated questions or answers</div>
+    <div class="guarantee"><b>Build once</b> — fingerprinted; identical corpus is never re-ingested</div>
+    <div class="guarantee"><b>Independent judge</b> — different model family than the answerer</div>
+    <div class="guarantee"><b>Everything kept</b> — every answer, verdict and cost saved per run</div>
+  </div>
+
+  <div class="models">
+    <div class="model-chip"><b>gpt-5.4-mini</b> — builds the bench memories &amp; writes every answer</div>
+    <div class="model-chip"><b>gemini-3.5-flash</b> — the independent judge</div>
+    <div class="model-chip"><b>text-embedding-3-large</b> — embeddings for the RAG base</div>
+  </div>
+
+</div>
+</body>
+</html>

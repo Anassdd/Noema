@@ -124,3 +124,10 @@ export const GraphIcon = (p) => (
     <path d="M6.8 7.2L11 16.4M16.2 7.2L13 16.4M7 6h8.5" />
   </Icon>
 );
+
+export const BenchIcon = (p) => (
+  <Icon {...p}>
+    <path d="M5 20V12M12 20V6M19 20v-5" />
+    <path d="M3 20h18" />
+  </Icon>
+);

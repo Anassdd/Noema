@@ -1,0 +1,11 @@
+{
+ "dataset": "cs",
+ "builds": [],
+ "prepared": {
+  "cap_tokens": 200000,
+  "docs": 4,
+  "tokens": 199752,
+  "corpus_hash": "e288afd530ac40df",
+  "unique_contexts_in_file": 10
+ }
+}

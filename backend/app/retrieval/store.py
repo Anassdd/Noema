@@ -66,6 +66,12 @@ class VectorStore:
     def count(self) -> int:
         return self._col.count()
 
+    def doc_ids(self) -> set[str]:
+        """Distinct doc_ids already stored. Each doc is upserted in ONE add() call,
+        so presence means fully ingested — lets bulk ingestion resume per document."""
+        res = self._col.get(include=["metadatas"])
+        return {m.get("doc_id") for m in res.get("metadatas") or [] if m and m.get("doc_id")}
+
     def _to_chunk(self, cid, doc, meta, score=0.0, scores=None) -> ScoredChunk:
         return ScoredChunk(
             chunk_id=cid, text=doc or "", context=meta.get("context", ""),

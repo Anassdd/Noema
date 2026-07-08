@@ -52,7 +52,7 @@ project lives here:
 `LLM_PROVIDER` in `.env` selects the backend at runtime:
 
 - **`openai`** — dev (personal Mac, standard `api.openai.com`). Defaults:
-  `gpt-4.1-mini` (chat), `text-embedding-3-large` (embeddings), `gpt-4o` (vision parsing).
+  `gpt-5.4-mini` (chat), `text-embedding-3-large` (embeddings), `gpt-5.4` (vision parsing + graph extraction).
 - **`llmaas`** — prod (the company's Azure-hosted, **OpenAI-compatible** gateway at a
   custom `LLMAAS_BASE_URL`). Same SDK, different `base_url`; model names are whatever
   the endpoint expects (`LLMAAS_CHAT_MODEL`, …). The API key may be blank for keyless

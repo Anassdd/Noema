@@ -1,0 +1,142 @@
+[
+ {
+  "id": "q001",
+  "n": 1,
+  "doc_id": "cs-30f4e3d3",
+  "status": "draft",
+  "question": "What is the title of Rami Rosen's book about Linux networking?",
+  "answer": "Linux Kernel Networking: Implementation and Theory",
+  "evidence": "Rami Rosen\n\nLinux Kernel Networking\n\nImplementation and Theory",
+  "type": "factoid"
+ },
+ {
+  "id": "q002",
+  "n": 2,
+  "doc_id": "cs-30f4e3d3",
+  "status": "draft",
+  "question": "Which protocol does Chapter 8 describe as the inevitable solution to the shortage of IPv4 addresses?",
+  "answer": "IPv6",
+  "evidence": "Chapter 8 discusses the IPv6 protocol, which seems to be the inevitable solution to the shortage of IPv4 addresses.",
+  "type": "factoid"
+ },
+ {
+  "id": "q003",
+  "n": 3,
+  "doc_id": "cs-30f4e3d3",
+  "status": "draft",
+  "question": "Why does the author say this book was written, according to the preface?",
+  "answer": "The author says the book was written because Linux kernel networking had changed rapidly for nearly a decade, while important subsystems such as IPv6, IPsec, wireless, IEEE 802.15.4, NFC, and InfiniBand were not covered in other books and had little implementation detail available online. The book is meant to fill that gap with a guided tour of the kernel networking implementation and theory.",
+  "evidence": "For almost a decade, no new book about Linux networking has been written. A decade of dynamic and fast-paced Linux kernel development is quite a long time. There are important kernel networking subsystems that are not described in any other book",
+  "type": "synthesis"
+ },
+ {
+  "id": "q004",
+  "n": 4,
+  "doc_id": "cs-30f4e3d3",
+  "status": "draft",
+  "question": "What error code is used when a netlink message has an invalid nlmsg_type?",
+  "answer": "–EOPNOTSUPP",
+  "evidence": "when the nlmsg_type is not valid ... the error code is set to –EOPNOTSUPP.",
+  "type": "factoid"
+ },
+ {
+  "id": "q005",
+  "n": 5,
+  "doc_id": "cs-30f4e3d3",
+  "status": "draft",
+  "question": "Why was the generic netlink family created, and what role does it play in the netlink architecture?",
+  "answer": "The generic netlink family was created because the number of netlink protocol families is limited to 32 (MAX_LINKS). It acts as a netlink multiplexer over a single family, NETLINK_GENERIC, allowing more families and broader subsystem use.",
+  "evidence": "One of the drawbacks of the netlink protocol is that the number of protocol families is limited to 32 (MAX_LINKS). This is one of the main reasons that the generic netlink family was created—to provide support for adding a higher number of families.",
+  "type": "synthesis"
+ },
+ {
+  "id": "q006",
+  "n": 6,
+  "doc_id": "cs-30f4e3d3",
+  "status": "draft",
+  "question": "What are the main uses of generic netlink described in the excerpt?",
+  "answer": "Generic netlink is presented as a general-purpose communication channel used beyond networking, including by ACPI, task stats, thermal events, NFC, and wireless subsystems. The excerpt emphasizes that it simplifies adding families and supports multicast groups and namespace-aware sockets.",
+  "evidence": "it is used also by the acpi subsystem ... by the task stats code ... by the thermal events code, and more.",
+  "type": "global"
+ },
+ {
+  "id": "q007",
+  "n": 7,
+  "doc_id": "cs-30f4e3d3",
+  "status": "draft",
+  "question": "What does the IPv4 header field \"ihl\" stand for?",
+  "answer": "Internet Header Length",
+  "evidence": "\"ihl: This stands for Internet Header Length.\"",
+  "type": "factoid"
+ },
+ {
+  "id": "q008",
+  "n": 8,
+  "doc_id": "cs-30f4e3d3",
+  "status": "draft",
+  "question": "Why can the IPv4 header have a variable length, unlike the IPv6 header?",
+  "answer": "The IPv4 header can include optional, varying-length options, so its size is not fixed. By contrast, the IPv6 header length is fixed at 40 bytes.",
+  "evidence": "\"The length of the IPv4 header is not fixed, as opposed to the header of IPv6, where the length is fixed (40 bytes). The reason is that the IPv4 header can include optional, varying length options.\"",
+  "type": "synthesis"
+ },
+ {
+  "id": "q009",
+  "n": 9,
+  "doc_id": "cs-30f4e3d3",
+  "status": "draft",
+  "question": "What are the main themes of the excerpt about IPv4?",
+  "answer": "The excerpt explains IPv4 header fields and then describes how IPv4 packets are initialized, received, and routed through the Linux network stack. It emphasizes protocol handler registration, sanity checks, netfilter hooks, and the routing decision between local delivery and forwarding.",
+  "evidence": "\"In this section you have learned about the various IPv4 header members and their purposes.\"",
+  "type": "global"
+ },
+ {
+  "id": "q010",
+  "n": 10,
+  "doc_id": "cs-45facede",
+  "status": "draft",
+  "question": "According to the excerpt, what should be used most of the time to retrieve constraint definitions instead of the DDL?",
+  "answer": "The schema information tables",
+  "evidence": "most of the time we should be going to the schema information tables to retrieve the constraint definitions, not the DDL.",
+  "type": "factoid"
+ },
+ {
+  "id": "q011",
+  "n": 11,
+  "doc_id": "cs-45facede",
+  "status": "draft",
+  "question": "Why does the excerpt recommend using schema information tables rather than DDL to find constraint definitions?",
+  "answer": "Because constraints may have been changed later with ALTER statements, so the system catalog reflects the current state while the DDL may be outdated. The catalog is the trusted source for the correct, current constraint definitions.",
+  "evidence": "Constraints may have been removed or added with subsequent ALTER statements, and the system catalog will have the correct, current state, whereas the DDL may not.",
+  "type": "synthesis"
+ },
+ {
+  "id": "q012",
+  "n": 12,
+  "doc_id": "cs-45facede",
+  "status": "draft",
+  "question": "What main principle about database design is emphasized across the excerpt's discussion of constraints, temporal values, keys, and tables?",
+  "answer": "The excerpt argues that a database should be a trusted repository where business rules are enforced through well-designed constraints and keys, and that relational concepts must be modeled carefully rather than copied from files or physical storage. It repeatedly contrasts logical database design with weaker, more ad hoc approaches.",
+  "evidence": "The whole idea of a database is that it is a single trusted repository for all of the data in the enterprise. This is the place where the business rules must be enforced.",
+  "type": "global"
+ },
+ {
+  "id": "q013",
+  "n": 13,
+  "doc_id": "cs-30f4e3d3",
+  "status": "draft",
+  "type": "null",
+  "evidence": "",
+  "question": "In Rami Rosen's book \"Linux Kernel Networking: Implementation and Theory,\" what specific year was the Linux Device Drivers book from O'Reilly in its second edition when the USB chapter had not yet been added?",
+  "answer": "Not answerable from the corpus."
+ },
+ {
+  "id": "q014",
+  "n": 14,
+  "doc_id": "cs-30f4e3d3",
+  "status": "draft",
+  "type": "null",
+  "evidence": "",
+  "question": "In the preface of Rami Rosen's \"Linux Kernel Networking: Implementation and Theory,\" what was the exact name of the startup where he first worked on kernel programming?",
+  "answer": "Not answerable from the corpus."
+ }
+]

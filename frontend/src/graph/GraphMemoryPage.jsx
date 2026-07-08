@@ -88,7 +88,7 @@ function collideRadius(nd, isTopics) {
 // edge facing the camera is vivid (EDGE_OPACITY); one on the far side falls off to
 // EDGE_BACK_OPACITY (very transparent). Front stays punchy, the far web recedes.
 const EDGE_OPACITY = 0.85; // facing the camera — strong, vivid colour
-const EDGE_BACK_OPACITY = 0.07; // far side — very transparent
+const EDGE_BACK_OPACITY = 0.18; // far side — dim but present, so the whole web still reads
 
 // Facing depth cue for nodes: a node facing the camera is fully opaque; one on the far side
 // eases down to this opacity floor (transparent), linearly across the depth — the same cue as
@@ -125,6 +125,10 @@ export default function GraphMemoryPage() {
   const [beliefText, setBeliefText] = useState("");
   const [beliefSaved, setBeliefSaved] = useState(false);
   const [viewMode, setViewMode] = useState("concepts"); // "concepts" | "topics"
+  const [particlesOn, setParticlesOn] = useState(true); // moving dots on the edges
+  const [compact, setCompact] = useState(false); // Gather: stronger pull toward the center
+  const particlesOnRef = useRef(true);
+  const compactRef = useRef(false);
 
   const viewModeRef = useRef("concepts");
   const renderedNodesRef = useRef([]); // the node objects currently on screen (concepts or topics)
@@ -261,6 +265,7 @@ export default function GraphMemoryPage() {
       .linkColor(() => "#000000") // default line hidden — the gradient Line2 below is what shows
       .linkLabel(() => "")
       .linkDirectionalParticles((l) => {
+        if (!particlesOnRef.current) return 0;
         const focusing = hoverNodeRef.current || selectedLinkRef.current;
         if (focusing && !highlightLinksRef.current.has(l)) return 0;
         return l.is_current || l.recent || l.timeView ? 2 : 0;
@@ -412,6 +417,16 @@ export default function GraphMemoryPage() {
       }
       graphRadiusRef.current = maxR;
 
+      // Camera sensitivity follows the graph's extent: gentle on a small graph, faster on a
+      // sprawling one where each gesture has more distance to cover.
+      const controls = fgRef.current && fgRef.current.controls();
+      if (controls) {
+        const s = Math.max(0, Math.min(1, (maxR - 60) / 540));
+        controls.rotateSpeed = 1.2 + 1.4 * s;
+        controls.zoomSpeed = 2 + 4.5 * s;
+        controls.panSpeed = 0.8 + 0.5 * s;
+      }
+
       // Edges follow the same facing gradient (measured at the edge midpoint), so nodes and
       // their links recede together. Focus overrides — a clicked/highlighted edge stays full.
       if (cam) {
@@ -438,14 +453,10 @@ export default function GraphMemoryPage() {
     };
     entranceRafRef.current = requestAnimationFrame(entranceStep);
 
-    // Lighter, snappier camera — the default rotation felt heavy.
+    // Camera feel: damping here; rotate/zoom/pan speeds adapt to the graph's extent every
+    // frame (see entranceStep) so a small graph feels gentle and a big one stays quick.
     const controls = fg.controls();
-    if (controls) {
-      controls.rotateSpeed = 2.4;
-      controls.zoomSpeed = 6.5; // snappier zoom — bigger step per scroll, reaches far clusters faster
-      controls.panSpeed = 1.2;
-      controls.dynamicDampingFactor = 0.35;
-    }
+    if (controls) controls.dynamicDampingFactor = 0.35;
 
     // Keep disconnected clusters reachable — strength tuned per view in renderView.
     fg.d3Force("gravity", gravityForce());
@@ -550,13 +561,19 @@ export default function GraphMemoryPage() {
     prevLinkKeysRef.current = allKeys;
 
     // Timeline = INGESTION history (created_at), so scrubbing shows the graph as it grew
-    // with each upload — to the minute, not just the day.
+    // with each upload — to the minute, not just the day. It ends at the LAST modification
+    // (latest ingest or invalidation), not at "now".
     let tmin = Infinity;
-    let tmax = Date.now();
+    let tmax = -Infinity;
     for (const l of snap.links) {
-      if (l.created_at) tmin = Math.min(tmin, Date.parse(l.created_at));
+      if (l.created_at) {
+        const c = Date.parse(l.created_at);
+        tmin = Math.min(tmin, c);
+        tmax = Math.max(tmax, c);
+      }
       if (l.invalid_at) tmax = Math.max(tmax, Date.parse(l.invalid_at));
     }
+    if (!isFinite(tmax)) tmax = Date.now();
     if (!isFinite(tmin)) tmin = tmax - DAY;
     setTimeRange((r) => (r.min === tmin && r.max === tmax ? r : { min: tmin, max: tmax }));
 
@@ -666,23 +683,29 @@ export default function GraphMemoryPage() {
       fgRef.current.graphData({ nodes, links });
     }
 
-    // Layout forces scaled to the graph's size. Collision keeps nodes from overlapping (the
-    // main cause of a dense graph looking messy). For concepts, charge range + link distance
-    // grow with the node count so a big graph spreads instead of clumping, and gravity weakens
-    // as it grows so clusters stay reachable without balling up. distanceMax caps the range.
+    tuneForces();
+  }
+
+  // Layout forces scaled to the graph's size and view. Collision keeps nodes from overlapping
+  // (the main cause of a dense graph looking messy). For concepts, charge range + link distance
+  // grow with the node count so a big graph spreads instead of clumping, and gravity weakens as
+  // it grows so clusters stay reachable without balling up. The Gather toggle boosts gravity and
+  // tightens the charge range so the whole graph pulls in toward the center of gravity.
+  function tuneForces() {
     const fg = fgRef.current;
-    const n = nodes.length;
+    const n = renderedNodesRef.current.length || 1;
     const charge = fg.d3Force("charge");
     const linkF = fg.d3Force("link");
     const gravity = fg.d3Force("gravity");
+    const gather = compactRef.current;
     if (viewModeRef.current === "topics") {
-      if (charge) charge.strength(-750).distanceMax(900); // spread the few topic squares apart, but on-screen
-      if (linkF) linkF.distance(95);
-      if (gravity) gravity.strength(0.07);
+      if (charge) charge.strength(-750).distanceMax(gather ? 450 : 900);
+      if (linkF) linkF.distance(gather ? 60 : 95);
+      if (gravity) gravity.strength(gather ? 0.42 : 0.07);
     } else {
-      if (charge) charge.strength(-150).distanceMax(Math.max(300, n * 5));
+      if (charge) charge.strength(-150).distanceMax(gather ? Math.max(150, n * 2) : Math.max(300, n * 5));
       if (linkF) linkF.distance(Math.min(85, 28 + n * 0.3));
-      if (gravity) gravity.strength(Math.min(0.055, 3.5 / n));
+      if (gravity) gravity.strength((gather ? 6 : 1) * Math.min(0.055, 3.5 / n));
     }
     fg.d3Force(
       "collide",
@@ -790,8 +813,25 @@ export default function GraphMemoryPage() {
     if (lastSnapRef.current) applySnapshot(lastSnapRef.current);
   }
 
+  function zoomToCenter() {
+    fgRef.current?.zoomToFit(800, 70);
+  }
+
+  function toggleParticles() {
+    particlesOnRef.current = !particlesOnRef.current;
+    setParticlesOn(particlesOnRef.current);
+    const fg = fgRef.current;
+    fg.linkDirectionalParticles(fg.linkDirectionalParticles()); // re-eval → adds/removes the dots
+  }
+
+  function toggleGather() {
+    compactRef.current = !compactRef.current;
+    setCompact(compactRef.current);
+    tuneForces(); // re-tune gravity/charge and reheat so the layout pulls in (or relaxes)
+  }
+
   function scrubTo(v) {
-    const atMax = v >= timeRange.max;
+    const atMax = timeRange.max - v < sliderStep; // the step grid may not land exactly on max
     asOfRef.current = v;
     timeActiveRef.current = !atMax;
     setAsOf(v);
@@ -1211,7 +1251,7 @@ export default function GraphMemoryPage() {
         </div>
       </div>
 
-      {/* view toolbar — whole graph (concepts) vs. clusters (topics) */}
+      {/* view toolbar — whole graph (concepts) vs. clusters (topics), plus view actions */}
       <div style={viewToolbar}>
         {[
           ["◦ Concepts", "concepts"],
@@ -1233,6 +1273,52 @@ export default function GraphMemoryPage() {
             {label}
           </button>
         ))}
+        <div style={{ width: 1, alignSelf: "stretch", background: "rgba(120,135,175,0.25)" }} />
+        <button
+          onClick={zoomToCenter}
+          title="Bring the whole graph back into view, centered"
+          style={{
+            padding: "6px 15px",
+            fontSize: 12.5,
+            fontWeight: 600,
+            border: "none",
+            cursor: "pointer",
+            background: "transparent",
+            color: "#9aa6c2",
+          }}
+        >
+          ⌖ Center
+        </button>
+        <button
+          onClick={toggleGather}
+          title="Pull the clusters in toward the center of gravity for a tighter graph"
+          style={{
+            padding: "6px 15px",
+            fontSize: 12.5,
+            fontWeight: 600,
+            border: "none",
+            cursor: "pointer",
+            background: compact ? "rgba(92,200,255,0.18)" : "transparent",
+            color: compact ? "#bfe4ff" : "#9aa6c2",
+          }}
+        >
+          ⿴ Gather
+        </button>
+        <button
+          onClick={toggleParticles}
+          title="Toggle the moving dots on the edges — turning them off makes the view lighter"
+          style={{
+            padding: "6px 15px",
+            fontSize: 12.5,
+            fontWeight: 600,
+            border: "none",
+            cursor: "pointer",
+            background: "transparent",
+            color: particlesOn ? "#9aa6c2" : "#5c667f",
+          }}
+        >
+          {particlesOn ? "◉ Dots" : "○ Dots"}
+        </button>
       </div>
 
       {/* left panel — group inspector on click, node/edge info on hover, pinned edge on click */}
@@ -1450,7 +1536,7 @@ export default function GraphMemoryPage() {
         <div style={timeBar}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
             <span style={{ fontSize: 11, color: "#8a93ad" }}>
-              {timeActive ? "memory as of " : "now · "}
+              {timeActive ? "memory as of " : "last modified "}
               <b style={{ color: timeActive ? "#ffd166" : "#8fd6c2" }}>
                 {fmtStamp(timeActive ? asOf : timeRange.max)}
               </b>

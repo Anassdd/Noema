@@ -197,6 +197,7 @@ export default function BenchPage() {
   const [gold, setGold] = useState([]);
   const [goldDirty, setGoldDirty] = useState(false);
   const [configs, setConfigs] = useState(["closed_book", "rag", "graph", "hybrid"]);
+  const [scope, setScope] = useState("auto"); // "auto" = follow the dataset (scope to each question's source doc when it has one)
   const [busy, setBusy] = useState("");
   const [log, setLog] = useState([]);
   const [report, setReport] = useState(null);
@@ -315,8 +316,8 @@ export default function BenchPage() {
     const controller = new AbortController();
     abortRef.current = controller;
     try {
-      await runStream({ dataset: selected, configs, signal: controller.signal }, (ev) => {
-        if (ev.phase === "start") pushLog(`run ${ev.run_id} · ${ev.questions} questions · build ${ev.fingerprint} → ${ev.save_name}`);
+      await runStream({ dataset: selected, configs, scope, signal: controller.signal }, (ev) => {
+        if (ev.phase === "start") pushLog(`run ${ev.run_id} · ${ev.questions} questions · scope: ${ev.scope || "doc"} · build ${ev.fingerprint} → ${ev.save_name}`);
         if (ev.phase === "build_skip") pushLog(`build already exists (${ev.save_name}) — skipping straight to queries ✓`);
         if (ev.phase === "build_adopted") pushLog(`✓ ${ev.detail}`);
         if (ev.phase === "build_resume") pushLog(`↻ ${ev.detail}`);
@@ -590,6 +591,25 @@ export default function BenchPage() {
                       {est?.build_partial ? "▶ Continue" : "▶ Run"}
                     </button>
                   )}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+                  <span style={{ fontSize: 11.5, color: "#7a87a6" }}>Retrieval scope</span>
+                  {[
+                    ["auto", "Auto — from dataset", "Follows the dataset: a question tied to one source document (like QASPER, every question) retrieves only from that document; a corpus-wide dataset searches everything. This is the correct condition — you shouldn't normally change it."],
+                    ["corpus", "Force whole corpus", "Override for demonstration only: search all documents at once. For per-document gold (QASPER) this makes questions ambiguous across papers — the failure mode, on purpose."],
+                  ].map(([val, label, tip]) => {
+                    const on = scope === val;
+                    return (
+                      <button key={val} title={tip}
+                        style={{ ...ghostBtn, fontSize: 11.5, padding: "5px 11px", color: on ? "#0a0e1a" : "#cdd5ea", fontWeight: 650, background: on ? "#8fd6c2" : ghostBtn.background, border: on ? "1px solid transparent" : ghostBtn.border }}
+                        onClick={() => setScope(val)} disabled={busy !== ""}>
+                        {label}
+                      </button>
+                    );
+                  })}
+                  <span style={{ fontSize: 11, color: "#5c667f" }}>
+                    {scope === "auto" ? "each question scoped to its source document, as the dataset defines" : "override: forcing whole-corpus search (demonstrates cross-document ambiguity)"}
+                  </span>
                 </div>
                 {est?.ready && (
                   <div style={{ fontSize: 12, color: "#e8c98a", background: "rgba(232,201,138,0.07)", border: "1px solid rgba(232,201,138,0.22)", borderRadius: 9, padding: "8px 12px", marginBottom: 12 }}>

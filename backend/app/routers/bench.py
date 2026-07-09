@@ -142,6 +142,7 @@ class RunBody(BaseModel):
     configs: list[str] = list(runner.CONFIGS)
     extract_model: str | None = None
     answer_model: str | None = None
+    scope: str = "auto"  # "auto" = follow the dataset (scope to each question's doc_id when it has one); "corpus" = force whole-corpus
 
 
 @router.post("/run")
@@ -151,6 +152,7 @@ def run(body: RunBody) -> StreamingResponse:
             async for ev in runner.run_bench(
                 body.dataset, body.configs,
                 extract_model=body.extract_model, answer_model=body.answer_model,
+                scope=body.scope,
             ):
                 yield _line(ev)
         except Exception as exc:  # noqa: BLE001 — surface it; the build is preserved

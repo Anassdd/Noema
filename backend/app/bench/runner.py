@@ -101,27 +101,37 @@ async def _build(dataset: str, docs: list[dict], domain: str, extract_model: str
 
 
 async def _answer(config: str, question: dict, domain: str, model: str | None,
-                  doc_titles: dict[str, str] | None = None) -> dict:
+                  doc_titles: dict[str, str] | None = None, scope: str = "auto") -> dict:
     """One question through one config; never raises — errors become a scored record.
 
     Questions from per-document gold (QASPER: "what dataset do THEY use?") presuppose
     their document — over a multi-doc corpus they are ambiguous, so retrieval,
     generation and judging all see a form anchored to the source document's title
-    (stored as `asked`); the gold answers are untouched."""
+    (stored as `asked`); the gold answers are untouched.
+
+    Retrieval SCOPE follows the dataset, not the run: `scope="auto"` scopes each question to
+    its own `doc_id` when the gold carries one (a per-document benchmark like QASPER — one
+    paper in context, its intended condition) and searches the whole corpus when it doesn't
+    (a corpus-wide dataset). `scope="corpus"` forces whole-corpus search — only to demonstrate
+    the cross-document ambiguity that per-document questions suffer without scoping."""
     use_vector, use_graph = CONFIGS[config]
     q = question["question"]
     title = (doc_titles or {}).get(question.get("doc_id", ""))
     if title:
         q = f'Regarding the paper "{title}": {question["question"]}'
+    scope_doc = None if scope == "corpus" else question.get("doc_id")
     rec = {"qid": question["id"], "config": config, "type": question.get("type", "factoid")}
     if title:
         rec["asked"] = q
+    if scope_doc:
+        rec["scoped_to"] = scope_doc
     t0 = time.perf_counter()
     try:
         chunks = []
         if use_vector or use_graph:
             chunks, _meta = await pipeline.retrieve(
-                q, domain_id=domain, k=8, use_graph=use_graph, use_vector=use_vector)
+                q, domain_id=domain, k=8, use_graph=use_graph, use_vector=use_vector,
+                doc_id=scope_doc)
             res = await asyncio.to_thread(pipeline.grounded_answer, q, chunks, model=model)
         else:
             res = await asyncio.to_thread(pipeline.closed_book_answer, q, model=model)
@@ -130,8 +140,9 @@ async def _answer(config: str, question: dict, domain: str, model: str | None,
         # evidence is checked against the FULL retrieved texts, then the archive keeps
         # only snippets — at 1000 questions full texts would make the run file huge.
         if (use_vector or use_graph) and question.get("evidence"):
-            rec["evidence_hit"] = scoring.evidence_hit(
-                question["evidence"], [c.text for c in chunks])
+            texts = [c.text for c in chunks]
+            rec["evidence_hit"] = scoring.evidence_hit(question["evidence"], texts)
+            rec["evidence_overlap"] = scoring.evidence_overlap(question["evidence"], texts)
         rec["retrieved"] = [
             {"origin": "graph" if c.chunk_id.startswith("graph:") else "vector",
              "doc_id": c.doc_id, "pages": c.pages, "text": (c.text or "")[:300]}
@@ -191,8 +202,13 @@ async def rejudge_run(dataset: str, run_id: str) -> AsyncIterator[dict]:
 
 async def run_bench(dataset: str, configs: list[str], *,
                     extract_model: str | None = None,
-                    answer_model: str | None = None) -> AsyncIterator[dict]:
-    """The whole cycle as an event stream: (build once) -> answer -> score -> report."""
+                    answer_model: str | None = None,
+                    scope: str = "auto") -> AsyncIterator[dict]:
+    """The whole cycle as an event stream: (build once) -> answer -> score -> report.
+
+    `scope="auto"` follows the dataset: each question is scoped to its own source document
+    when the gold carries a `doc_id` (per-document benchmarks like QASPER), else the whole
+    corpus is searched. `scope="corpus"` forces whole-corpus search (to show the ambiguity)."""
     configs = [c for c in configs if c in CONFIGS] or list(CONFIGS)
     manifest = store.load_manifest(dataset)
     prepared = manifest.get("prepared")
@@ -213,7 +229,7 @@ async def run_bench(dataset: str, configs: list[str], *,
     run_id = store.new_run_id()
 
     yield {"phase": "start", "run_id": run_id, "dataset": dataset, "configs": configs,
-           "fingerprint": fp, "save_name": save_name, "questions": len(gold)}
+           "fingerprint": fp, "save_name": save_name, "questions": len(gold), "scope": scope}
 
     build = store.find_build(manifest, fp)
     existing = await asyncio.to_thread(saves.list_saves, "default")
@@ -280,7 +296,7 @@ async def run_bench(dataset: str, configs: list[str], *,
     for config in configs:
         yield {"phase": "config_start", "config": config, "questions": len(gold)}
         for i, q in enumerate(gold):
-            rec = await _answer(config, q, domain, answer_model, doc_titles)
+            rec = await _answer(config, q, domain, answer_model, doc_titles, scope=scope)
             records.append(rec)
             yield {"phase": "scored", "config": config, "i": i + 1, "total": len(gold),
                    "qid": rec["qid"], "judge_correct": rec["judge"].get("correct"),

@@ -36,6 +36,9 @@ def _row(config: str, recs: list[dict]) -> dict:
         "f1": _mean([r.get("f1") for r in recs]),
         "evidence_recall": _rate([r.get("evidence_hit") for r in recs
                                   if "evidence_hit" in r]) if any("evidence_hit" in r for r in recs) else None,
+        "evidence_overlap": _mean([r.get("evidence_overlap") for r in recs
+                                   if r.get("evidence_overlap") is not None])
+                            if any(r.get("evidence_overlap") is not None for r in recs) else None,
         "latency_ms_avg": round(_mean([r.get("latency_ms") for r in recs]) or 0),
         "tokens_per_q": round((gen_prompt + gen_out) / len(recs)) if recs else 0,
         "errors": sum(1 for r in recs if r.get("error")),
@@ -227,22 +230,26 @@ def render_markdown(report: dict) -> str:
         "",
         "## 4. Results",
         "",
-        "| config | n | judge acc | lift vs closed-book | EM | F1 | evidence recall | latency avg | tok/q | errors |",
-        "|---|---|---|---|---|---|---|---|---|---|",
+        "| config | n | judge acc | lift vs closed-book | EM | F1 | evidence recall | evidence overlap | latency avg | tok/q | errors |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for r in report["headline"]:
         lines.append(
             f"| {r['config']} | {r['n']} | {_pct(r['judge_accuracy'])} | "
             f"{_pct(r['lift_over_closed_book']) if r['lift_over_closed_book'] is not None else '—'} | "
             f"{_pct(r['em'])} | {r['f1'] if r['f1'] is not None else '—'} | "
-            f"{_pct(r['evidence_recall'])} | {r['latency_ms_avg']} ms | {r['tokens_per_q']} | {r['errors']} |")
+            f"{_pct(r['evidence_recall'])} | {_pct(r['evidence_overlap'])} | "
+            f"{r['latency_ms_avg']} ms | {r['tokens_per_q']} | {r['errors']} |")
 
     lines += [
         "",
         "*How to read this: **judge acc** = answers graded correct against the gold answer; "
         "**lift** = points above the closed-book floor (what retrieval actually earned); "
-        "**evidence recall** = how often the gold evidence was among the retrieved passages "
-        "(separates retrieval failures from generation failures).*",
+        "**evidence recall** = how often the gold evidence *paragraph* was retrieved verbatim "
+        "(a passage-retrieval metric — the graph reads 0 by construction, since it stores "
+        "distilled facts, not verbatim text); **evidence overlap** = the wording-independent "
+        "companion — how much of the evidence's content (entities, terms) the retrieval "
+        "surfaced, which is the fair evidence signal for the graph.*",
         "",
         "### By question type",
         "",

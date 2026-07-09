@@ -30,11 +30,16 @@ def rrf(rankings: list[list[str]], k: int = _RRF_K) -> dict[str, float]:
 
 def search_trace(query: str, *, k: int = 8, domain_id: str = "default",
                  dense_k: int = 20, bm25_k: int = 20, rerank_mode: str = "off",
-                 rerank_pool: int = 10, store: VectorStore | None = None) -> RetrievalTrace:
+                 rerank_pool: int = 10, store: VectorStore | None = None,
+                 doc_id: str | None = None) -> RetrievalTrace:
     store = store or VectorStore(domain_id)
     trace = RetrievalTrace(query=query)
 
+    # doc_id scopes the whole search to one source document (both dense and BM25 candidate
+    # pools), so a per-document question can't retrieve another document's passages.
     records = store.all_records()
+    if doc_id:
+        records = [r for r in records if r.doc_id == doc_id]
     by_id = {r.chunk_id: r for r in records}
     if not records:
         return trace
@@ -42,7 +47,7 @@ def search_trace(query: str, *, k: int = 8, domain_id: str = "default",
     # dense
     t0 = time.perf_counter()
     qvec = llm_client.embed([query])[0]
-    dense_hits = store.query(qvec, dense_k)
+    dense_hits = store.query(qvec, dense_k, doc_id=doc_id)
     for d in dense_hits:
         if d.chunk_id in by_id:
             by_id[d.chunk_id].scores["dense"] = d.scores.get("dense", 0.0)

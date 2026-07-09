@@ -29,10 +29,10 @@
   }
  ],
  "prepared": {
-  "cap_tokens": 100000,
-  "docs": 16,
-  "tokens": 99937,
-  "corpus_hash": "dfd81fc54bd8a4d7",
+  "cap_tokens": 10000000,
+  "docs": 888,
+  "tokens": 5699519,
+  "corpus_hash": "90043ed285c06739",
   "unique_contexts_in_file": 888,
   "gold_source": "human (QASPER annotators — Dasigi et al. 2021)"
  }

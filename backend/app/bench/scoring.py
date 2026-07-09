@@ -19,10 +19,43 @@ from app import llm_client
 
 _ARTICLES = {"a", "an", "the", "le", "la", "les", "un", "une", "des"}
 
+# Function words dropped before measuring evidence CONTENT overlap, so the score reflects
+# shared subject matter (entities, terms, numbers), not shared grammar.
+_STOP = _ARTICLES | {
+    "of", "to", "in", "on", "for", "and", "or", "is", "are", "was", "were", "be", "been",
+    "being", "with", "without", "as", "at", "by", "from", "that", "this", "these", "those",
+    "it", "its", "their", "they", "them", "we", "you", "our", "your", "which", "who", "whose",
+    "what", "when", "where", "why", "how", "not", "no", "nor", "but", "if", "then", "than",
+    "so", "such", "can", "could", "may", "might", "will", "would", "shall", "should", "must",
+    "do", "does", "did", "has", "have", "had", "having", "more", "most", "some", "any", "all",
+    "each", "other", "into", "over", "under", "between", "within", "also", "using", "used",
+    "de", "du", "et", "à", "une", "que", "pour", "dans", "sur",
+}
+
 
 def _normalize(text: str) -> list[str]:
     text = text.lower().translate(str.maketrans("", "", string.punctuation))
     return [w for w in text.split() if w not in _ARTICLES]
+
+
+def _content_words(text: str) -> set[str]:
+    text = text.lower().translate(str.maketrans("", "", string.punctuation))
+    return {w for w in text.split() if w not in _STOP and len(w) > 2}
+
+
+def evidence_overlap(evidence: str, retrieved_texts: list[str]) -> float | None:
+    """Fraction of the gold evidence's CONTENT words found in the retrieved texts.
+
+    A wording-independent companion to `evidence_hit`: it asks "did retrieval surface the
+    evidence's subject matter?" rather than "did it fetch the exact paragraph?". This is the
+    only evidence signal that is fair to the graph, whose facts are LLM-distilled paraphrases
+    that never contain the annotator's verbatim sentence (so `evidence_hit` is 0 for it by
+    construction). Returns None when the evidence has no content words to measure."""
+    ev = _content_words(evidence)
+    if not ev:
+        return None
+    hay = _content_words(" ".join(retrieved_texts))
+    return round(len(ev & hay) / len(ev), 4)
 
 
 def exact_match(candidate: str, gold: str) -> bool:

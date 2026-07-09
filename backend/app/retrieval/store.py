@@ -86,9 +86,11 @@ class VectorStore:
             return None
         return self._to_chunk(r["ids"][0], r["documents"][0], r["metadatas"][0])
 
-    def query(self, query_embedding: list[float], k: int) -> list[ScoredChunk]:
+    def query(self, query_embedding: list[float], k: int,
+              *, doc_id: str | None = None) -> list[ScoredChunk]:
         n = min(k, self.count()) or 1
-        r = self._col.query(query_embeddings=[query_embedding], n_results=n,
+        where = {"doc_id": doc_id} if doc_id else None
+        r = self._col.query(query_embeddings=[query_embedding], n_results=n, where=where,
                             include=["documents", "metadatas", "distances"])
         out = []
         for cid, doc, meta, dist in zip(r["ids"][0], r["documents"][0],

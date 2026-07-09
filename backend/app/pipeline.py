@@ -51,14 +51,22 @@ def _fact_to_chunk(fact, episode_names: dict[str, str], domain_id: str) -> Score
     )
 
 
-async def graph_chunks(query: str, *, domain_id: str = "default", limit: int = 10) -> list[ScoredChunk]:
-    """Retrieve from the graph and return results as ScoredChunks (with provenance)."""
+async def graph_chunks(query: str, *, domain_id: str = "default", limit: int = 10,
+                       doc_id: str | None = None) -> list[ScoredChunk]:
+    """Retrieve from the graph and return results as ScoredChunks (with provenance).
+
+    A graph fact's source document is only known after it's mapped to a chunk (its episode
+    name carries the doc). To scope to one document we over-retrieve, then keep only that
+    document's facts — so a per-document question can't surface another document's facts."""
     mem = await graph_manager.get(domain_id)
-    facts = await mem.search(query, limit=limit)
+    facts = await mem.search(query, limit=max(limit * 6, 60) if doc_id else limit)
     if not facts:
         return []
     names = await mem.episode_names([u for f in facts for u in f.episodes])
-    return [_fact_to_chunk(f, names, domain_id) for f in facts]
+    chunks = [_fact_to_chunk(f, names, domain_id) for f in facts]
+    if doc_id:
+        chunks = [c for c in chunks if c.doc_id == doc_id][:limit]
+    return chunks
 
 
 async def retrieve(
@@ -70,16 +78,21 @@ async def retrieve(
     use_vector: bool = True,
     rerank_mode: str = "off",
     graph_limit: int = 10,
+    doc_id: str | None = None,
 ) -> tuple[list[ScoredChunk], dict]:
     """Retrieve from the vector base and the graph, RRF-fuse the two rankings, return the
-    top-k plus a small meta dict (per-source counts) the runtime trace can surface."""
+    top-k plus a small meta dict (per-source counts) the runtime trace can surface.
+
+    `doc_id` scopes both retrievers to one source document — for per-document benchmarks
+    (e.g. QASPER) whose questions presuppose their paper."""
     rankings: list[list[str]] = []
     by_id: dict[str, ScoredChunk] = {}
     meta = {"vector": 0, "graph": 0}
 
     if use_vector:
         vtrace = await asyncio.to_thread(
-            search_trace, query, k=max(k, 8), domain_id=domain_id, rerank_mode=rerank_mode
+            search_trace, query, k=max(k, 8), domain_id=domain_id, rerank_mode=rerank_mode,
+            doc_id=doc_id,
         )
         for c in vtrace.final:
             by_id[c.chunk_id] = c
@@ -87,7 +100,7 @@ async def retrieve(
         meta["vector"] = len(vtrace.final)
 
     if use_graph:
-        gchunks = await graph_chunks(query, domain_id=domain_id, limit=graph_limit)
+        gchunks = await graph_chunks(query, domain_id=domain_id, limit=graph_limit, doc_id=doc_id)
         for c in gchunks:
             by_id.setdefault(c.chunk_id, c)
         rankings.append([c.chunk_id for c in gchunks])

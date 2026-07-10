@@ -1,0 +1,70 @@
+{
+  "doc-203bd2360f4004442b80c1fd54617dbf": {
+    "relation_pairs": [
+      [
+        "Cache",
+        "Reference Document"
+      ],
+      [
+        "Claude",
+        "Prompt Caching"
+      ],
+      [
+        "Prompt Caching",
+        "Reference Document"
+      ],
+      [
+        "$1.02 Per Million Document Tokens",
+        "Contextualized Chunks"
+      ],
+      [
+        "100 Tokens Of Context Per Chunk",
+        "Chunk"
+      ],
+      [
+        "Chunk",
+        "Contextualized Chunks"
+      ],
+      [
+        "Contextualized Chunks",
+        "One-Time Cost"
+      ],
+      [
+        "50 Token Context Instructions",
+        "Context Instructions"
+      ],
+      [
+        "Context Instructions",
+        "Contextualized Chunks"
+      ],
+      [
+        "800 Token Chunks",
+        "Chunk"
+      ],
+      [
+        "Cache",
+        "Contextualized Chunks"
+      ],
+      [
+        "Document Tokens",
+        "One-Time Cost"
+      ],
+      [
+        "Claude",
+        "Contextual Retrieval"
+      ],
+      [
+        "8k Token Documents",
+        "Reference Document"
+      ],
+      [
+        "Contextual Retrieval",
+        "Prompt Caching"
+      ]
+    ],
+    "count": 15,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "doc-203bd2360f4004442b80c1fd54617dbf"
+  }
+}

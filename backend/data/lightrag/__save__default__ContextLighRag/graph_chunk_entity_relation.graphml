@@ -1,0 +1,289 @@
+<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key id="d13" for="edge" attr.name="truncate" attr.type="string" />
+  <key id="d12" for="edge" attr.name="created_at" attr.type="long" />
+  <key id="d11" for="edge" attr.name="file_path" attr.type="string" />
+  <key id="d10" for="edge" attr.name="source_id" attr.type="string" />
+  <key id="d9" for="edge" attr.name="keywords" attr.type="string" />
+  <key id="d8" for="edge" attr.name="description" attr.type="string" />
+  <key id="d7" for="edge" attr.name="weight" attr.type="double" />
+  <key id="d6" for="node" attr.name="truncate" attr.type="string" />
+  <key id="d5" for="node" attr.name="created_at" attr.type="long" />
+  <key id="d4" for="node" attr.name="file_path" attr.type="string" />
+  <key id="d3" for="node" attr.name="source_id" attr.type="string" />
+  <key id="d2" for="node" attr.name="description" attr.type="string" />
+  <key id="d1" for="node" attr.name="entity_type" attr.type="string" />
+  <key id="d0" for="node" attr.name="entity_id" attr.type="string" />
+  <graph edgedefault="undirected">
+    <node id="Prompt Caching">
+      <data key="d0">Prompt Caching</data>
+      <data key="d1">method</data>
+      <data key="d2">A feature-based method that reduces the cost of Contextual Retrieval by allowing a reference document to be loaded into cache once and reused for subsequent chunk processing.</data>
+      <data key="d3">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d4">pasted text</data>
+      <data key="d5">1783605149</data>
+      <data key="d6" />
+    </node>
+    <node id="Contextual Retrieval">
+      <data key="d0">Contextual Retrieval</data>
+      <data key="d1">method</data>
+      <data key="d2">A retrieval method described as uniquely possible at low cost with Claude when combined with prompt caching to generate contextualized chunks.</data>
+      <data key="d3">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d4">pasted text</data>
+      <data key="d5">1783605149</data>
+      <data key="d6" />
+    </node>
+    <node id="Claude">
+      <data key="d0">Claude</data>
+      <data key="d1">artifact</data>
+      <data key="d2">A system or tool that enables Contextual Retrieval at low cost through a special prompt caching feature.</data>
+      <data key="d3">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d4">pasted text</data>
+      <data key="d5">1783605149</data>
+      <data key="d6" />
+    </node>
+    <node id="Reference Document">
+      <data key="d0">Reference Document</data>
+      <data key="d1">content</data>
+      <data key="d2">A document that does not need to be passed for every chunk when prompt caching is used, because it can be loaded into cache once and referenced later.</data>
+      <data key="d3">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d4">pasted text</data>
+      <data key="d5">1783605149</data>
+      <data key="d6" />
+    </node>
+    <node id="Cache">
+      <data key="d0">Cache</data>
+      <data key="d1">artifact</data>
+      <data key="d2">A storage mechanism into which the reference document is loaded once so that previously cached content can be referenced.</data>
+      <data key="d3">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d4">pasted text</data>
+      <data key="d5">1783605149</data>
+      <data key="d6" />
+    </node>
+    <node id="Chunk">
+      <data key="d0">Chunk</data>
+      <data key="d1">content</data>
+      <data key="d2">A segment of content processed in contextual retrieval, assumed to contain 800 tokens and receive 100 tokens of context.</data>
+      <data key="d3">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d4">pasted text</data>
+      <data key="d5">1783605149</data>
+      <data key="d6" />
+    </node>
+    <node id="Document Tokens">
+      <data key="d0">Document Tokens</data>
+      <data key="d1">data</data>
+      <data key="d2">A token-based measurement of document size used to express the one-time cost of generating contextualized chunks per million document tokens.</data>
+      <data key="d3">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d4">pasted text</data>
+      <data key="d5">1783605149</data>
+      <data key="d6" />
+    </node>
+    <node id="Context Instructions">
+      <data key="d0">Context Instructions</data>
+      <data key="d1">content</data>
+      <data key="d2">Instructions associated with context generation, assumed to contain 50 tokens in the cost example.</data>
+      <data key="d3">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d4">pasted text</data>
+      <data key="d5">1783605149</data>
+      <data key="d6" />
+    </node>
+    <node id="Contextualized Chunks">
+      <data key="d0">Contextualized Chunks</data>
+      <data key="d1">content</data>
+      <data key="d2">Chunks produced through the contextual retrieval process using cached reference content and context additions.</data>
+      <data key="d3">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d4">pasted text</data>
+      <data key="d5">1783605149</data>
+      <data key="d6" />
+    </node>
+    <node id="One-Time Cost">
+      <data key="d0">One-Time Cost</data>
+      <data key="d1">data</data>
+      <data key="d2">The stated cost to generate contextualized chunks, given as $1.02 per million document tokens under the provided assumptions.</data>
+      <data key="d3">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d4">pasted text</data>
+      <data key="d5">1783605149</data>
+      <data key="d6" />
+    </node>
+    <node id="$1.02 Per Million Document Tokens">
+      <data key="d0">$1.02 Per Million Document Tokens</data>
+      <data key="d1">data</data>
+      <data key="d2">The stated one-time cost to generate contextualized chunks under the given assumptions.</data>
+      <data key="d3">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d4">pasted text</data>
+      <data key="d5">1783605149</data>
+      <data key="d6" />
+    </node>
+    <node id="800 Token Chunks">
+      <data key="d0">800 Token Chunks</data>
+      <data key="d1">data</data>
+      <data key="d2">The assumed chunk size used in the cost calculation for generating contextualized chunks.</data>
+      <data key="d3">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d4">pasted text</data>
+      <data key="d5">1783605149</data>
+      <data key="d6" />
+    </node>
+    <node id="8k Token Documents">
+      <data key="d0">8k Token Documents</data>
+      <data key="d1">data</data>
+      <data key="d2">The assumed document size used in the cost calculation for generating contextualized chunks.</data>
+      <data key="d3">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d4">pasted text</data>
+      <data key="d5">1783605149</data>
+      <data key="d6" />
+    </node>
+    <node id="50 Token Context Instructions">
+      <data key="d0">50 Token Context Instructions</data>
+      <data key="d1">data</data>
+      <data key="d2">The assumed size of context instructions used in the cost calculation.</data>
+      <data key="d3">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d4">pasted text</data>
+      <data key="d5">1783605149</data>
+      <data key="d6" />
+    </node>
+    <node id="100 Tokens Of Context Per Chunk">
+      <data key="d0">100 Tokens Of Context Per Chunk</data>
+      <data key="d1">data</data>
+      <data key="d2">The assumed amount of context added to each chunk in the cost calculation.</data>
+      <data key="d3">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d4">pasted text</data>
+      <data key="d5">1783605149</data>
+      <data key="d6" />
+    </node>
+    <edge source="Prompt Caching" target="Contextual Retrieval">
+      <data key="d7">1.0</data>
+      <data key="d8">Prompt Caching is described as making Contextual Retrieval possible at low cost.</data>
+      <data key="d9">enables,reduces cost</data>
+      <data key="d10">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d11">pasted text</data>
+      <data key="d12">1783605149</data>
+      <data key="d13" />
+    </edge>
+    <edge source="Prompt Caching" target="Reference Document">
+      <data key="d7">1.0</data>
+      <data key="d8">Prompt Caching allows the reference document to be loaded once and reused instead of being passed for every chunk.</data>
+      <data key="d9">caches,reuses</data>
+      <data key="d10">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d11">pasted text</data>
+      <data key="d12">1783605149</data>
+      <data key="d13" />
+    </edge>
+    <edge source="Prompt Caching" target="Claude">
+      <data key="d7">1.0</data>
+      <data key="d8">Claude is described as having the special prompt caching feature.</data>
+      <data key="d9">has feature,includes</data>
+      <data key="d10">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d11">pasted text</data>
+      <data key="d12">1783605149</data>
+      <data key="d13" />
+    </edge>
+    <edge source="Contextual Retrieval" target="Claude">
+      <data key="d7">1.0</data>
+      <data key="d8">Claude is described as the system with which Contextual Retrieval is uniquely possible at low cost.</data>
+      <data key="d9">enables,supports</data>
+      <data key="d10">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d11">pasted text</data>
+      <data key="d12">1783605149</data>
+      <data key="d13" />
+    </edge>
+    <edge source="Reference Document" target="Cache">
+      <data key="d7">1.0</data>
+      <data key="d8">The reference document is loaded into the cache once.</data>
+      <data key="d9">loaded into,stored in</data>
+      <data key="d10">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d11">pasted text</data>
+      <data key="d12">1783605149</data>
+      <data key="d13" />
+    </edge>
+    <edge source="Reference Document" target="8k Token Documents">
+      <data key="d7">1.0</data>
+      <data key="d8">The text states that documents are assumed to contain 8k tokens.</data>
+      <data key="d9">defines,size assumption</data>
+      <data key="d10">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d11">pasted text</data>
+      <data key="d12">1783605149</data>
+      <data key="d13" />
+    </edge>
+    <edge source="Cache" target="Contextualized Chunks">
+      <data key="d7">1.0</data>
+      <data key="d8">Previously cached content in the cache is referenced to generate contextualized chunks.</data>
+      <data key="d9">references content for,supports generation</data>
+      <data key="d10">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d11">pasted text</data>
+      <data key="d12">1783605149</data>
+      <data key="d13" />
+    </edge>
+    <edge source="Chunk" target="Contextualized Chunks">
+      <data key="d7">1.0</data>
+      <data key="d8">Chunks are processed to become contextualized chunks.</data>
+      <data key="d9">component of,transformed into</data>
+      <data key="d10">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d11">pasted text</data>
+      <data key="d12">1783605149</data>
+      <data key="d13" />
+    </edge>
+    <edge source="Chunk" target="800 Token Chunks">
+      <data key="d7">1.0</data>
+      <data key="d8">The text states that chunks are assumed to contain 800 tokens.</data>
+      <data key="d9">defines,size assumption</data>
+      <data key="d10">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d11">pasted text</data>
+      <data key="d12">1783605149</data>
+      <data key="d13" />
+    </edge>
+    <edge source="Chunk" target="100 Tokens Of Context Per Chunk">
+      <data key="d7">1.0</data>
+      <data key="d8">The text states that each chunk is assumed to receive 100 tokens of context.</data>
+      <data key="d9">applies to,context amount</data>
+      <data key="d10">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d11">pasted text</data>
+      <data key="d12">1783605149</data>
+      <data key="d13" />
+    </edge>
+    <edge source="Document Tokens" target="One-Time Cost">
+      <data key="d7">1.0</data>
+      <data key="d8">The one-time cost is expressed per million document tokens.</data>
+      <data key="d9">cost basis,measurement</data>
+      <data key="d10">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d11">pasted text</data>
+      <data key="d12">1783605149</data>
+      <data key="d13" />
+    </edge>
+    <edge source="Context Instructions" target="Contextualized Chunks">
+      <data key="d7">1.0</data>
+      <data key="d8">Context instructions are part of the assumptions used to generate contextualized chunks.</data>
+      <data key="d9">provides context for,used in generation</data>
+      <data key="d10">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d11">pasted text</data>
+      <data key="d12">1783605149</data>
+      <data key="d13" />
+    </edge>
+    <edge source="Context Instructions" target="50 Token Context Instructions">
+      <data key="d7">1.0</data>
+      <data key="d8">The text states that context instructions are assumed to contain 50 tokens.</data>
+      <data key="d9">defines,size assumption</data>
+      <data key="d10">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d11">pasted text</data>
+      <data key="d12">1783605149</data>
+      <data key="d13" />
+    </edge>
+    <edge source="Contextualized Chunks" target="One-Time Cost">
+      <data key="d7">1.0</data>
+      <data key="d8">The one-time cost refers to generating contextualized chunks.</data>
+      <data key="d9">cost of,generation expense</data>
+      <data key="d10">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d11">pasted text</data>
+      <data key="d12">1783605149</data>
+      <data key="d13" />
+    </edge>
+    <edge source="Contextualized Chunks" target="$1.02 Per Million Document Tokens">
+      <data key="d7">1.0</data>
+      <data key="d8">The text states that the one-time cost to generate contextualized chunks is $1.02 per million document tokens.</data>
+      <data key="d9">cost of,generation expense</data>
+      <data key="d10">doc-203bd2360f4004442b80c1fd54617dbf-chunk-000</data>
+      <data key="d11">pasted text</data>
+      <data key="d12">1783605149</data>
+      <data key="d13" />
+    </edge>
+  </graph>
+</graphml>

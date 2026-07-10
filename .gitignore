@@ -26,10 +26,6 @@ chroma_db/
 backend/uploads/
 *.pdf
 
-# ---- Graph store (embedded FalkorDB Lite .rdb binaries) ---------------------
-# Regenerable; the kept edge-case results live as JSON in tests/results/graph_runs/.
-tests/results/graph_store/
-
 # Lab RAG store (Chroma sqlite + HNSW binaries) — regenerated on every lab run;
 # churns as binary noise in git. Untrack once with:
 #   git rm -r --cached tests/results/rag_store/
@@ -70,18 +66,6 @@ Thumbs.db
 
 # ---- Induced per-domain graph schemas (regenerable playground artifacts) ----
 tests/results/graph_schemas/
-
-# ---- Bench ------------------------------------------------------------------
-# Raw benchmark jsonl files (huge, re-downloadable) and the prepared corpus
-# (derived from them). Gold questions, manifests and reports STAY in git —
-# they are the frozen test set and the results.
-backend/data/bench/
-tests/results/bench/*/corpus.json
-
-# ---- LightRAG ----------------------------------------------------------------
-# The LightRAG memory's file stores (graphml + vectors + KV, one dir per domain)
-# — local user data, rebuilt by re-ingesting.
-backend/data/lightrag/
 
 # Claude Code local state — never in git (CLAUDE.md stays: it's the project spec).
 .claude/

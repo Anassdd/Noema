@@ -1,0 +1,19 @@
+{
+  "doc-203bd2360f4004442b80c1fd54617dbf": {
+    "content": "Using Prompt Caching to reduce the costs of Contextual Retrieval\nContextual Retrieval is uniquely possible at low cost with Claude, thanks to the special prompt caching feature we mentioned above. With prompt caching, you don’t need to pass in the reference document for every chunk. You simply load the document into the cache once and then reference the previously cached content. Assuming 800 token chunks, 8k token documents, 50 token context instructions, and 100 tokens of context per chunk, the one-time cost to generate contextualized chunks is $1.02 per million document tokens.",
+    "file_path": "pasted text",
+    "parse_format": "raw",
+    "content_hash": "0156089500218693d06a30483880cf34",
+    "chunk_options": {
+      "chunk_token_size": 1200,
+      "fixed_token": {
+        "split_by_character": null,
+        "split_by_character_only": false,
+        "chunk_overlap_token_size": 100
+      }
+    },
+    "create_time": 1783605131,
+    "update_time": 1783605131,
+    "_id": "doc-203bd2360f4004442b80c1fd54617dbf"
+  }
+}

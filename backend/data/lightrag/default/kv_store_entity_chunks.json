@@ -1,0 +1,137 @@
+{
+  "Prompt Caching": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "Prompt Caching"
+  },
+  "Contextual Retrieval": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "Contextual Retrieval"
+  },
+  "Claude": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "Claude"
+  },
+  "Reference Document": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "Reference Document"
+  },
+  "Cache": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "Cache"
+  },
+  "Chunk": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "Chunk"
+  },
+  "Document Tokens": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "Document Tokens"
+  },
+  "Context Instructions": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "Context Instructions"
+  },
+  "Contextualized Chunks": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "Contextualized Chunks"
+  },
+  "One-Time Cost": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "One-Time Cost"
+  },
+  "$1.02 Per Million Document Tokens": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "$1.02 Per Million Document Tokens"
+  },
+  "800 Token Chunks": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "800 Token Chunks"
+  },
+  "8k Token Documents": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "8k Token Documents"
+  },
+  "50 Token Context Instructions": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "50 Token Context Instructions"
+  },
+  "100 Tokens Of Context Per Chunk": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "100 Tokens Of Context Per Chunk"
+  }
+}

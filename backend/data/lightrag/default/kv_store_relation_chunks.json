@@ -1,0 +1,137 @@
+{
+  "Contextual Retrieval<SEP>Prompt Caching": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "Contextual Retrieval<SEP>Prompt Caching"
+  },
+  "Cache<SEP>Reference Document": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "Cache<SEP>Reference Document"
+  },
+  "Chunk<SEP>Contextualized Chunks": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "Chunk<SEP>Contextualized Chunks"
+  },
+  "Claude<SEP>Contextual Retrieval": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "Claude<SEP>Contextual Retrieval"
+  },
+  "Prompt Caching<SEP>Reference Document": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "Prompt Caching<SEP>Reference Document"
+  },
+  "Document Tokens<SEP>One-Time Cost": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "Document Tokens<SEP>One-Time Cost"
+  },
+  "Context Instructions<SEP>Contextualized Chunks": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "Context Instructions<SEP>Contextualized Chunks"
+  },
+  "800 Token Chunks<SEP>Chunk": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "800 Token Chunks<SEP>Chunk"
+  },
+  "Claude<SEP>Prompt Caching": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "Claude<SEP>Prompt Caching"
+  },
+  "8k Token Documents<SEP>Reference Document": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "8k Token Documents<SEP>Reference Document"
+  },
+  "Cache<SEP>Contextualized Chunks": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "Cache<SEP>Contextualized Chunks"
+  },
+  "50 Token Context Instructions<SEP>Context Instructions": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "50 Token Context Instructions<SEP>Context Instructions"
+  },
+  "100 Tokens Of Context Per Chunk<SEP>Chunk": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "100 Tokens Of Context Per Chunk<SEP>Chunk"
+  },
+  "Contextualized Chunks<SEP>One-Time Cost": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "Contextualized Chunks<SEP>One-Time Cost"
+  },
+  "$1.02 Per Million Document Tokens<SEP>Contextualized Chunks": {
+    "chunk_ids": [
+      "doc-203bd2360f4004442b80c1fd54617dbf-chunk-000"
+    ],
+    "count": 1,
+    "create_time": 1783605149,
+    "update_time": 1783605149,
+    "_id": "$1.02 Per Million Document Tokens<SEP>Contextualized Chunks"
+  }
+}

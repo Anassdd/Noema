@@ -17,11 +17,10 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
-# ---- Vector store / uploads (disposable, regenerable) -----------------------
-# Chroma persistence + any locally uploaded test PDFs. Never carried between
-# machines per the spec — re-ingest instead.
+# ---- Uploads (disposable) ----------------------------------------------------
+# Locally uploaded test PDFs. The Chroma vector base (backend/.chroma) IS tracked —
+# it pairs with the committed graph stores so a clone answers without re-ingesting.
 backend/chroma/
-backend/.chroma/
 chroma_db/
 backend/uploads/
 *.pdf

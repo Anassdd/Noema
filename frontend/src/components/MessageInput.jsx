@@ -206,7 +206,7 @@ export default function MessageInput({
             )}
           </button>
 
-          {expertEnabled && <MemorySelector value={memory} onChange={onSelectMemory} />}
+          {expertEnabled && <MemorySelector value={memory} onChange={onSelectMemory} retrieval={retrieval} />}
           {expertEnabled && <RetrievalSelector value={retrieval} onChange={onSelectRetrieval} />}
 
           <div className="ml-auto" />
@@ -253,13 +253,15 @@ export default function MessageInput({
   );
 }
 
-// Pick which memory the expert grounds answers in: the live working memory, or one of the
-// saved snapshots (each captures the graph + RAG together). Saves are made on the graph page.
-function MemorySelector({ value, onChange }) {
+// Pick which memory the expert grounds answers in: the live working memory, or one of
+// the saved snapshots. Saves are per engine (made on the graph page), so the list follows
+// the retrieval mode — LightRAG mode shows LightRAG saves, the others show Graphiti's.
+function MemorySelector({ value, onChange, retrieval }) {
   const [open, setOpen] = useState(false);
   const [saves, setSaves] = useState([]);
+  const engine = retrieval === "lightrag" ? "lightrag" : "graphiti";
   const toggle = () => {
-    if (!open) listSaves().then((r) => setSaves(r.saves || [])).catch(() => {});
+    if (!open) listSaves("default", engine).then((r) => setSaves(r.saves || [])).catch(() => {});
     setOpen((o) => !o);
   };
   const active = !!value;
@@ -309,11 +311,13 @@ function MemorySelector({ value, onChange }) {
 }
 
 // Which store answers: both fused (the product default), the contextual vector base
-// alone, or the knowledge graph alone — so the methods can be compared live in chat.
+// alone, the knowledge graph alone, or the self-contained LightRAG memory — so the
+// methods can be compared live in chat.
 const RETRIEVAL_MODES = [
   { id: "hybrid", label: "Hybrid", hint: "vector base + graph, fused (default)" },
   { id: "rag", label: "Vector only", hint: "contextual RAG alone — graph off" },
   { id: "graph", label: "Graph only", hint: "knowledge graph alone — RAG off" },
+  { id: "lightrag", label: "LightRAG", hint: "LightRAG memory — its own graph + vectors" },
 ];
 
 function RetrievalSelector({ value, onChange }) {

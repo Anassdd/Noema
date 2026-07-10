@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Noema — Graphiti: temporal knowledge graph</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    background: #070a14;
+    background-image:
+      radial-gradient(ellipse 60% 40% at 50% -10%, rgba(150,110,255,0.16), transparent),
+      radial-gradient(ellipse 40% 30% at 85% 100%, rgba(92,200,255,0.07), transparent);
+    color: #e7ecf7;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+  }
+
+  .deck { width: 100%; max-width: 1240px; }
+
+  /* ---- header ---- */
+  header { text-align: center; margin-bottom: 28px; }
+  .badge {
+    display: inline-block;
+    background: rgba(150,110,255,0.14);
+    border: 1px solid rgba(150,110,255,0.35);
+    color: #c9b8ff;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 6px 16px;
+    border-radius: 999px;
+    margin-bottom: 16px;
+    letter-spacing: 0.4px;
+  }
+  h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.3px; }
+  h1 .accent { color: #c9b8ff; }
+  .subtitle {
+    margin-top: 10px;
+    color: #9aa5c0;
+    font-size: 15.5px;
+    max-width: 760px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.55;
+  }
+
+  /* ---- flow rows ---- */
+  .row-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: #7d88a8;
+    margin: 30px 0 14px 4px;
+  }
+  .flow { display: flex; align-items: stretch; gap: 0; }
+
+  .step {
+    flex: 1 1 0;
+    background: rgba(13,18,32,0.92);
+    border: 1px solid rgba(120,135,175,0.22);
+    border-radius: 14px;
+    padding: 16px 15px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .step .num {
+    width: 26px; height: 26px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+    background: rgba(150,110,255,0.16);
+    border: 1px solid rgba(150,110,255,0.4);
+    color: #c9b8ff;
+  }
+  .step h2 { font-size: 15.5px; font-weight: 700; }
+  .step p { font-size: 12.5px; line-height: 1.5; color: #aab4cf; }
+  .step .example {
+    margin-top: auto;
+    font-size: 11.6px;
+    color: #c9b8ff;
+    background: rgba(150,110,255,0.09);
+    border: 1px solid rgba(150,110,255,0.2);
+    border-radius: 8px;
+    padding: 6px 9px;
+    line-height: 1.45;
+  }
+  .step.graphout {
+    border-color: rgba(150,110,255,0.5);
+    background: rgba(150,110,255,0.07);
+  }
+
+  /* ---- arrows ---- */
+  .arrow { flex: 0 0 40px; display: flex; align-items: center; justify-content: center; }
+  .arrow svg { width: 32px; height: 16px; }
+  .arrow path { stroke: #967bff; stroke-width: 2.4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---- fact anatomy band ---- */
+  .fact-band {
+    margin-top: 26px;
+    background: rgba(13,18,32,0.6);
+    border: 1px solid rgba(150,110,255,0.22);
+    border-radius: 18px;
+    padding: 20px 22px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .ent {
+    background: rgba(92,200,255,0.12);
+    border: 1px solid rgba(92,200,255,0.4);
+    color: #8fd0ff;
+    font-weight: 700;
+    font-size: 14.5px;
+    padding: 12px 20px;
+    border-radius: 999px;
+  }
+  .edge { text-align: center; min-width: 220px; }
+  .edge .rel {
+    color: #c9b8ff; font-weight: 700; font-size: 14px;
+    padding-bottom: 6px;
+  }
+  .edge .wire { height: 2px; background: linear-gradient(90deg,#5cc8ff,#967bff); border-radius: 2px; margin: 4px 0 8px; position: relative; }
+  .edge .wire::after {
+    content: "▶"; color: #967bff; font-size: 10px;
+    position: absolute; right: -2px; top: -7px;
+  }
+  .stamps { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+  .stamp {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 10.5px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid;
+  }
+  .stamp.world { color: #8fd6c2; border-color: rgba(143,214,194,0.35); background: rgba(143,214,194,0.08); }
+  .stamp.system { color: #ffd28a; border-color: rgba(255,210,138,0.3); background: rgba(255,210,138,0.07); }
+  .fact-cap { flex: 1 1 240px; min-width: 240px; font-size: 12.8px; color: #aab4cf; line-height: 1.55; }
+  .fact-cap b { color: #cdd5ea; }
+
+  /* ---- update (invalidate-don't-delete) row ---- */
+  .update {
+    background: rgba(13,18,32,0.6);
+    border: 1px solid rgba(255,210,138,0.2);
+    border-radius: 18px;
+    padding: 20px;
+  }
+  .update .num { background: rgba(255,210,138,0.14); border-color: rgba(255,210,138,0.4); color: #ffd28a; }
+  .update .arrow path { stroke: #ffd28a; }
+  .fact-old {
+    margin-top: auto; font-size: 11.6px; line-height: 1.45;
+    padding: 6px 9px; border-radius: 8px;
+    color: #ff8da3; background: rgba(255,141,163,0.08); border: 1px solid rgba(255,141,163,0.28);
+    text-decoration: line-through; text-decoration-color: rgba(255,141,163,0.5);
+  }
+  .fact-new {
+    margin-top: auto; font-size: 11.6px; line-height: 1.45;
+    padding: 6px 9px; border-radius: 8px;
+    color: #8fd6c2; background: rgba(143,214,194,0.1); border: 1px solid rgba(143,214,194,0.35);
+  }
+
+  /* ---- search chips ---- */
+  .search-chips { margin-top: 26px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .schip {
+    font-size: 13px; color: #cdd5ea;
+    background: rgba(150,110,255,0.07);
+    border: 1px solid rgba(150,110,255,0.24);
+    border-radius: 12px;
+    padding: 12px 18px;
+    text-align: center;
+  }
+  .schip b { display: block; color: #c9b8ff; font-size: 13.5px; margin-bottom: 2px; }
+  .schip small { color: #8593ad; font-size: 11.5px; }
+
+  /* ---- footers ---- */
+  .guarantees { margin-top: 26px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .guarantee {
+    font-size: 12.5px; color: #cdd5ea;
+    background: rgba(120,135,175,0.1);
+    border: 1px solid rgba(120,135,175,0.22);
+    border-radius: 999px;
+    padding: 8px 16px;
+  }
+  .guarantee b { color: #e7ecf7; }
+
+  .models { margin-top: 16px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .model-chip {
+    font-size: 12.5px; color: #cdd5ea;
+    background: rgba(150,110,255,0.07);
+    border: 1px solid rgba(150,110,255,0.22);
+    border-radius: 999px;
+    padding: 8px 16px;
+  }
+  .model-chip b { color: #ffd28a; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+
+  @media (max-width: 900px) {
+    .flow { flex-direction: column; }
+    .arrow { flex-basis: 30px; }
+    .arrow svg { transform: rotate(90deg); }
+    .fact-band { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="deck">
+
+  <header>
+    <div class="badge">Noema · Graphiti</div>
+    <h1>Text goes in. A <span class="accent">temporal knowledge graph</span> comes out.</h1>
+    <p class="subtitle">
+      Every page of every document becomes an “episode”. Graphiti reads it, pulls out the
+      entities and the facts connecting them, and folds them into one living graph — where
+      a fact that changes is <b>marked out of date, never erased</b>.
+    </p>
+  </header>
+
+  <div class="row-label">One episode in — <code>add_episode()</code>, incremental</div>
+  <div class="flow">
+    <div class="step">
+      <div class="num">1</div>
+      <h2>Episode</h2>
+      <p>A piece of text — for Noema, one parsed page. Handed to the graph as-is.</p>
+      <div class="example">“Vaswani et al. introduced the Transformer in 2017.”</div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 32 16"><path d="M2 8 h22 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+    <div class="step">
+      <div class="num">2</div>
+      <h2>Extract entities</h2>
+      <p>An LLM names the real-world things in the text — people, methods, datasets, years.</p>
+      <div class="example">Vaswani · Transformer · 2017</div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 32 16"><path d="M2 8 h22 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+    <div class="step">
+      <div class="num">3</div>
+      <h2>Resolve / dedup</h2>
+      <p>Each entity is matched against the graph so the same thing is <b>one node</b>,
+         however it was written.</p>
+      <div class="example">“Transformer” = “the Transformer architecture”</div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 32 16"><path d="M2 8 h22 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+    <div class="step">
+      <div class="num">4</div>
+      <h2>Extract facts</h2>
+      <p>Relationships between entities become <b>edges</b>, each carrying the sentence it
+         came from as provenance.</p>
+      <div class="example">Vaswani —[introduced]→ Transformer</div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 32 16"><path d="M2 8 h22 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+    <div class="step graphout">
+      <div class="num">◆</div>
+      <h2>Living graph</h2>
+      <p>Nodes + timestamped fact-edges. The next episode extends it — <b>no rebuild</b>,
+         one set of LLM calls per page.</p>
+      <div class="example">Grows across documents, connections included</div>
+    </div>
+  </div>
+
+  <div class="fact-band">
+    <div class="ent">Vaswani</div>
+    <div class="edge">
+      <div class="rel">introduced</div>
+      <div class="wire"></div>
+      <div class="stamps">
+        <span class="stamp world">valid_at</span>
+        <span class="stamp world">invalid_at</span>
+        <span class="stamp system">created_at</span>
+        <span class="stamp system">expired_at</span>
+      </div>
+    </div>
+    <div class="ent">Transformer</div>
+    <div class="fact-cap">
+      <b>Every fact is bi-temporal.</b> Two clocks: when it was true <i>in the world</i>
+      (<span style="color:#8fd6c2">valid / invalid</span>) and when the system
+      <i>learned or superseded</i> it (<span style="color:#ffd28a">created / expired</span>).
+      This is why Graphiti can reason about <b>time</b> — not just store facts, but know which held <i>when</i>.
+    </div>
+  </div>
+
+  <div class="row-label">Because the world changes — invalidate, don't delete</div>
+  <div class="update">
+    <div class="flow">
+      <div class="step">
+        <div class="num">1</div>
+        <h2>A fact is current</h2>
+        <p>An early document establishes a fact. It's the active answer to any question about it.</p>
+        <div class="fact-new">✓ current — “Model&nbsp;X is state-of-the-art on the benchmark.”</div>
+      </div>
+      <div class="arrow"><svg viewBox="0 0 32 16"><path d="M2 8 h22 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+      <div class="step">
+        <div class="num">2</div>
+        <h2>A newer fact contradicts it</h2>
+        <p>A later document says something incompatible. Graphiti detects the conflict on insert.</p>
+        <div class="fact-new">⟳ new — “Model&nbsp;Y now beats Model&nbsp;X.”</div>
+      </div>
+      <div class="arrow"><svg viewBox="0 0 32 16"><path d="M2 8 h22 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+      <div class="step">
+        <div class="num">3</div>
+        <h2>The old one is invalidated</h2>
+        <p>Its <code>invalid_at</code> is stamped — <b>kept in the graph</b>, filtered out of
+           current answers. History stays queryable.</p>
+        <div class="fact-old">✕ superseded — kept, not deleted</div>
+      </div>
+      <div class="arrow"><svg viewBox="0 0 32 16"><path d="M2 8 h22 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+      <div class="step">
+        <div class="num">✓</div>
+        <h2>Ask again → new answer</h2>
+        <p>“What's state-of-the-art?” now returns Model&nbsp;Y — and “what did we think before?”
+           still returns Model&nbsp;X.</p>
+        <div class="fact-new">✓ current answer updates itself</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row-label">How it's searched — hybrid, fused</div>
+  <div class="search-chips">
+    <div class="schip"><b>Semantic</b><small>embedding similarity over facts</small></div>
+    <div class="schip"><b>BM25</b><small>exact keyword / name match</small></div>
+    <div class="schip"><b>Graph traversal</b><small>facts connected to the hits</small></div>
+    <div class="schip"><b>→ fused</b><small>one ranked list, archived facts removed</small></div>
+  </div>
+
+  <div class="guarantees">
+    <div class="guarantee"><b>Entities are one node</b> — resolved on the way in, no duplicates</div>
+    <div class="guarantee"><b>Facts carry their source</b> — every edge cites the sentence &amp; page</div>
+    <div class="guarantee"><b>✦ Dream</b> keeps it bounded — dedupes &amp; archives stale facts as it grows</div>
+  </div>
+
+  <div class="models">
+    <div class="model-chip"><b>gpt-5.4</b> — the strong model: entity &amp; fact extraction (graph quality)</div>
+    <div class="model-chip"><b>text-embedding-3-large</b> — fact embeddings for semantic search</div>
+    <div class="model-chip"><b>FalkorDB</b> — the graph store (Neo4j-swappable, no code change)</div>
+  </div>
+
+</div>
+</body>
+</html>

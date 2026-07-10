@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from app import parsing, saves
 from app.graph import GraphSnapshot, evolution
 from app.graph.manager import graph_manager
+from app.lightrag.manager import lightrag_manager
 from app.retrieval import ingest_markdown, ingest_parsed_doc
 
 router = APIRouter(prefix="/graphmem")
@@ -183,15 +184,19 @@ async def reset(domain: str = DOMAIN_DEFAULT) -> dict:
     return _payload(await mem.snapshot())
 
 
-# ---- save / restore checkpoints (full-graph copies) -------------------------
+# ---- save / restore checkpoints (per memory engine) --------------------------
+# A save belongs to one engine: "graphiti" (graph + vector base) or "lightrag"
+# (its self-contained workspace). Same names may exist in both — separate saves.
 class SaveBody(BaseModel):
     name: str
     domain: str | None = None
+    engine: str = "graphiti"
 
 
 @router.get("/saves")
-async def list_saves(domain: str = DOMAIN_DEFAULT) -> dict:
-    return {"saves": await asyncio.to_thread(saves.list_saves, domain)}
+async def list_saves(domain: str = DOMAIN_DEFAULT, engine: str = "") -> dict:
+    """This engine's saves; empty engine = union of both (the chat selector)."""
+    return {"saves": await asyncio.to_thread(saves.list_saves, domain, engine)}
 
 
 @router.post("/save")
@@ -200,24 +205,43 @@ async def save_graph(body: SaveBody) -> dict:
     if not name:
         raise HTTPException(status_code=400, detail="Give the save a name.")
     domain = body.domain or DOMAIN_DEFAULT
-    await _mgr.get(domain)  # ensure the server is up and the graph exists
-    async with _mgr.lock(domain):
-        try:
-            chunks = await asyncio.to_thread(saves.create_save, domain, name)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Nothing to save — the graph is empty.")
-    return {"saved": name, "chunks": chunks}
+    try:
+        if body.engine == "lightrag":
+            async with lightrag_manager.lock(domain):
+                # LightRAG state lives in memory and flushes on close — drop the
+                # cached instance so the file copy captures everything.
+                await lightrag_manager.drop(domain)
+                chunks = await asyncio.to_thread(saves.create_save, domain, name, "lightrag")
+        else:
+            await _mgr.get(domain)  # ensure the server is up and the graph exists
+            async with _mgr.lock(domain):
+                chunks = await asyncio.to_thread(saves.create_save, domain, name, "graphiti")
+    except ValueError:
+        raise HTTPException(status_code=400,
+                            detail=f"Nothing to save — the {body.engine} memory is empty.")
+    return {"saved": name, "engine": body.engine, "chunks": chunks}
 
 
 @router.post("/restore")
 async def restore_graph(body: SaveBody) -> dict:
+    """Overwrite ONE engine's live memory with its save. Returns the fresh Graphiti
+    view for graphiti restores; LightRAG restores return an ack and the page refetches
+    from /lightragmem (this router doesn't render that engine)."""
     domain = body.domain or DOMAIN_DEFAULT
-    await _mgr.get(domain)
-    async with _mgr.lock(domain):
-        try:
-            await asyncio.to_thread(saves.restore_save, domain, body.name.strip())
-        except ValueError:
-            raise HTTPException(status_code=404, detail="That save doesn't exist.")
+    name = body.name.strip()
+    try:
+        if body.engine == "lightrag":
+            async with lightrag_manager.lock(domain):
+                # The live files are about to be overwritten — drop the cached
+                # instance first so nothing stale flushes back over the restore.
+                await lightrag_manager.drop(domain)
+                await asyncio.to_thread(saves.restore_save, domain, name, "lightrag")
+            return {"restored": name, "engine": "lightrag"}
+        await _mgr.get(domain)
+        async with _mgr.lock(domain):
+            await asyncio.to_thread(saves.restore_save, domain, name, "graphiti")
+    except ValueError:
+        raise HTTPException(status_code=404, detail="That save doesn't exist.")
     mem = await _mgr.get(domain)
     return _payload(await mem.snapshot())
 
@@ -226,5 +250,8 @@ async def restore_graph(body: SaveBody) -> dict:
 async def delete_save(body: SaveBody) -> dict:
     domain = body.domain or DOMAIN_DEFAULT
     name = body.name.strip()
-    await asyncio.to_thread(saves.delete_save, domain, name)
-    return {"deleted": name}
+    if body.engine == "lightrag":
+        # Chat may have opened this save's LightRAG store — evict it before the files go.
+        await lightrag_manager.drop(saves.save_key(domain, name))
+    await asyncio.to_thread(saves.delete_save, domain, name, body.engine)
+    return {"deleted": name, "engine": body.engine}

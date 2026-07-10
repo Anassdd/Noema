@@ -67,6 +67,8 @@ class Settings:
 
     # Retrieval: where the embedded vector store persists (empty -> backend/.chroma).
     vector_dir: str = ""
+    # LightRAG: where its file-based stores persist (empty -> backend/data/lightrag).
+    lightrag_dir: str = ""
     # User beliefs: where the per-(user, memory-context) note files persist
     # (empty -> backend/.beliefs). Small markdown, injected into answers, not indexed.
     beliefs_dir: str = ""
@@ -83,6 +85,11 @@ class Settings:
     judge_model: str = ""
     judge_base_url: str = ""
     judge_api_key: str = ""
+    # Thinking cap for the judge. Verdicts are two-field JSONs — a reasoning judge
+    # (e.g. gemini-3.5-flash) burning thinking tokens on them multiplies bench wall
+    # time for nothing. "none" disables thinking; set JUDGE_REASONING= (empty) to
+    # send no cap at all. Dropped automatically if the endpoint rejects it.
+    judge_reasoning: str = "none"
 
     # Generation defaults (overridable per call in llm_client.chat()).
     chat_temperature: float = 0.2
@@ -100,6 +107,7 @@ def load_settings() -> Settings:
         docintel_endpoint=os.getenv("DOCINTEL_ENDPOINT", ""),
         docintel_key=os.getenv("DOCINTEL_KEY", ""),
         vector_dir=os.getenv("VECTOR_DIR", ""),
+        lightrag_dir=os.getenv("LIGHTRAG_DIR", ""),
         beliefs_dir=os.getenv("BELIEFS_DIR", ""),
         rerank_model=os.getenv("RERANK_MODEL", ""),
         rerank_base_url=os.getenv("RERANK_BASE_URL", ""),
@@ -107,6 +115,7 @@ def load_settings() -> Settings:
         judge_model=os.getenv("JUDGE_MODEL", ""),
         judge_base_url=os.getenv("JUDGE_BASE_URL", ""),
         judge_api_key=os.getenv("JUDGE_API_KEY", ""),
+        judge_reasoning=os.getenv("JUDGE_REASONING", "none"),
     )
 
     if provider == "openai":

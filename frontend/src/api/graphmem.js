@@ -18,22 +18,23 @@ export function resetGraph(domain = "default") {
   return fetch(`${API_BASE}/graphmem/reset?domain=${domain}`, { method: "POST" }).then(asJson);
 }
 
-// Save / restore full-graph checkpoints (so you can experiment and roll back).
-export function listSaves(domain = "default") {
-  return fetch(`${API_BASE}/graphmem/saves?domain=${domain}`).then(asJson);
+// Save / restore checkpoints, scoped per memory engine ("graphiti" | "lightrag");
+// an empty engine lists the union of both (the chat selector's view).
+export function listSaves(domain = "default", engine = "") {
+  return fetch(`${API_BASE}/graphmem/saves?domain=${domain}&engine=${engine}`).then(asJson);
 }
 
-function savePost(path, name, domain) {
+function savePost(path, name, domain, engine) {
   return fetch(`${API_BASE}/graphmem/${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, domain }),
+    body: JSON.stringify({ name, domain, engine }),
   }).then(asJson);
 }
 
-export const saveGraph = (name, domain = "default") => savePost("save", name, domain);
-export const restoreGraph = (name, domain = "default") => savePost("restore", name, domain);
-export const deleteSave = (name, domain = "default") => savePost("delete-save", name, domain);
+export const saveGraph = (name, engine, domain = "default") => savePost("save", name, domain, engine);
+export const restoreGraph = (name, engine, domain = "default") => savePost("restore", name, domain, engine);
+export const deleteSave = (name, engine, domain = "default") => savePost("delete-save", name, domain, engine);
 
 // Streams the per-page extraction. `onEvent` is called for each NDJSON line:
 // {phase:"parsing"|"parsed"|"page"|"error"|"done", ...}. A "page" event carries a

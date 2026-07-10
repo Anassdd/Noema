@@ -21,7 +21,7 @@ import { API_BASE } from "./client.js";
  * @param {boolean} [handlers.useMemory]  ground the answer in the RAG/graph memory
  * @param {string} [handlers.domain]  which knowledge base to ground in
  * @param {string|null} [handlers.memory]  a saved snapshot name to answer from (null = live)
- * @param {string|null} [handlers.retrieval]  which store answers: "hybrid" | "rag" | "graph"
+ * @param {string|null} [handlers.retrieval]  which store answers: "hybrid" | "rag" | "graph" | "lightrag"
  */
 export async function streamChat(
   messages,

@@ -157,6 +157,9 @@ def _create(client: OpenAI | None = None, **kwargs):
             if "temperature" in msg and "temperature" in kwargs:
                 kwargs.pop("temperature")
                 continue
+            if "reasoning" in msg and "reasoning_effort" in kwargs:
+                kwargs.pop("reasoning_effort")
+                continue
             raise
     return client.chat.completions.create(**kwargs)
 
@@ -262,11 +265,12 @@ def judge_chat(
     if _judge_client is None:
         _judge_client = OpenAI(base_url=settings.judge_base_url,
                                api_key=settings.judge_api_key)
-    resp = _create(
-        _judge_client,
-        **_common_kwargs(settings.judge_model, messages, temperature, max_tokens),
-        stream=False,
-    )
+    kwargs = _common_kwargs(settings.judge_model, messages, temperature, max_tokens)
+    # Cap the judge's thinking (a reasoning judge multiplies bench wall time on
+    # two-field verdicts). Only sent when configured; dropped by _create on rejection.
+    if settings.judge_reasoning:
+        kwargs["reasoning_effort"] = settings.judge_reasoning
+    resp = _create(_judge_client, **kwargs, stream=False)
     return ChatResult(
         text=resp.choices[0].message.content or "",
         usage=_to_usage(resp.usage),

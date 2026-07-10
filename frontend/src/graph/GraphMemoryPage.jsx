@@ -18,6 +18,12 @@ import {
   restoreGraph,
   deleteSave,
 } from "../api/graphmem.js";
+import {
+  getLightragGraph,
+  ingestLightragText,
+  uploadLightragPdfStream,
+  resetLightrag,
+} from "../api/lightrag.js";
 import { getBeliefs, saveBeliefs } from "../api/beliefs.js";
 import { fetchModels } from "../api/models.js";
 import { enrich, topicsFrom } from "./graph3d.js";
@@ -95,9 +101,19 @@ const EDGE_BACK_OPACITY = 0.18; // far side — dim but present, so the whole we
 // EDGE_BACK_OPACITY, so the whole graph recedes together. Zoom-independent (view angle, not range).
 const NODE_BACK_OPACITY = 0.18;
 
+// Which memory engine the page shows and feeds. Both speak the same payload shape,
+// so everything below the API calls (3D, clustering, focus, timeline) is shared.
+const ENGINES = {
+  graphiti: { tag: "Graphiti", api: { get: getGraph, ingest: ingestText, upload: uploadPdfStream, reset: resetGraph } },
+  lightrag: { tag: "LightRAG", api: { get: getLightragGraph, ingest: ingestLightragText, upload: uploadLightragPdfStream, reset: resetLightrag } },
+};
+const engineFromUrl = () =>
+  new URLSearchParams(window.location.search).get("engine") === "lightrag" ? "lightrag" : "graphiti";
+
 // A standalone tab (?view=graph) showing the REAL memory — Graphiti's entities and
 // temporal facts — in 3D. Drop a PDF: each page is extracted by the LLM and the graph
 // grows live (streamed per page). The graph persists in FalkorDB, so it's here next time.
+// ?engine=lightrag (or the header switch) shows the LightRAG memory instead.
 export default function GraphMemoryPage() {
   const containerRef = useRef(null);
   const fgRef = useRef(null);
@@ -120,6 +136,9 @@ export default function GraphMemoryPage() {
   const [savesOpen, setSavesOpen] = useState(false);
   const [saves, setSaves] = useState([]);
   const [saveName, setSaveName] = useState("");
+  // Which save each engine's LIVE memory currently mirrors (client-side breadcrumb):
+  // set on restore, suffixed on change, cleared on reset. null = plain live memory.
+  const [memoryOf, setMemoryOf] = useState({ graphiti: null, lightrag: null });
   const [beliefsOpen, setBeliefsOpen] = useState(false);
   const [beliefContext, setBeliefContext] = useState(""); // "" = live memory, else a save name
   const [beliefText, setBeliefText] = useState("");
@@ -127,8 +146,10 @@ export default function GraphMemoryPage() {
   const [viewMode, setViewMode] = useState("concepts"); // "concepts" | "topics"
   const [particlesOn, setParticlesOn] = useState(true); // moving dots on the edges
   const [compact, setCompact] = useState(false); // Gather: stronger pull toward the center
+  const [engine, setEngine] = useState(engineFromUrl); // "graphiti" | "lightrag"
   const particlesOnRef = useRef(true);
   const compactRef = useRef(false);
+  const engineRef = useRef(engineFromUrl());
 
   const viewModeRef = useRef("concepts");
   const renderedNodesRef = useRef([]); // the node objects currently on screen (concepts or topics)
@@ -177,7 +198,11 @@ export default function GraphMemoryPage() {
     const fg = new ForceGraph3D(containerRef.current)
       .backgroundColor("#000000")
       .linkOpacity(0.55)
-      .linkCurvature(0.18) // gentle arcs, like the InfraNodus web
+      // Straight edges, deliberately: a curved edge is drawn as ~19 short segments and
+      // the renderer puts a round cap on EVERY joint — on a translucent line those
+      // overlapping caps double-blend into evenly spaced bright dots (reads as beads).
+      // One straight segment has no interior joints, so the artifact can't exist.
+      .linkCurvature(0)
       .d3VelocityDecay(0.28) // less friction → nodes glide (smoother motion)
       .d3AlphaDecay(0.016) // cool the layout more gently so it eases into place
       .warmupTicks(0)
@@ -279,7 +304,7 @@ export default function GraphMemoryPage() {
         const width = l.__topic
           ? 1.4 + Math.min(3, (l.weight || 1) * 0.5) // topic edges thicker, by cross-cluster weight
           : l.recent ? 1.4 : dashed ? 0.8 : 0.9;
-        l.__w = width; // base width, so focus can thicken a clicked edge and restore it
+        l.__w = width; // WORLD-unit base width — projected to pixels each frame (see entranceStep)
         const cS = new THREE.Color(l.recent ? "#ffffff" : l.__srcColor || "#6f86b3");
         const cT = new THREE.Color(l.recent ? "#ffffff" : l.__tgtColor || l.__srcColor || "#6f86b3");
         const geom = new LineGeometry();
@@ -289,8 +314,11 @@ export default function GraphMemoryPage() {
           geom,
           new LineMaterial({
             vertexColors: true, // the source→target gradient
+            // Width is set in SCREEN pixels per frame: the same world→pixel projection
+            // worldUnits would do, but clamped to ≥ ~1px — a sub-pixel worldUnits line
+            // breaks apart into evenly spaced beads (reads as dotted), a 1px one doesn't.
             linewidth: width,
-            worldUnits: true,
+            worldUnits: false,
             dashed,
             dashSize: 1.4,
             gapSize: 1.1,
@@ -298,29 +326,14 @@ export default function GraphMemoryPage() {
             opacity: EDGE_OPACITY, // fainter than the nodes — the web sits behind them
           }),
         );
-        line.__cS = cS;
-        line.__cT = cT; // kept so we can re-colour along the sampled arc
         line.computeLineDistances();
         l.__line = line;
         return line;
       })
-      .linkPositionUpdate((line, { start, end }, link) => {
+      .linkPositionUpdate((line, { start, end }) => {
         if (!line || !line.geometry) return true;
-        // Sample the arc (linkCurvature) so the gradient line follows the same curve the
-        // particles do; fall back to a straight segment when there's no curve.
-        const pts = link.__curve ? link.__curve.getPoints(18) : [start, end];
-        const pos = [];
-        for (const p of pts) pos.push(p.x, p.y, p.z);
-        line.geometry.setPositions(pos);
-        if (line.__cS && line.__cT) {
-          const cols = [];
-          const n = pts.length - 1 || 1;
-          for (let i = 0; i < pts.length; i++) {
-            const c = line.__cS.clone().lerp(line.__cT, i / n);
-            cols.push(c.r, c.g, c.b);
-          }
-          line.geometry.setColors(cols);
-        }
+        // One straight segment; the source→target gradient set at creation still spans it.
+        line.geometry.setPositions([start.x, start.y, start.z, end.x, end.y, end.z]);
         line.computeLineDistances();
         return true;
       })
@@ -429,24 +442,39 @@ export default function GraphMemoryPage() {
 
       // Edges follow the same facing gradient (measured at the edge midpoint), so nodes and
       // their links recede together. Focus overrides — a clicked/highlighted edge stays full.
+      // Width is the same perspective worldUnits gave (world width projected at the edge's
+      // distance), with a small sub-pixel floor so a far edge antialiases into a faint
+      // continuous hairline instead of rasterizing apart.
       if (cam) {
         const sel = selectedLinkRef.current;
         const Rn = maxR > 1 ? maxR : R;
+        const el = containerRef.current;
+        const Wpx = (el && el.clientWidth) || 800;
+        const Hpx = (el && el.clientHeight) || 600;
+        const pxPerUnit = Hpx / (2 * Math.tan((cam.fov * Math.PI) / 360)); // px per world unit at distance 1
         for (const l of currentLinksRef.current) {
           if (!l.__line) continue;
+          const mat = l.__line.material;
+          mat.resolution.set(Wpx, Hpx); // screen-space widths need the canvas size
+          const s = l.source, t = l.target;
+          const resolved = typeof s === "object" && typeof t === "object";
+          let mx = 0, my = 0, mz = 0;
+          if (resolved) {
+            mx = ((s.x || 0) + (t.x || 0)) / 2;
+            my = ((s.y || 0) + (t.y || 0)) / 2;
+            mz = ((s.z || 0) + (t.z || 0)) / 2;
+            const dx = mx - cam.position.x, dy = my - cam.position.y, dz = mz - cam.position.z;
+            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+            const px = ((l.__w || 1) * pxPerUnit) / dist;
+            mat.linewidth = Math.min(9, Math.max(0.7, px)) * (l === sel ? 2.4 : 1);
+          }
           if (focusing) {
-            l.__line.material.opacity = l === sel ? 1 : hl.has(l) ? 1 : 0.06;
+            mat.opacity = l === sel ? 1 : hl.has(l) ? 1 : 0.06;
             continue;
           }
-          const s = l.source, t = l.target;
-          if (typeof s === "object" && typeof t === "object") {
-            const mx = ((s.x || 0) + (t.x || 0)) / 2;
-            const my = ((s.y || 0) + (t.y || 0)) / 2;
-            const mz = ((s.z || 0) + (t.z || 0)) / 2;
-            l.__line.material.opacity = EDGE_BACK_OPACITY + (EDGE_OPACITY - EDGE_BACK_OPACITY) * frontWeight(mx, my, mz, Rn);
-          } else {
-            l.__line.material.opacity = EDGE_OPACITY;
-          }
+          mat.opacity = resolved
+            ? EDGE_BACK_OPACITY + (EDGE_OPACITY - EDGE_BACK_OPACITY) * frontWeight(mx, my, mz, Rn)
+            : EDGE_OPACITY;
         }
       }
       entranceRafRef.current = requestAnimationFrame(entranceStep);
@@ -490,8 +518,10 @@ export default function GraphMemoryPage() {
   }, []);
 
   async function loadInitial() {
+    const eng = engineRef.current;
     try {
-      const snap = await getGraph();
+      const snap = await ENGINES[eng].api.get();
+      if (engineRef.current !== eng) return; // engine switched while loading — drop this result
       prevLinkKeysRef.current = new Set(snap.links.map(linkKey)); // seed: nothing is "recent" on load
       applySnapshot(snap);
       setStatus(snap.stats.node_count ? "" : "Empty — drop a PDF or paste text to build the memory.");
@@ -726,6 +756,26 @@ export default function GraphMemoryPage() {
     renderView();
   }
 
+  // Swap which memory engine the page shows — a fresh graph, so every per-graph
+  // ref (positions, recency, focus, timeline) starts clean before the new load.
+  async function switchEngine(next) {
+    if (next === engineRef.current || busy) return;
+    engineRef.current = next;
+    setEngine(next);
+    nodesRef.current.clear();
+    prevLinkKeysRef.current = new Set();
+    recentKeysRef.current = new Set();
+    selectedNodeRef.current = null;
+    focusNode(null);
+    timeActiveRef.current = false;
+    setTimeActive(false);
+    setStats(null);
+    setError("");
+    setStatus(`Loading the ${ENGINES[next].tag} memory…`);
+    refreshSaves(); // the Saves panel and its count are per engine
+    await loadInitial();
+  }
+
   // Spotlight the hovered node + neighbors; dim the rest. Node disks/labels are custom
   // objects, so we fade their materials directly; link lines go through the accessors.
   // A node's "group" = its Louvain community, named by the community's most important
@@ -797,12 +847,8 @@ export default function GraphMemoryPage() {
   }
 
   function applyFocus() {
-    const sel = selectedLinkRef.current;
-    // Node + edge opacity are set every frame by the render loop (facing + focus aware); here
-    // we only thicken the clicked edge and re-evaluate which edges carry particles.
-    for (const l of currentLinksRef.current) {
-      if (l.__line) l.__line.material.linewidth = l === sel ? (l.__w || 1) * 2.4 : l.__w || 1;
-    }
+    // Node/edge opacity AND width (incl. the clicked edge's ×2.4 boost) are set every
+    // frame by the render loop; here we only re-evaluate which edges carry particles.
     const fg = fgRef.current;
     fg.linkDirectionalParticles(fg.linkDirectionalParticles()); // re-eval particle visibility for focus
   }
@@ -858,12 +904,13 @@ export default function GraphMemoryPage() {
       for (let idx = 0; idx < pdfs.length; idx++) {
         const file = pdfs[idx];
         const tag = many ? `[${idx + 1}/${pdfs.length}] ` : "";
-        await uploadPdfStream(file, model, (ev) => {
+        await ENGINES[engineRef.current].api.upload(file, model, (ev) => {
           if (ev.phase === "parsing") setStatus(`${tag}Reading “${file.name}”…`);
           else if (ev.phase === "parsed")
             setStatus(`${tag}Extracting ${ev.pages} page${ev.pages === 1 ? "" : "s"}…`);
           else if (ev.phase === "page") {
             applySnapshot(ev);
+            markMemoryChanged();
             setStatus(`${tag}Page ${ev.page}/${ev.total} — ${ev.stats.node_count} entities, ${ev.stats.edge_count} facts`);
           } else if (ev.phase === "rag_indexing") {
             setStatus(`${tag}Indexing “${file.name}” into the search base…`);
@@ -875,7 +922,12 @@ export default function GraphMemoryPage() {
           else if (ev.phase === "done" && !many) setStatus(`Done — “${file.name}” folded in.`);
         });
       }
-      if (many) setStatus(`Done — ${pdfs.length} documents folded into graph + search base.`);
+      if (many)
+        setStatus(
+          engineRef.current === "lightrag"
+            ? `Done — ${pdfs.length} documents folded into the LightRAG memory.`
+            : `Done — ${pdfs.length} documents folded into graph + search base.`,
+        );
     } catch (e) {
       setError(e.message);
     } finally {
@@ -889,8 +941,9 @@ export default function GraphMemoryPage() {
     setBusy(true);
     setStatus("Extracting entities & relationships… (the strong model takes ~20–40s)");
     try {
-      const snap = await ingestText(text.trim(), model, "pasted text");
+      const snap = await ENGINES[engineRef.current].api.ingest(text.trim(), model, "pasted text");
       applySnapshot(snap);
+      markMemoryChanged();
       setText("");
       setStatus(`Added — ${snap.stats.node_count} entities, ${snap.stats.edge_count} facts.`);
     } catch (e) {
@@ -928,6 +981,7 @@ export default function GraphMemoryPage() {
           setStatus(`Dream — ${DREAM_LABELS[ev.pass] || ev.pass}… (${ev.reason})`);
         } else if (ev.phase === "pass_done") {
           applySnapshot(ev);
+          markMemoryChanged();
           setStatus(`Dream — ${DREAM_LABELS[ev.pass] || ev.pass} ✓`);
         } else if (ev.phase === "pass_rolled_back") {
           applySnapshot(ev);
@@ -951,8 +1005,9 @@ export default function GraphMemoryPage() {
     try {
       prevLinkKeysRef.current = new Set();
       recentKeysRef.current = new Set();
-      const snap = await resetGraph();
+      const snap = await ENGINES[engineRef.current].api.reset();
       applySnapshot(snap);
+      stampMemory(null); // wiped — plain live memory again
       setStatus("Empty — drop a PDF or paste text to build the memory.");
     } catch (e) {
       setError(e.message);
@@ -967,13 +1022,26 @@ export default function GraphMemoryPage() {
     if (e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files);
   }
 
-  // ---- save / restore checkpoints -------------------------------------------
+  // ---- save / restore checkpoints (scoped to the visible engine) ------------
   async function refreshSaves() {
     try {
-      setSaves((await listSaves()).saves || []);
+      setSaves((await listSaves("default", engineRef.current)).saves || []);
     } catch {
       /* ignore */
     }
+  }
+
+  // The breadcrumb under the engine switch: which save this engine's live memory
+  // mirrors. Any change to the memory marks it, so a stale name never lies.
+  function stampMemory(name) {
+    setMemoryOf((m) => ({ ...m, [engineRef.current]: name }));
+  }
+  function markMemoryChanged() {
+    setMemoryOf((m) => {
+      const cur = m[engineRef.current];
+      if (!cur || cur.endsWith(" · changed")) return m;
+      return { ...m, [engineRef.current]: `${cur} · changed` };
+    });
   }
 
   function toggleSaves() {
@@ -993,10 +1061,11 @@ export default function GraphMemoryPage() {
     setBusy(true);
     setStatus(`Saving “${name}”…`);
     try {
-      await saveGraph(name);
+      await saveGraph(name, engineRef.current);
       setSaveName("");
+      stampMemory(name); // the live memory now equals this fresh checkpoint
       await refreshSaves();
-      setStatus(`Saved “${name}”.`);
+      setStatus(`Saved “${name}” (${ENGINES[engineRef.current].tag}).`);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -1009,12 +1078,16 @@ export default function GraphMemoryPage() {
     setBusy(true);
     setStatus(`Restoring “${name}”…`);
     try {
-      const snap = await restoreGraph(name);
+      // Restore touches ONLY this engine's live memory. The endpoint returns the
+      // Graphiti view; in LightRAG mode it acks and we refetch this engine's.
+      const restored = await restoreGraph(name, engineRef.current);
+      const snap = engineRef.current === "lightrag" ? await getLightragGraph() : restored;
       recentKeysRef.current = new Set();
       prevLinkKeysRef.current = new Set(snap.links.map(linkKey)); // restored facts aren't "new"
       applySnapshot(snap);
+      stampMemory(name);
       setSavesOpen(false);
-      setStatus(`Restored “${name}”.`);
+      setStatus(`Restored “${name}” (${ENGINES[engineRef.current].tag}).`);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -1024,7 +1097,7 @@ export default function GraphMemoryPage() {
 
   async function handleDeleteSave(name) {
     try {
-      await deleteSave(name);
+      await deleteSave(name, engineRef.current);
       await refreshSaves();
     } catch (e) {
       setError(e.message);
@@ -1166,7 +1239,64 @@ export default function GraphMemoryPage() {
         <div style={{ display: "flex", alignItems: "center", gap: 9, pointerEvents: "auto" }}>
           <span style={{ color: "#5cc8ff", fontSize: 18 }}>◆</span>
           <span style={{ fontWeight: 600, fontSize: 15 }}>Noema · Graph Memory</span>
-          <span style={{ fontSize: 11, color: "#6b7693", marginLeft: 4 }}>Graphiti · 3D</span>
+          {/* engine switch — which memory this page shows and feeds */}
+          <span
+            style={{
+              display: "flex",
+              marginLeft: 6,
+              borderRadius: 8,
+              overflow: "hidden",
+              border: "1px solid rgba(120,135,175,0.25)",
+            }}
+          >
+            {Object.entries(ENGINES).map(([key, e]) => (
+              <button
+                key={key}
+                onClick={() => switchEngine(key)}
+                disabled={busy}
+                title={
+                  key === "graphiti"
+                    ? "Graphiti — temporal knowledge graph (entities, facts, invalidation)"
+                    : "LightRAG — dual-level keyword graph + its own vector base"
+                }
+                style={{
+                  padding: "4px 11px",
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  border: "none",
+                  cursor: busy ? "default" : "pointer",
+                  background: engine === key ? "rgba(92,200,255,0.18)" : "transparent",
+                  color: engine === key ? "#bfe4ff" : "#8a93ad",
+                }}
+              >
+                {e.tag}
+              </button>
+            ))}
+          </span>
+          <span style={{ fontSize: 11, color: "#6b7693" }}>3D</span>
+          {/* which memory this engine's live store mirrors — a restored save's name,
+              marked "· changed" once anything is added, or plain Live */}
+          <span
+            title={
+              memoryOf[engine]
+                ? `This ${ENGINES[engine].tag} memory was restored from the save “${memoryOf[engine].replace(" · changed", "")}”`
+                : `The ${ENGINES[engine].tag} live working memory (no save restored)`
+            }
+            style={{
+              fontSize: 11,
+              padding: "3px 10px",
+              borderRadius: 999,
+              border: "1px solid rgba(120,135,175,0.25)",
+              color: memoryOf[engine] ? "#8fd6c2" : "#8a93ad",
+              background: memoryOf[engine] ? "rgba(120,220,180,0.08)" : "transparent",
+              maxWidth: 220,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {memoryOf[engine] ? `⧉ ${memoryOf[engine]}` : "● Live"}
+          </span>
         </div>
 
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14, pointerEvents: "auto" }}>
@@ -1189,6 +1319,7 @@ export default function GraphMemoryPage() {
             onSave={handleSave}
             onRestore={handleRestore}
             onDelete={handleDeleteSave}
+            engineTag={ENGINES[engine].tag}
           />
           <BeliefsPanel
             busy={busy}
@@ -1205,19 +1336,21 @@ export default function GraphMemoryPage() {
             saved={beliefSaved}
             onSave={handleSaveBeliefs}
           />
-          <button
-            onClick={handleDream}
-            disabled={busy || !stats?.node_count}
-            title="Self-maintain the memory: merge duplicate entities, archive stale facts, refresh community summaries — each step checked and rolled back if it loses knowledge."
-            style={{
-              ...ghostBtn,
-              background: "rgba(150,110,255,0.14)",
-              border: "1px solid rgba(150,110,255,0.35)",
-              color: "#c9b8ff",
-            }}
-          >
-            ✦ Dream
-          </button>
+          {engine === "graphiti" && (
+            <button
+              onClick={handleDream}
+              disabled={busy || !stats?.node_count}
+              title="Self-maintain the memory: merge duplicate entities, archive stale facts, refresh community summaries — each step checked and rolled back if it loses knowledge."
+              style={{
+                ...ghostBtn,
+                background: "rgba(150,110,255,0.14)",
+                border: "1px solid rgba(150,110,255,0.35)",
+                color: "#c9b8ff",
+              }}
+            >
+              ✦ Dream
+            </button>
+          )}
           {confirmReset ? (
             <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 12, color: "#ff8da3" }}>Clear the whole memory?</span>
@@ -1426,31 +1559,33 @@ export default function GraphMemoryPage() {
           </select>
         </div>
 
-        <button
-          onClick={toggleHistory}
-          style={{
-            ...ghostBtn,
-            width: "100%",
-            marginBottom: 9,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 7,
-            color: showHistory ? "#cdd5ea" : "#7a87a6",
-          }}
-          title="Show or hide facts that are no longer active (Graphiti keeps them — they're never deleted)"
-        >
-          <span
+        {engine === "graphiti" && (
+          <button
+            onClick={toggleHistory}
             style={{
-              width: 9,
-              height: 9,
-              borderRadius: 3,
-              background: showHistory ? "#ff6b8a" : "transparent",
-              border: "1.5px solid #ff6b8a",
+              ...ghostBtn,
+              width: "100%",
+              marginBottom: 9,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 7,
+              color: showHistory ? "#cdd5ea" : "#7a87a6",
             }}
-          />
-          {showHistory ? "Showing no-longer-active facts" : "Hiding no-longer-active facts"}
-        </button>
+            title="Show or hide facts that are no longer active (Graphiti keeps them — they're never deleted)"
+          >
+            <span
+              style={{
+                width: 9,
+                height: 9,
+                borderRadius: 3,
+                background: showHistory ? "#ff6b8a" : "transparent",
+                border: "1.5px solid #ff6b8a",
+              }}
+            />
+            {showHistory ? "Showing no-longer-active facts" : "Hiding no-longer-active facts"}
+          </button>
+        )}
 
         <label style={uploadBtn}>
           <input
@@ -1525,9 +1660,11 @@ export default function GraphMemoryPage() {
         <div>
           <span style={{ color: "#96c8ff" }}>──▶</span> active fact
         </div>
-        <div>
-          <span style={{ color: "#ff6b8a" }}>╌╌▶</span> no longer active
-        </div>
+        {engine === "graphiti" && (
+          <div>
+            <span style={{ color: "#ff6b8a" }}>╌╌▶</span> no longer active
+          </div>
+        )}
         <div style={{ color: "#6b7693", marginTop: 3 }}>color = cluster · size = connections · hover to focus</div>
       </div>
 

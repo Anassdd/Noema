@@ -69,6 +69,62 @@ async def graph_chunks(query: str, *, domain_id: str = "default", limit: int = 1
     return chunks
 
 
+def _provenance(file_path: str) -> tuple[str, list[int]]:
+    """Parse LightRAG's file_path back into doc + page. We ingest pieces named
+    '<file> · p<N>'; entities/relations that span pieces join paths with <SEP> —
+    take the first. Empty/unknown paths fall back to a generic label."""
+    first = (file_path or "").split("<SEP>")[0].strip()
+    if not first or first == "unknown_source":
+        return "lightrag memory", []
+    if " · p" in first:
+        doc_id, tail = first.rsplit(" · p", 1)
+        try:
+            return doc_id, [int(tail)]
+        except ValueError:
+            return doc_id, []
+    return first, []
+
+
+async def lightrag_chunks(query: str, *, domain_id: str = "default",
+                          limit: int = 10) -> list[ScoredChunk]:
+    """Retrieve from the LightRAG store and adapt to the shared retrieval contract.
+    LightRAG returns relationship facts AND text chunks, both ranked; the chunks are
+    the citable evidence, so they fill most of the budget and a few top facts ride
+    along for the graph-level signal."""
+    from app.lightrag.manager import lightrag_manager
+
+    mem = await lightrag_manager.get(domain_id)
+    found = await mem.search(query, limit=limit)
+    out: list[ScoredChunk] = []
+    for r in found["relations"][: max(1, limit // 3)]:
+        doc_id, pages = _provenance(r["file_path"])
+        out.append(ScoredChunk(
+            chunk_id=f"lightrag:rel:{r['source']}->{r['target']}",
+            text=r["text"] or f"{r['source']} — {r['keywords']} — {r['target']}",
+            context=f"{r['source']} → {r['target']}",
+            doc_id=doc_id,
+            pages=pages,
+            section=r["keywords"],
+            domain_id=domain_id,
+            scores={"lightrag": 1.0},
+        ))
+    for c in found["chunks"]:
+        if len(out) >= limit:
+            break
+        doc_id, pages = _provenance(c["file_path"])
+        out.append(ScoredChunk(
+            chunk_id=f"lightrag:{c['id']}",
+            text=c["text"],
+            context="",
+            doc_id=doc_id,
+            pages=pages,
+            section="",
+            domain_id=domain_id,
+            scores={"lightrag": 1.0},
+        ))
+    return out
+
+
 async def retrieve(
     query: str,
     *,
@@ -76,6 +132,7 @@ async def retrieve(
     k: int = 8,
     use_graph: bool = True,
     use_vector: bool = True,
+    use_lightrag: bool = False,
     rerank_mode: str = "off",
     graph_limit: int = 10,
     doc_id: str | None = None,
@@ -83,11 +140,22 @@ async def retrieve(
     """Retrieve from the vector base and the graph, RRF-fuse the two rankings, return the
     top-k plus a small meta dict (per-source counts) the runtime trace can surface.
 
+    `use_lightrag` swaps in the LightRAG strategy as the retriever instead — it is a
+    self-contained method (own graph + own vectors), so it isn't fused with the others.
+
     `doc_id` scopes both retrievers to one source document — for per-document benchmarks
     (e.g. QASPER) whose questions presuppose their paper."""
     rankings: list[list[str]] = []
     by_id: dict[str, ScoredChunk] = {}
     meta = {"vector": 0, "graph": 0}
+
+    if use_lightrag:
+        use_vector = use_graph = False
+        lchunks = await lightrag_chunks(query, domain_id=domain_id, limit=max(k, 8))
+        for c in lchunks:
+            by_id[c.chunk_id] = c
+        rankings.append([c.chunk_id for c in lchunks])
+        meta["lightrag"] = len(lchunks)
 
     if use_vector:
         vtrace = await asyncio.to_thread(
@@ -285,7 +353,8 @@ def _sources_payload(chunks: list[ScoredChunk]) -> list[dict]:
             "pages": c.pages,
             "section": c.section,
             "text": c.text,
-            "origin": "graph" if c.chunk_id.startswith("graph:") else "vector",
+            "origin": ("lightrag" if c.chunk_id.startswith("lightrag:")
+                       else "graph" if c.chunk_id.startswith("graph:") else "vector"),
             "score": c.score,
         }
         for i, c in enumerate(chunks)
@@ -304,10 +373,12 @@ async def answer_stream(
 
     `memory` selects a saved snapshot to answer from (its graph + RAG); None = live memory.
     `retrieval` selects which store answers — "hybrid" (both, fused), "rag" (contextual
-    vector base only) or "graph" (knowledge graph only) — so methods can be compared live.
+    vector base only), "graph" (knowledge graph only) or "lightrag" (the self-contained
+    LightRAG strategy) — so methods can be compared live.
     """
-    use_vector = retrieval != "graph"
-    use_graph = retrieval != "rag"
+    use_lightrag = retrieval == "lightrag"
+    use_vector = retrieval not in ("graph", "lightrag")
+    use_graph = retrieval not in ("rag", "lightrag")
     # The user's own notes for THIS memory context (the selected save, else the live domain).
     # Read before domain_id is swapped for the save key — beliefs are keyed by the context the
     # user picks, not by the snapshot's internal store name.
@@ -346,16 +417,19 @@ async def answer_stream(
     final_chunks: list[ScoredChunk] = []
     answer_text, usage, grounded, covered = "", None, True, True
 
-    stores = {"hybrid": "vector base + graph", "rag": "vector base only", "graph": "graph only"}
+    stores = {"hybrid": "vector base + graph", "rag": "vector base only",
+              "graph": "graph only", "lightrag": "LightRAG memory"}
     for attempt in range(1, max_tries + 1):
         detail = (f"Searching the {stores.get(retrieval, 'vector base + graph')}…"
                   if attempt == 1 else "Retrieving more and re-fusing…")
         yield {"type": "status", "stage": "retrieving", "detail": detail}
         chunks, meta = await retrieve(search_query, domain_id=domain_id, k=8 * attempt,
-                                      use_graph=use_graph, use_vector=use_vector)
+                                      use_graph=use_graph, use_vector=use_vector,
+                                      use_lightrag=use_lightrag)
         final_chunks = chunks
-        yield {"type": "status", "stage": "retrieved",
-               "detail": f"{meta['fused']} sources · {meta['vector']} vector · {meta['graph']} graph"}
+        found = (f"{meta['fused']} sources · LightRAG" if use_lightrag else
+                 f"{meta['fused']} sources · {meta['vector']} vector · {meta['graph']} graph")
+        yield {"type": "status", "stage": "retrieved", "detail": found}
 
         if not chunks:
             covered = False

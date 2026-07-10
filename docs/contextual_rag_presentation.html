@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Noema — Contextual RAG</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    background: #070a14;
+    background-image:
+      radial-gradient(ellipse 60% 40% at 50% -10%, rgba(92,200,255,0.16), transparent),
+      radial-gradient(ellipse 40% 30% at 85% 100%, rgba(150,110,255,0.07), transparent);
+    color: #e7ecf7;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+  }
+
+  .deck { width: 100%; max-width: 1240px; }
+
+  /* ---- header ---- */
+  header { text-align: center; margin-bottom: 30px; }
+  .badge {
+    display: inline-block;
+    background: rgba(92,200,255,0.14);
+    border: 1px solid rgba(92,200,255,0.35);
+    color: #8fd0ff;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 6px 16px;
+    border-radius: 999px;
+    margin-bottom: 16px;
+    letter-spacing: 0.4px;
+  }
+  h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.3px; }
+  h1 .accent { color: #8fd0ff; }
+  .subtitle {
+    margin-top: 10px;
+    color: #9aa5c0;
+    font-size: 15.5px;
+    max-width: 760px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.55;
+  }
+
+  /* ---- the "why" strip ---- */
+  .why {
+    display: flex;
+    gap: 14px;
+    margin: 6px 0 4px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .why-card {
+    flex: 1 1 0;
+    min-width: 260px;
+    border-radius: 14px;
+    padding: 14px 16px;
+  }
+  .why-card .lbl { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 7px; }
+  .why-card .quote { font-size: 13.5px; line-height: 1.5; }
+  .why-card .quote em { color: #ffd28a; font-style: normal; font-weight: 600; }
+  .why-card.bad { background: rgba(255,141,163,0.07); border: 1px solid rgba(255,141,163,0.28); }
+  .why-card.bad .lbl { color: #ff8da3; }
+  .why-card.good { background: rgba(92,200,255,0.08); border: 1px solid rgba(92,200,255,0.32); }
+  .why-card.good .lbl { color: #8fd0ff; }
+  .why-card .blurb { color: #8fd0ff; font-weight: 600; }
+
+  /* ---- flow rows ---- */
+  .row-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: #7d88a8;
+    margin: 30px 0 14px 4px;
+  }
+  .flow { display: flex; align-items: stretch; gap: 0; }
+
+  .step {
+    flex: 1 1 0;
+    background: rgba(13,18,32,0.92);
+    border: 1px solid rgba(120,135,175,0.22);
+    border-radius: 14px;
+    padding: 16px 15px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .step .num {
+    width: 26px; height: 26px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+    background: rgba(92,200,255,0.16);
+    border: 1px solid rgba(92,200,255,0.4);
+    color: #8fd0ff;
+  }
+  .step h2 { font-size: 15.5px; font-weight: 700; }
+  .step p { font-size: 12.5px; line-height: 1.5; color: #aab4cf; }
+  .step .example {
+    margin-top: auto;
+    font-size: 11.6px;
+    color: #8fd0ff;
+    background: rgba(92,200,255,0.09);
+    border: 1px solid rgba(92,200,255,0.2);
+    border-radius: 8px;
+    padding: 6px 9px;
+    line-height: 1.45;
+  }
+  .step .model {
+    font-size: 11px;
+    font-weight: 600;
+    color: #ffd28a;
+    background: rgba(255,210,138,0.07);
+    border: 1px solid rgba(255,210,138,0.2);
+    border-radius: 7px;
+    padding: 4px 8px;
+    align-self: flex-start;
+  }
+  .step.hero { border-color: rgba(92,200,255,0.5); background: rgba(92,200,255,0.06); }
+
+  /* two search lanes stacked */
+  .lanes {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-self: stretch;
+    justify-content: center;
+  }
+  .lane {
+    border-radius: 13px;
+    padding: 12px 15px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+  }
+  .lane h2 { font-size: 14.5px; font-weight: 700; margin-bottom: 3px; }
+  .lane p { font-size: 12px; line-height: 1.45; color: #aab4cf; }
+  .lane.dense { background: rgba(92,200,255,0.08); border: 1px solid rgba(92,200,255,0.32); }
+  .lane.dense h2 { color: #8fd0ff; }
+  .lane.bm25 { background: rgba(150,110,255,0.08); border: 1px solid rgba(150,110,255,0.32); }
+  .lane.bm25 h2 { color: #c9b8ff; }
+
+  /* ---- arrows ---- */
+  .arrow { flex: 0 0 40px; display: flex; align-items: center; justify-content: center; }
+  .arrow svg { width: 32px; height: 16px; }
+  .arrow.wide svg { width: 38px; height: 90px; }
+  .arrow path { stroke: #5cc8ff; stroke-width: 2.4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---- footer chips ---- */
+  .results { margin-top: 30px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .result {
+    text-align: center;
+    background: rgba(92,200,255,0.07);
+    border: 1px solid rgba(92,200,255,0.28);
+    border-radius: 14px;
+    padding: 14px 22px;
+  }
+  .result .big { font-size: 26px; font-weight: 800; color: #8fd0ff; letter-spacing: -0.5px; }
+  .result .cap { font-size: 12px; color: #aab4cf; margin-top: 2px; }
+
+  .models { margin-top: 18px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .model-chip {
+    font-size: 12.5px; color: #cdd5ea;
+    background: rgba(120,135,175,0.1);
+    border: 1px solid rgba(120,135,175,0.22);
+    border-radius: 999px;
+    padding: 8px 16px;
+  }
+  .model-chip b { color: #ffd28a; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+
+  .note {
+    margin-top: 14px; text-align: center;
+    font-size: 12.5px; color: #9aa5c0; line-height: 1.5;
+    max-width: 780px; margin-left: auto; margin-right: auto;
+  }
+  .note b { color: #cdd5ea; }
+
+  @media (max-width: 900px) {
+    .flow { flex-direction: column; }
+    .arrow { flex-basis: 30px; }
+    .arrow svg, .arrow.wide svg { transform: rotate(90deg); }
+    .arrow.wide svg { height: 60px; }
+  }
+</style>
+</head>
+<body>
+<div class="deck">
+
+  <header>
+    <div class="badge">Noema · Contextual RAG</div>
+    <h1>Every chunk remembers <span class="accent">where it came from</span></h1>
+    <p class="subtitle">
+      Cutting a document into chunks throws away context, so search matches them poorly.
+      Contextual RAG fixes this: before embedding, an LLM writes a one-line blurb situating
+      each chunk in its whole document. Anthropic's method, built as Noema's precise-passage memory.
+    </p>
+  </header>
+
+  <div class="why">
+    <div class="why-card bad">
+      <div class="lbl">✕ A raw chunk, out of context</div>
+      <div class="quote">“<em>This approach</em> cut the error rate by 12% over <em>the baseline</em>.”
+        <br><span style="color:#8593ad">Which approach? Which baseline? Embeddings &amp; keywords can't tell — the match is weak.</span></div>
+    </div>
+    <div class="why-card good">
+      <div class="lbl">✓ The same chunk, contextualized</div>
+      <div class="quote"><span class="blurb">[From §4 of the CamemBERT paper, on French NER fine-tuning:]</span>
+        “This approach cut the error rate by 12% over the baseline.”
+        <br><span style="color:#8593ad">Now it's findable by the terms someone would actually search.</span></div>
+    </div>
+  </div>
+
+  <div class="row-label">Building the base — one time, at ingestion</div>
+  <div class="flow">
+    <div class="step">
+      <div class="num">1</div>
+      <h2>Document</h2>
+      <p>A parsed paper — clean Markdown with page numbers kept for citations.</p>
+      <div class="example">The stable, shared source for every chunk below</div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 32 16"><path d="M2 8 h22 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+    <div class="step">
+      <div class="num">2</div>
+      <h2>Chunk</h2>
+      <p>Split into passage-sized pieces, each keeping its section &amp; page provenance.</p>
+      <div class="example">One chunk ≈ a few paragraphs</div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 32 16"><path d="M2 8 h22 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+    <div class="step hero">
+      <div class="num">3</div>
+      <h2>Contextualize</h2>
+      <p>The LLM sees the <b>whole document + this chunk</b> and writes a 1–2 sentence blurb
+         placing the chunk in the document. The blurb is prepended to the chunk.</p>
+      <div class="model">blurb · gpt-5.4-mini</div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 32 16"><path d="M2 8 h22 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+    <div class="step">
+      <div class="num">4</div>
+      <h2>Embed + index</h2>
+      <p>The <b>blurb + chunk</b> is embedded as a vector <i>and</i> keyword-indexed with BM25.
+         The blurb aids findability; the original text is what gets cited.</p>
+      <div class="model">vectors · text-embedding-3-large</div>
+    </div>
+    <div class="arrow"><svg viewBox="0 0 32 16"><path d="M2 8 h22 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+    <div class="step">
+      <div class="num">5</div>
+      <h2>Store</h2>
+      <p>Written into the vector store (Chroma), one collection per domain. Adding
+         documents later just appends — no rebuild.</p>
+      <div class="example">Incremental &amp; on-disk — no server, no GPU</div>
+    </div>
+  </div>
+
+  <div class="row-label">Answering a question — every time, at query</div>
+  <div class="flow">
+    <div class="step">
+      <div class="num">▸</div>
+      <h2>Question</h2>
+      <p>The user's question is embedded with the same model the chunks used.</p>
+    </div>
+
+    <div class="arrow wide">
+      <svg viewBox="0 0 38 90">
+        <path d="M2 45 H10 C18 45 18 22 26 22 H30 m-6 -5 l7 5 l-7 5"/>
+        <path d="M10 45 C18 45 18 68 26 68 H30 m-6 -5 l7 5 l-7 5"/>
+      </svg>
+    </div>
+
+    <div class="lanes">
+      <div class="lane dense">
+        <h2>Dense search</h2>
+        <p>Nearest vectors — matches <i>meaning</i>, even with different wording.</p>
+      </div>
+      <div class="lane bm25">
+        <h2>BM25 search</h2>
+        <p>Keyword match — catches exact terms embeddings blur (symbols, names, French words).</p>
+      </div>
+    </div>
+
+    <div class="arrow wide">
+      <svg viewBox="0 0 38 90">
+        <path d="M2 22 C10 22 10 45 18 45"/>
+        <path d="M2 68 C10 68 10 45 18 45 H30 m-6 -5 l7 5 l-7 5"/>
+      </svg>
+    </div>
+
+    <div class="step">
+      <div class="num">⚖</div>
+      <h2>Fuse (RRF)</h2>
+      <p>The two ranked lists merge into one — a chunk found by <b>both</b> rises to the top.</p>
+      <div class="example">Optional reranker reorders the top few by true relevance</div>
+    </div>
+
+    <div class="arrow"><svg viewBox="0 0 32 16"><path d="M2 8 h22 m-6 -5 l7 5 l-7 5"/></svg></div>
+
+    <div class="step">
+      <div class="num">✒</div>
+      <h2>Grounded answer</h2>
+      <p>The answer is written only from the top chunks and cites each source
+         as <b>[S#]</b> → document + page.</p>
+      <div class="model">answer · gpt-5.4-mini</div>
+    </div>
+  </div>
+
+  <div class="results">
+    <div class="result"><div class="big">−49%</div><div class="cap">fewer failed retrievals<br>contextual embeddings + BM25</div></div>
+    <div class="result"><div class="big">−67%</div><div class="cap">fewer failed retrievals<br>with a reranker added</div></div>
+  </div>
+
+  <div class="note">
+    <b>The trick that makes it cheap:</b> the whole document is placed first in every prompt,
+    so after the first chunk it is served from the endpoint's <b>prompt cache</b> at ~10% price.
+    Contextualizing a 100-chunk paper costs roughly one full read of the document, not a hundred.
+  </div>
+
+  <div class="models">
+    <div class="model-chip"><b>gpt-5.4-mini</b> — writes the situating blurb (cheap tier is enough) &amp; the final answer</div>
+    <div class="model-chip"><b>text-embedding-3-large</b> — multilingual embeddings (French corpus ready)</div>
+  </div>
+
+</div>
+</body>
+</html>

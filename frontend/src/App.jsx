@@ -60,7 +60,7 @@ export default function App() {
 
   // Which saved memory snapshot the expert answers from (null = live memory).
   const [selectedMemory, setSelectedMemory] = useState(null);
-  // Which store the expert retrieves from: "hybrid" (default) | "rag" | "graph".
+  // Which store the expert retrieves from: "hybrid" (default) | "rag" | "graph" | "lightrag".
   const [retrievalMode, setRetrievalMode] = useState("hybrid");
 
   const [sidebarOpen, setSidebarOpen] = useState(true);

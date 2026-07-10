@@ -399,7 +399,7 @@ function Sources({ sources }) {
 
 function SourceCard({ s }) {
   const [show, setShow] = useState(false);
-  const graph = s.origin === "graph";
+  const graph = s.origin === "graph" || s.origin === "lightrag";
   return (
     <div className="rounded-lg px-3 py-2" style={{ background: "var(--user-bubble)", border: "1px solid var(--border-soft)" }}>
       <button onClick={() => setShow((v) => !v)} className="flex w-full items-center gap-2 text-left">
@@ -417,7 +417,7 @@ function SourceCard({ s }) {
             letterSpacing: ".04em",
           }}
         >
-          {graph ? "graph" : "vector"}
+          {s.origin || "vector"}
         </span>
       </button>
       {show && (

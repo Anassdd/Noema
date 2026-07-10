@@ -14,15 +14,23 @@ export function SavesPanel({
   onSave,
   onRestore,
   onDelete,
+  engineTag,
 }) {
   return (
     <div style={{ position: "relative" }}>
-      <button onClick={onToggle} disabled={busy} style={ghostBtn}>
+      <button
+        onClick={onToggle}
+        disabled={busy}
+        title={`Named checkpoints of the ${engineTag} memory — saves are per engine`}
+        style={ghostBtn}
+      >
         ⧉ Saves{saves.length ? ` (${saves.length})` : ""}
       </button>
       {open && (
         <div style={savesPanel}>
-          <div style={{ fontSize: 11, color: "#7a87a6", marginBottom: 6 }}>Save current graph</div>
+          <div style={{ fontSize: 11, color: "#7a87a6", marginBottom: 6 }}>
+            Save the current {engineTag} memory
+          </div>
           <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
             <input
               value={name}
@@ -51,7 +59,7 @@ export function SavesPanel({
             </button>
           </div>
           <div style={{ fontSize: 11, color: "#7a87a6", marginBottom: 4, borderTop: "1px solid rgba(120,135,175,0.15)", paddingTop: 8 }}>
-            Saved checkpoints
+            {engineTag} checkpoints
           </div>
           {saves.length === 0 ? (
             <div style={{ fontSize: 11.5, color: "#6b7693", padding: "4px 0" }}>None yet.</div>

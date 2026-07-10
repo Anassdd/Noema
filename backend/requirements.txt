@@ -36,3 +36,9 @@ chromadb==1.5.9
 # tree isn't ready for 3.14. One venv now holds the contextual base AND the graph.
 graphiti-core[falkordblite]==0.29.2
 networkx==3.6.1
+
+# LightRAG — the second memory strategy (dual-level keyword graph+vector RAG), kept
+# fully behind backend/app/lightrag. File-based default storages (networkx graphml +
+# nano-vectordb + JSON KV), no server/GPU. LLM + embeddings are bridged to our
+# provider abstraction (app/lightrag/providers.py) — its own OpenAI bindings are unused.
+lightrag-hku==1.5.4

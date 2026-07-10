@@ -232,7 +232,7 @@ async def run_bench(dataset: str, configs: list[str], *,
            "fingerprint": fp, "save_name": save_name, "questions": len(gold), "scope": scope}
 
     build = store.find_build(manifest, fp)
-    existing = await asyncio.to_thread(saves.list_saves, "default")
+    existing = await asyncio.to_thread(saves.list_saves, "default", "graphiti")
     need_build = not (build and save_name in existing)
     skip_episodes: set[str] = set()
     skip_docs: set[str] = set()

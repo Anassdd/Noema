@@ -77,3 +77,11 @@ tests/results/graph_schemas/
 # they are the frozen test set and the results.
 backend/data/bench/
 tests/results/bench/*/corpus.json
+
+# ---- LightRAG ----------------------------------------------------------------
+# The LightRAG memory's file stores (graphml + vectors + KV, one dir per domain)
+# — local user data, rebuilt by re-ingesting.
+backend/data/lightrag/
+
+# Claude Code local state — never in git (CLAUDE.md stays: it's the project spec).
+.claude/

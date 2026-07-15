@@ -5,7 +5,7 @@
 // the ReadableStream by hand — frames are separated by a blank line ("\n\n"),
 // each carries one `data: <json>` line.
 
-import { API_BASE } from "./client.js";
+import { API_BASE, authFetch } from "./client.js";
 
 /**
  * Stream a chat completion.
@@ -27,7 +27,7 @@ export async function streamChat(
   messages,
   { onDelta, onUsage, onStatus, onSources, signal, model, useMemory = false, domain = "default", memory = null, retrieval = null },
 ) {
-  const res = await fetch(`${API_BASE}/chat`, {
+  const res = await authFetch(`${API_BASE}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messages, model, use_memory: useMemory, domain, memory, retrieval }),

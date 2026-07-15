@@ -17,9 +17,22 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
-# ---- Uploads (disposable) ----------------------------------------------------
-# Locally uploaded test PDFs. The Chroma vector base (backend/.chroma) IS tracked —
-# it pairs with the committed graph stores so a clone answers without re-ingesting.
+# ============================================================================
+# Data policy — what syncs across machines (Mac ↔ Windows) via GitHub.
+#
+# TRACKED (the shared knowledge — so a clone answers without re-ingesting; these
+# paths are deliberately NOT ignored, listed here as documentation only):
+#   backend/.chroma/            RAG vector base
+#   tests/results/graph_store/  Graphiti/FalkorDB graph + its saves
+#   backend/data/lightrag/      LightRAG stores + saves
+#   backend/data/bench/         bench datasets + prepared corpora
+#   tests/results/bench/        bench runs/results
+#
+# PRIVATE — never committed (per-account data + secrets). Auth is the hard line;
+# conversations, personal memory and beliefs are per-user and stay on each box.
+# ============================================================================
+
+# Uploaded test PDFs (disposable — parsed to text, never stored server-side).
 backend/chroma/
 chroma_db/
 backend/uploads/
@@ -30,18 +43,23 @@ backend/uploads/
 #   git rm -r --cached tests/results/rag_store/
 tests/results/rag_store/
 
-# Persisted user memory (saved via /remember) — local, can hold personal facts.
+# Accounts + sessions (salted password hashes and tokens).
+backend/data/auth/
+
+# Per-account personal memory (saved via /remember). backend/data/memory/ holds
+# one file per user; the app/memory.* pair is the dormant pre-account global memory.
+backend/data/memory/
 backend/memory.json
 backend/app/memory.json
 backend/app/memory.md
 
-# User beliefs (per-memory-context notes, injected into answers) — local user data.
+# Per-account beliefs (per-memory-context notes injected into answers).
 backend/.beliefs/
 
-# Persisted co-occurrence graph memory (the InfraNodus-style graph) — local user data.
+# Persisted co-occurrence graph memory (the InfraNodus-style graph) — local.
 backend/app/textgraph_store/
 
-# Durable conversation store (SQLite) — local, can hold personal chats.
+# Per-account conversations (SQLite) — can hold personal chats.
 backend/app/conversations.db
 
 # ---- Node / frontend --------------------------------------------------------

@@ -5,11 +5,12 @@ from __future__ import annotations
 import json
 from typing import AsyncIterator, Iterator
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
 from app import llm_client, pipeline
 from app.config import settings
+from app.routers.auth import require_user
 from app.schemas import ChatRequest
 
 router = APIRouter()
@@ -38,7 +39,7 @@ def _trim_history(messages: list[dict]) -> list[dict]:
 
 
 @router.post("/chat")
-async def chat(req: ChatRequest) -> StreamingResponse:
+async def chat(req: ChatRequest, user: dict = Depends(require_user)) -> StreamingResponse:
     """Stream the answer as Server-Sent Events.
 
     With `use_memory` off it's plain chat: `delta` token events then a `usage`
@@ -69,6 +70,7 @@ async def chat(req: ChatRequest) -> StreamingResponse:
             async for ev in pipeline.answer_stream(
                 messages, model=req.model, domain_id=req.domain or "default",
                 memory=req.memory, retrieval=req.retrieval or "hybrid",
+                user=user["username"],
             ):
                 yield _sse(ev.pop("type"), ev)
         except Exception as exc:  # surface any pipeline/provider error to the UI

@@ -1,13 +1,13 @@
 // The real graph memory (Graphiti). Extraction is slow, so PDF upload streams
 // NDJSON — one event per page — and the page draws the graph as it grows.
-import { API_BASE, asJson, readNdjsonStream } from "./client.js";
+import { API_BASE, asJson, authFetch, readNdjsonStream } from "./client.js";
 
 export function getGraph(domain = "default") {
-  return fetch(`${API_BASE}/graphmem?domain=${domain}`).then(asJson);
+  return authFetch(`${API_BASE}/graphmem?domain=${domain}`).then(asJson);
 }
 
 export function ingestText(text, model, source, domain = "default") {
-  return fetch(`${API_BASE}/graphmem/ingest`, {
+  return authFetch(`${API_BASE}/graphmem/ingest`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text, model, source, domain }),
@@ -15,17 +15,17 @@ export function ingestText(text, model, source, domain = "default") {
 }
 
 export function resetGraph(domain = "default") {
-  return fetch(`${API_BASE}/graphmem/reset?domain=${domain}`, { method: "POST" }).then(asJson);
+  return authFetch(`${API_BASE}/graphmem/reset?domain=${domain}`, { method: "POST" }).then(asJson);
 }
 
 // Save / restore checkpoints, scoped per memory engine ("graphiti" | "lightrag");
 // an empty engine lists the union of both (the chat selector's view).
 export function listSaves(domain = "default", engine = "") {
-  return fetch(`${API_BASE}/graphmem/saves?domain=${domain}&engine=${engine}`).then(asJson);
+  return authFetch(`${API_BASE}/graphmem/saves?domain=${domain}&engine=${engine}`).then(asJson);
 }
 
 function savePost(path, name, domain, engine) {
-  return fetch(`${API_BASE}/graphmem/${path}`, {
+  return authFetch(`${API_BASE}/graphmem/${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, domain, engine }),
@@ -44,7 +44,7 @@ export async function uploadPdfStream(file, model, onEvent, domain = "default") 
   form.append("file", file);
   if (model) form.append("model", model);
   form.append("domain", domain);
-  const res = await fetch(`${API_BASE}/graphmem/upload`, { method: "POST", body: form });
+  const res = await authFetch(`${API_BASE}/graphmem/upload`, { method: "POST", body: form });
   await readNdjsonStream(res, onEvent);
 }
 
@@ -52,7 +52,7 @@ export async function uploadPdfStream(file, model, onEvent, domain = "default") 
 // "pass_done"|"pass_rolled_back"|"done"|"error", ...}. pass_done / pass_rolled_back
 // carry a fresh {nodes, links, stats} snapshot.
 export async function dreamStream(onEvent, model, domain = "default") {
-  const res = await fetch(`${API_BASE}/graphmem/dream`, {
+  const res = await authFetch(`${API_BASE}/graphmem/dream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ domain, model }),

@@ -53,6 +53,13 @@ def write_beliefs(text: str, domain: str | None = None, memory: str | None = Non
     return len(text)
 
 
+def delete_user_files(user: str) -> None:
+    """Remove every context's beliefs for a user (guest cleanup)."""
+    if _DIR.exists():
+        for path in _DIR.glob(f"{_safe(user)}__*.md"):
+            path.unlink(missing_ok=True)
+
+
 def append_belief(note: str, domain: str | None = None, memory: str | None = None,
                   user: str = "default") -> int:
     """Add one note as a bullet to a context's beliefs (used by the chat's /note command).

@@ -1,8 +1,8 @@
 // Asks the backend to name a conversation from its first exchange.
-import { API_BASE } from "./client.js";
+import { API_BASE, authFetch } from "./client.js";
 
 export async function fetchTitle(messages) {
-  const res = await fetch(`${API_BASE}/title`, {
+  const res = await authFetch(`${API_BASE}/title`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messages }),

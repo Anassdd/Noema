@@ -364,6 +364,7 @@ def _sources_payload(chunks: list[ScoredChunk]) -> list[dict]:
 async def answer_stream(
     messages: list[dict], *, model: str | None = None, domain_id: str = "default",
     memory: str | None = None, retrieval: str = "hybrid", max_tries: int = 2,
+    user: str = "default",
 ) -> AsyncIterator[dict]:
     """Drive the whole expert loop, yielding event dicts:
       {"type":"status", stage, detail}  — the live runtime trace
@@ -382,7 +383,7 @@ async def answer_stream(
     # The user's own notes for THIS memory context (the selected save, else the live domain).
     # Read before domain_id is swapped for the save key — beliefs are keyed by the context the
     # user picks, not by the snapshot's internal store name.
-    belief_text = await asyncio.to_thread(beliefs.read_beliefs, domain_id, memory)
+    belief_text = await asyncio.to_thread(beliefs.read_beliefs, domain_id, memory, user)
     if memory:
         from app.saves import save_key
         domain_id = save_key(domain_id, memory)  # retrieve from the saved snapshot's stores

@@ -1,12 +1,6 @@
 import { useEffect, useState } from "react";
 
-const THEME_KEY = "noema-theme-family";
-const THEME_FAMILIES = ["aurora", "codex"];
-
-function readThemeFamily() {
-  const saved = window.localStorage.getItem(THEME_KEY);
-  return THEME_FAMILIES.includes(saved) ? saved : "aurora";
-}
+import { applyTheme, savedDarkMode, savedThemeFamily } from "../lib/theme.js";
 
 // Session-level feature switches (default on) plus appearance (dark mode +
 // theme family). memoryEnabled is the master switch (off = no capture, no
@@ -20,20 +14,16 @@ export function useSettings() {
   // Expert mode: ground answers in the RAG/graph knowledge base (retrieve → verify →
   // cite). Off = plain chat. Distinct from memoryEnabled (durable facts about the user).
   const [expertEnabled, setExpertEnabled] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
-  const [themeFamily, setThemeFamily] = useState(readThemeFamily);
+  const [darkMode, setDarkMode] = useState(savedDarkMode);
+  const [themeFamily, setThemeFamily] = useState(savedThemeFamily);
 
-  // Dark mode = a `dark` class on <html>; the theme family = a `data-theme`
-  // attribute (absent for the default "aurora"). Both read the same token vars,
-  // so the CSS handles the rest. The temporary theme-transition class cross-
-  // fades every color for the switch instead of snapping.
+  // Appearance lives in lib/theme.js (shared with the login gate) and persists
+  // across reloads. The temporary theme-transition class cross-fades every
+  // color for the switch instead of snapping.
   useEffect(() => {
     const root = document.documentElement;
     root.classList.add("theme-transition");
-    root.classList.toggle("dark", darkMode);
-    if (themeFamily === "aurora") root.removeAttribute("data-theme");
-    else root.setAttribute("data-theme", themeFamily);
-    window.localStorage.setItem(THEME_KEY, themeFamily);
+    applyTheme(darkMode, themeFamily);
     const timer = window.setTimeout(
       () => root.classList.remove("theme-transition"),
       350,

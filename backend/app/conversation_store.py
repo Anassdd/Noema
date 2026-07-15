@@ -5,6 +5,10 @@ in a single JSON `data` column, so there's no practical size limit and the whole
 thread loads in one read. The DB file sits next to this module and is
 gitignored/disposable — delete it to reset all conversations.
 
+Every row has an `owner` (a username from auth_store). Visibility rule: you see
+your own conversations, and registered accounts also see legacy rows saved
+before accounts existed (owner = ''). Guests only ever see their own.
+
 This is separate from memory_store (user facts): this holds the conversations
 themselves.
 """
@@ -35,10 +39,16 @@ def _init() -> None:
                 title       TEXT NOT NULL DEFAULT '',
                 created_at  TEXT NOT NULL,
                 updated_at  TEXT NOT NULL,
-                data        TEXT NOT NULL
+                data        TEXT NOT NULL,
+                owner       TEXT NOT NULL DEFAULT ''
             )
             """
         )
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(conversations)")}
+        if "owner" not in columns:
+            conn.execute(
+                "ALTER TABLE conversations ADD COLUMN owner TEXT NOT NULL DEFAULT ''"
+            )
         conn.commit()
 
 
@@ -49,23 +59,28 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def list_summaries() -> list[dict]:
+def _visibility_clause(is_guest: bool) -> str:
+    return "owner = ?" if is_guest else "(owner = ? OR owner = '')"
+
+
+def list_summaries(username: str, is_guest: bool) -> list[dict]:
     """Lightweight rows for the sidebar (no message bodies), recent first."""
     with closing(_connect()) as conn:
         rows = conn.execute(
             "SELECT id, title, created_at, updated_at FROM conversations "
-            "ORDER BY updated_at DESC"
+            f"WHERE {_visibility_clause(is_guest)} ORDER BY updated_at DESC",
+            (username,),
         ).fetchall()
     return [dict(row) for row in rows]
 
 
-def get(conversation_id: str) -> dict | None:
+def get(conversation_id: str, username: str, is_guest: bool) -> dict | None:
     """The full conversation (messages + persona + documents), or None."""
     with closing(_connect()) as conn:
         row = conn.execute(
             "SELECT id, title, created_at, updated_at, data FROM conversations "
-            "WHERE id = ?",
-            (conversation_id,),
+            f"WHERE id = ? AND {_visibility_clause(is_guest)}",
+            (conversation_id, username),
         ).fetchone()
     if row is None:
         return None
@@ -87,8 +102,11 @@ def upsert(
     character: str,
     messages: list,
     documents: list,
-) -> dict:
-    """Create or replace a conversation. Returns its (new) summary."""
+    username: str,
+    is_guest: bool,
+) -> dict | None:
+    """Create or update a conversation. Returns its (new) summary, or None if
+    the id belongs to someone else. Legacy rows keep owner = '' (still shared)."""
     now = _now()
     data = json.dumps(
         {"messages": messages, "character": character, "documents": documents},
@@ -96,16 +114,23 @@ def upsert(
     )
     with closing(_connect()) as conn:
         existing = conn.execute(
-            "SELECT created_at FROM conversations WHERE id = ?", (conversation_id,)
+            "SELECT created_at, owner FROM conversations WHERE id = ?",
+            (conversation_id,),
         ).fetchone()
+        if existing is not None:
+            visible = existing["owner"] == username or (
+                existing["owner"] == "" and not is_guest
+            )
+            if not visible:
+                return None
         created_at = existing["created_at"] if existing else now
         conn.execute(
-            "INSERT INTO conversations (id, title, created_at, updated_at, data) "
-            "VALUES (?, ?, ?, ?, ?) "
+            "INSERT INTO conversations (id, title, created_at, updated_at, data, owner) "
+            "VALUES (?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(id) DO UPDATE SET "
             "title = excluded.title, updated_at = excluded.updated_at, "
             "data = excluded.data",
-            (conversation_id, title, created_at, now, data),
+            (conversation_id, title, created_at, now, data, username),
         )
         conn.commit()
     return {
@@ -116,28 +141,40 @@ def upsert(
     }
 
 
-def rename(conversation_id: str, title: str) -> bool:
+def rename(conversation_id: str, title: str, username: str, is_guest: bool) -> bool:
     """Update only the title (used by auto-titling). Returns False if missing."""
     with closing(_connect()) as conn:
         cur = conn.execute(
-            "UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?",
-            (title, _now(), conversation_id),
+            "UPDATE conversations SET title = ?, updated_at = ? "
+            f"WHERE id = ? AND {_visibility_clause(is_guest)}",
+            (title, _now(), conversation_id, username),
         )
         conn.commit()
         return cur.rowcount > 0
 
 
-def delete(conversation_id: str) -> bool:
+def delete(conversation_id: str, username: str, is_guest: bool) -> bool:
     with closing(_connect()) as conn:
         cur = conn.execute(
-            "DELETE FROM conversations WHERE id = ?", (conversation_id,)
+            f"DELETE FROM conversations WHERE id = ? AND {_visibility_clause(is_guest)}",
+            (conversation_id, username),
         )
         conn.commit()
         return cur.rowcount > 0
 
 
-def clear() -> None:
-    """Delete every conversation (the "clear history" action)."""
+def clear(username: str, is_guest: bool) -> None:
+    """Delete every conversation this user can see (the "clear history" action)."""
     with closing(_connect()) as conn:
-        conn.execute("DELETE FROM conversations")
+        conn.execute(
+            f"DELETE FROM conversations WHERE {_visibility_clause(is_guest)}",
+            (username,),
+        )
+        conn.commit()
+
+
+def delete_all_owned_by(username: str) -> None:
+    """Guest cleanup: drop a departed guest's conversations."""
+    with closing(_connect()) as conn:
+        conn.execute("DELETE FROM conversations WHERE owner = ?", (username,))
         conn.commit()

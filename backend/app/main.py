@@ -7,11 +7,12 @@ this file beyond one include.
 
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import (bench, beliefs, chat, conversations, documents, graphmem,
-                         lightragmem, memory, system, textgraph)
+from app.routers import (auth, bench, beliefs, chat, conversations, documents,
+                         graphmem, lightragmem, memory, system, textgraph)
+from app.routers.auth import require_user
 
 
 def create_app() -> FastAPI:
@@ -26,8 +27,10 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # auth + system (health/models) stay open; every other surface needs a session.
+    app.include_router(auth.router)
+    app.include_router(system.router)
     for router in (
-        system.router,
         chat.router,
         memory.router,
         documents.router,
@@ -38,7 +41,7 @@ def create_app() -> FastAPI:
         beliefs.router,
         bench.router,
     ):
-        app.include_router(router)
+        app.include_router(router, dependencies=[Depends(require_user)])
 
     return app
 

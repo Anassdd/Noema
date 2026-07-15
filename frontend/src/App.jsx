@@ -15,6 +15,8 @@ import {
   GraphIcon,
   BenchIcon,
 } from "./components/icons.jsx";
+import { logout } from "./api/auth.js";
+import { getSession } from "./api/client.js";
 import { useConversations } from "./hooks/useConversations.js";
 import { useMemory } from "./hooks/useMemory.js";
 import { useModels } from "./hooks/useModels.js";
@@ -45,6 +47,37 @@ function HeaderButton({ icon, label, active, count, onClick }) {
         </span>
       )}
     </button>
+  );
+}
+
+// Who is signed in + the way out. Signing out reloads onto the login gate.
+function UserChip() {
+  const session = getSession();
+  if (!session) return null;
+  const signOut = async () => {
+    await logout();
+    window.location.reload();
+  };
+  return (
+    <div
+      className="flex h-8 items-center gap-2 rounded-[9px] border px-2.5 text-[12px]"
+      style={{ borderColor: "var(--border)", color: "var(--text-soft)" }}
+    >
+      <span className="max-w-[120px] truncate" title={session.username}>
+        {session.username}
+        {session.isGuest && (
+          <span style={{ color: "var(--text-faint)" }}> · guest</span>
+        )}
+      </span>
+      <button
+        onClick={signOut}
+        title="Sign out"
+        className="text-[11.5px]"
+        style={{ color: "var(--accent)" }}
+      >
+        Sign out
+      </button>
+    </div>
   );
 }
 
@@ -127,6 +160,7 @@ export default function App() {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
+            <UserChip />
             <ModelSelector
               models={models}
               value={selectedModel}

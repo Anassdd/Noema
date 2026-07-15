@@ -1,23 +1,24 @@
 """Persistent user memory — the facts saved via /remember and the memory judge.
 
-Stored as an editable Markdown file (one fact per `- ` line) so it's a human-readable,
-hand-editable source-of-record — the SOTA-aligned format for personal memory (matching the
-beliefs files and Anthropic's /memories / Claude's own Markdown memory) rather than opaque JSON.
-The character/persona is deliberately NOT here: it's per-session and lives only in the frontend.
+Per-account: each user gets one editable Markdown file (one fact per `- ` line) under
+backend/data/memory/, so it's a human-readable, hand-editable source-of-record — the
+SOTA-aligned format for personal memory (matching the beliefs files and Anthropic's
+/memories / Claude's own Markdown memory) rather than opaque JSON. The character/persona
+is deliberately NOT here: it's per-session and lives only in the frontend.
 
-The file is disposable/regenerable — delete it to reset memory. A pre-existing legacy
-`memory.json` is migrated to Markdown on first load. Paths use pathlib + UTF-8 so the same code
-runs on Mac and the enterprise Windows box.
+Files are disposable/regenerable — delete one to reset that user's memory. The pre-account
+global files (app/memory.md, app/memory.json) are left untouched; copy one to
+data/memory/<username>.md to hand its facts to an account. Paths use pathlib + UTF-8 so
+the same code runs on Mac and the enterprise Windows box.
 """
 
 from __future__ import annotations
 
-import json
+import re
 from pathlib import Path
 
-# Both sit next to this module. Gitignored — they can hold personal facts.
-_MD_PATH = Path(__file__).resolve().parent / "memory.md"
-_JSON_PATH = Path(__file__).resolve().parent / "memory.json"  # legacy, migrated once on load
+# Gitignored — these hold personal facts.
+_DIR = Path(__file__).resolve().parents[1] / "data" / "memory"
 
 _HEADER = (
     "# User memory\n\n"
@@ -26,37 +27,45 @@ _HEADER = (
 )
 
 
-def load_memories() -> list[str]:
-    """Return the saved facts. Reads Markdown; if only the legacy JSON exists, migrate it."""
-    if _MD_PATH.exists():
-        return _parse(_MD_PATH.read_text(encoding="utf-8"))
-    legacy = _load_legacy_json()
-    if legacy:
-        _save(legacy)  # migrate JSON → Markdown once; the JSON is left as a harmless backup
-    return legacy
+def _path(user: str) -> Path:
+    safe = re.sub(r"[^A-Za-z0-9._-]", "_", user)[:120] or "default"
+    return _DIR / f"{safe}.md"
 
 
-def add_memory(fact: str) -> list[str]:
+def load_memories(user: str) -> list[str]:
+    """Return this user's saved facts."""
+    try:
+        return _parse(_path(user).read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return []
+
+
+def add_memory(fact: str, user: str) -> list[str]:
     """Append a fact (trimmed, de-duplicated) and persist. Returns the new list."""
     fact = " ".join(fact.split())
-    memories = load_memories()
+    memories = load_memories(user)
     if fact and fact not in memories:
         memories.append(fact)
-        _save(memories)
+        _save(memories, user)
     return memories
 
 
-def remove_memory(fact: str) -> list[str]:
+def remove_memory(fact: str, user: str) -> list[str]:
     """Remove one fact (exact match) and persist. Returns the updated list."""
-    memories = [m for m in load_memories() if m != fact]
-    _save(memories)
+    memories = [m for m in load_memories(user) if m != fact]
+    _save(memories, user)
     return memories
 
 
-def clear_memories() -> list[str]:
-    """Wipe all saved facts. Returns the now-empty list."""
-    _save([])
+def clear_memories(user: str) -> list[str]:
+    """Wipe this user's saved facts. Returns the now-empty list."""
+    _save([], user)
     return []
+
+
+def delete_user(user: str) -> None:
+    """Remove the user's memory file entirely (guest cleanup)."""
+    _path(user).unlink(missing_ok=True)
 
 
 def _parse(text: str) -> list[str]:
@@ -70,17 +79,7 @@ def _parse(text: str) -> list[str]:
     return out
 
 
-def _load_legacy_json() -> list[str]:
-    if not _JSON_PATH.exists():
-        return []
-    try:
-        data = json.loads(_JSON_PATH.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return []
-    memories = data.get("memories", []) if isinstance(data, dict) else []
-    return [m for m in memories if isinstance(m, str)]
-
-
-def _save(memories: list[str]) -> None:
+def _save(memories: list[str], user: str) -> None:
+    _DIR.mkdir(parents=True, exist_ok=True)
     body = "\n".join(f"- {m}" for m in memories)
-    _MD_PATH.write_text(_HEADER + (body + "\n" if body else ""), encoding="utf-8")
+    _path(user).write_text(_HEADER + (body + "\n" if body else ""), encoding="utf-8")

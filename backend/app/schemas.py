@@ -23,6 +23,11 @@ class MemoryRequest(BaseModel):
     fact: str
 
 
+class Credentials(BaseModel):
+    username: str
+    password: str
+
+
 class ConversationSave(BaseModel):
     title: str = ""
     character: str = ""

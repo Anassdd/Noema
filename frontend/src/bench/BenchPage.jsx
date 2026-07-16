@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 
 import {
+  attachJobStream,
   deleteDataset,
   downloadStream,
   rejudgeStream,
+  getActiveJob,
   getEstimate,
   getGold,
   getReport,
@@ -15,6 +17,7 @@ import {
   putGold,
   reportMdUrl,
   runStream,
+  stopJob,
 } from "../api/bench.js";
 import { ghostBtn, primaryBtn, selectStyle, spinner } from "../graph/styles.js";
 
@@ -208,6 +211,7 @@ export default function BenchPage() {
   const [dlChoices, setDlChoices] = useState([]);
   const logRef = useRef(null);
   const abortRef = useRef(null);
+  const jobRef = useRef(null); // the detached server job we're tailing
 
   const ds = datasets?.find((d) => d.name === selected);
 
@@ -229,6 +233,24 @@ export default function BenchPage() {
     listRuns(selected).then((r) => setRuns(r.runs)).catch(() => setRuns([]));
     const prepared = datasets?.find((d) => d.name === selected)?.prepared;
     if (prepared?.cap_tokens) setCap(prepared.cap_tokens);
+    // A run outlives its tab (detached server job) — if one is still going for this
+    // dataset, reattach and replay its full log instead of leaving it invisible.
+    getActiveJob(selected).then(({ job }) => {
+      if (!job || job.done || abortRef.current) return;
+      setBusy("run");
+      pushLog(`↻ a ${job.kind} started at ${job.started_at} is still going on the server — reattaching…`);
+      const controller = new AbortController();
+      abortRef.current = controller;
+      jobRef.current = job.job_id;
+      attachJobStream(job.job_id, 0, handleRunEvent, controller.signal)
+        .then(async () => {
+          const r = await listRuns(selected);
+          setRuns(r.runs);
+          await refresh();
+        })
+        .catch(() => {})
+        .finally(() => { setBusy(""); abortRef.current = null; jobRef.current = null; });
+    }).catch(() => {});
   }, [selected]);
 
   useEffect(() => {
@@ -242,6 +264,27 @@ export default function BenchPage() {
   }, [selected, configs, gold, datasets]);
 
   const pushLog = (line) => setLog((l) => [...l.slice(-400), line]);
+
+  // One narrator for run events, shared by a fresh run and a reattached one.
+  const handleRunEvent = (ev) => {
+    if (ev.phase === "job") jobRef.current = ev.job_id;
+    if (ev.phase === "start") pushLog(`run ${ev.run_id} · ${ev.questions} questions · scope: ${ev.scope || "doc"} · build ${ev.fingerprint} → ${ev.save_name}`);
+    if (ev.phase === "build_skip") pushLog(`build already exists (${ev.save_name}) — skipping straight to queries ✓`);
+    if (ev.phase === "build_adopted") pushLog(`✓ ${ev.detail}`);
+    if (ev.phase === "build_resume") pushLog(`↻ ${ev.detail}`);
+    if (ev.phase === "build_start") pushLog(`building indexes once… extractor: ${ev.extract_model}`);
+    if (ev.phase === "rag_doc") pushLog(ev.skipped ? `vector base · doc ${ev.i}/${ev.total} — already done ✓` : `vector base · doc ${ev.i}/${ev.total} (${ev.chunks} chunks)`);
+    if (ev.phase === "graph_episode") pushLog(`graph · doc ${ev.doc_i}/${ev.docs} · episode ${ev.episode}/${ev.episodes}`);
+    if (ev.phase === "build_done") pushLog(`✓ built: ${ev.nodes} nodes · ${ev.edges} edges · ${ev.chunks} chunks · saved as a graph-page save (${ev.save_name}) · ${ev.build_seconds}s`);
+    if (ev.phase === "config_start") pushLog(`— ${CONFIG_LABELS[ev.config] || ev.config} —`);
+    if (ev.phase === "answered") pushLog(ev.resumed ? `${ev.config} · q${ev.i}/${ev.total} — already answered ✓` : ev.error ? `${ev.config} · q${ev.i}/${ev.total} ✗ infra error (excluded, will retry on resume)` : `${ev.config} · q${ev.i}/${ev.total} answered (F1 ${ev.f1})`);
+    if (ev.phase === "judge_start") pushLog(`— judging ${ev.verdicts} answers (${ev.concurrency} in parallel) —`);
+    if (ev.phase === "scored") pushLog(`judge · ${ev.i}/${ev.total} ${ev.config} ${ev.judge_correct === true ? "✓" : ev.judge_correct === false ? "✗" : "·"} (F1 ${ev.f1})`);
+    if (ev.phase === "report") setReport(ev.report);
+    if (ev.phase === "stopped") pushLog(`⏸ ${ev.detail}`);
+    if (ev.phase === "error") pushLog(`✗ ${ev.detail}`);
+    if (ev.phase === "done") pushLog("✓ done");
+  };
 
   const doPrepare = async () => {
     setBusy("prepare");
@@ -330,36 +373,22 @@ export default function BenchPage() {
     const controller = new AbortController();
     abortRef.current = controller;
     try {
-      await runStream({ dataset: selected, configs, scope, signal: controller.signal }, (ev) => {
-        if (ev.phase === "start") pushLog(`run ${ev.run_id} · ${ev.questions} questions · scope: ${ev.scope || "doc"} · build ${ev.fingerprint} → ${ev.save_name}`);
-        if (ev.phase === "build_skip") pushLog(`build already exists (${ev.save_name}) — skipping straight to queries ✓`);
-        if (ev.phase === "build_adopted") pushLog(`✓ ${ev.detail}`);
-        if (ev.phase === "build_resume") pushLog(`↻ ${ev.detail}`);
-        if (ev.phase === "build_start") pushLog(`building indexes once… extractor: ${ev.extract_model}`);
-        if (ev.phase === "rag_doc") pushLog(ev.skipped ? `vector base · doc ${ev.i}/${ev.total} — already done ✓` : `vector base · doc ${ev.i}/${ev.total} (${ev.chunks} chunks)`);
-        if (ev.phase === "graph_episode") pushLog(`graph · doc ${ev.doc_i}/${ev.docs} · episode ${ev.episode}/${ev.episodes}`);
-        if (ev.phase === "build_done") pushLog(`✓ built: ${ev.nodes} nodes · ${ev.edges} edges · ${ev.chunks} chunks · saved as a graph-page save (${ev.save_name}) · ${ev.build_seconds}s`);
-        if (ev.phase === "config_start") pushLog(`— ${CONFIG_LABELS[ev.config] || ev.config} —`);
-        if (ev.phase === "answered") pushLog(ev.resumed ? `${ev.config} · q${ev.i}/${ev.total} — already answered ✓` : ev.error ? `${ev.config} · q${ev.i}/${ev.total} ✗ infra error (excluded, will retry on resume)` : `${ev.config} · q${ev.i}/${ev.total} answered (F1 ${ev.f1})`);
-        if (ev.phase === "judge_start") pushLog(`— judging ${ev.verdicts} answers (${ev.concurrency} in parallel) —`);
-        if (ev.phase === "scored") pushLog(`judge · ${ev.i}/${ev.total} ${ev.config} ${ev.judge_correct === true ? "✓" : ev.judge_correct === false ? "✗" : "·"} (F1 ${ev.f1})`);
-        if (ev.phase === "report") setReport(ev.report);
-        if (ev.phase === "error") pushLog(`✗ ${ev.detail}`);
-        if (ev.phase === "done") pushLog("✓ done");
-      });
+      await runStream({ dataset: selected, configs, scope, signal: controller.signal }, handleRunEvent);
       const r = await listRuns(selected);
       setRuns(r.runs);
       await refresh();
     } catch (e) {
-      if (e.name === "AbortError") {
-        pushLog("⏸ paused — everything ingested so far is preserved. Press ▶ Continue to resume from here.");
-      } else {
-        pushLog(`✗ run failed: ${e.message}`);
-      }
-    } finally { setBusy(""); abortRef.current = null; }
+      if (e.name !== "AbortError") pushLog(`✗ run failed: ${e.message}`);
+    } finally { setBusy(""); abortRef.current = null; jobRef.current = null; }
   };
 
-  const doStop = () => abortRef.current?.abort();
+  // Pause = stop the SERVER job (aborting our tail alone would leave it running,
+  // which is exactly what we want on tab close — but Pause means pause).
+  const doStop = async () => {
+    if (jobRef.current) await stopJob(jobRef.current).catch(() => {});
+    abortRef.current?.abort();
+    pushLog("⏸ pause requested — everything built, answered and judged so far is saved. Press ▶ Continue to resume.");
+  };
 
   const doDownload = async (urlOverride) => {
     const url = (urlOverride || dlUrl).trim();
@@ -612,7 +641,7 @@ export default function BenchPage() {
                     <button
                       style={{ ...primaryBtn, width: 170, marginLeft: "auto", background: "rgba(232,201,138,0.92)" }}
                       onClick={doStop}
-                      title="Pause the run. Everything ingested so far stays; Continue resumes from where it left off.">
+                      title="Pause the server-side run (closing the tab does NOT stop it — it keeps going and the page reattaches on reload). Everything built, answered and judged so far stays; Continue resumes from exactly here.">
                       ⏸ Pause
                     </button>
                   ) : (

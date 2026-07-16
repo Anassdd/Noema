@@ -41,9 +41,9 @@ export async function goldverifyStream(dataset, onEvent) {
   await readNdjsonStream(res, onEvent);
 }
 
-// Streams the whole run: build (or build_skip) → per-question scoring → report.
-// `signal` aborts mid-run; everything ingested AND every answered question is persisted,
-// so re-running resumes from exactly where it stopped (nothing is re-paid).
+// Streams the whole run: build (or build_skip) → answers → judging → report.
+// The run is a DETACHED server job — `signal` only drops this tail (the run keeps
+// going; getActiveJob + attachJobStream reattach to it). Use stopJob to actually pause.
 export async function runStream({ dataset, configs, extractModel, answerModel, scope, signal }, onEvent) {
   const res = await authFetch(`${API_BASE}/bench/run`, {
     method: "POST",
@@ -80,6 +80,24 @@ export async function rejudgeStream(dataset, runId, onEvent) {
   });
   await readNdjsonStream(res, onEvent);
 }
+
+// The dataset's newest job (running or finished) — lets a reopened page reattach
+// to a run that survived the tab.
+export const getActiveJob = (dataset) =>
+  authFetch(`${API_BASE}/bench/job?dataset=${encodeURIComponent(dataset)}`).then(asJson);
+
+// Tail a job's event log from `since` (0 = full replay), following live until done.
+export async function attachJobStream(jobId, since, onEvent, signal) {
+  const res = await authFetch(
+    `${API_BASE}/bench/job/${encodeURIComponent(jobId)}/stream?since=${since || 0}`,
+    { signal },
+  );
+  await readNdjsonStream(res, onEvent);
+}
+
+// Actually pause the server-side job (aborting the tail alone never stops the work).
+export const stopJob = (jobId) =>
+  authFetch(`${API_BASE}/bench/job/${encodeURIComponent(jobId)}/stop`, { method: "POST" }).then(asJson);
 
 export const deleteDataset = (name) =>
   authFetch(`${API_BASE}/bench/delete-dataset`, {

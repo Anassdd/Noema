@@ -17,14 +17,9 @@ import shutil
 
 from app import bench
 from app.bench import estimate as bench_estimate
-from app.bench import fetch, goldgen, runner, store
+from app.bench import fetch, goldgen, jobs, runner, store
 
 router = APIRouter(prefix="/bench")
-
-# Datasets with a run in flight (single-worker uvicorn). A second /run on the same dataset
-# would double-build the shared save and double-pay extraction, so it's refused rather than
-# queued — the build/query state is resumable, so the user simply retries when the first ends.
-_active_runs: set[str] = set()
 
 
 def _line(obj: dict) -> bytes:
@@ -151,30 +146,56 @@ class RunBody(BaseModel):
 
 
 @router.post("/run")
-def run(body: RunBody) -> StreamingResponse:
+async def run(body: RunBody) -> StreamingResponse:
+    """Start a run as a DETACHED job and tail it. Closing the tab only drops the
+    tail — the run keeps going server-side; GET /bench/job reattaches to it."""
+    job = jobs.start(body.dataset, "run", runner.run_bench(
+        body.dataset, body.configs,
+        extract_model=body.extract_model, answer_model=body.answer_model,
+        scope=body.scope,
+    ))
+
     async def stream():
-        if body.dataset in _active_runs:
+        if job is None:
             yield _line({"phase": "error",
-                         "detail": "A run is already in progress for this dataset. Wait for it "
-                                   "to finish or pause it first — starting a second run would "
-                                   "rebuild the same memory and pay for it twice."})
+                         "detail": "A run is already in progress for this dataset — reattach "
+                                   "to it (reload the page) or pause it first. Starting a "
+                                   "second run would rebuild the same memory and pay twice."})
             return
-        _active_runs.add(body.dataset)
-        try:
-            async for ev in runner.run_bench(
-                body.dataset, body.configs,
-                extract_model=body.extract_model, answer_model=body.answer_model,
-                scope=body.scope,
-            ):
-                yield _line(ev)
-        except Exception as exc:  # noqa: BLE001 — surface it; the build is preserved
-            yield _line({"phase": "error",
-                         "detail": f"{exc} — everything built and answered so far is saved; "
-                                   "press Continue to resume from here."})
-        finally:
-            _active_runs.discard(body.dataset)
+        async for ev in job.tail():
+            yield _line(ev)
 
     return StreamingResponse(stream(), media_type="application/x-ndjson")
+
+
+@router.get("/job")
+async def job_for_dataset(dataset: str) -> dict:
+    """The dataset's newest job (running or finished) so a reopened page can reattach."""
+    job = jobs.active_for(dataset) or jobs.latest_for(dataset)
+    return {"job": job.info() if job else None}
+
+
+@router.get("/job/{job_id}/stream")
+async def job_stream(job_id: str, since: int = 0) -> StreamingResponse:
+    job = jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="No such job (server restarted?) — "
+                                                    "press Run to resume; nothing is re-paid.")
+
+    async def stream():
+        async for ev in job.tail(since):
+            yield _line(ev)
+
+    return StreamingResponse(stream(), media_type="application/x-ndjson")
+
+
+@router.post("/job/{job_id}/stop")
+async def job_stop(job_id: str) -> dict:
+    job = jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="No such job.")
+    job.stop()
+    return {"stopped": True}
 
 
 @router.get("/estimate")
@@ -191,14 +212,19 @@ class RejudgeBody(BaseModel):
 
 
 @router.post("/rejudge")
-def rejudge(body: RejudgeBody) -> StreamingResponse:
-    """Re-score a stored run with the current judge/gold — no generation re-paid."""
+async def rejudge(body: RejudgeBody) -> StreamingResponse:
+    """Re-score a stored run with the current judge/gold — no generation re-paid.
+    Also a detached job, so a closed tab doesn't abandon paid verdicts mid-pass."""
+    job = jobs.start(body.dataset, "rejudge", runner.rejudge_run(body.dataset, body.run_id))
+
     async def stream():
-        try:
-            async for ev in runner.rejudge_run(body.dataset, body.run_id):
-                yield _line(ev)
-        except Exception as exc:  # noqa: BLE001
-            yield _line({"phase": "error", "detail": str(exc)})
+        if job is None:
+            yield _line({"phase": "error",
+                         "detail": "A job is already running for this dataset — wait for it "
+                                   "or pause it first."})
+            return
+        async for ev in job.tail():
+            yield _line(ev)
 
     return StreamingResponse(stream(), media_type="application/x-ndjson")
 

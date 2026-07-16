@@ -21,6 +21,11 @@ from app.bench import fetch, goldgen, runner, store
 
 router = APIRouter(prefix="/bench")
 
+# Datasets with a run in flight (single-worker uvicorn). A second /run on the same dataset
+# would double-build the shared save and double-pay extraction, so it's refused rather than
+# queued — the build/query state is resumable, so the user simply retries when the first ends.
+_active_runs: set[str] = set()
+
 
 def _line(obj: dict) -> bytes:
     return (json.dumps(obj) + "\n").encode("utf-8")
@@ -148,6 +153,13 @@ class RunBody(BaseModel):
 @router.post("/run")
 def run(body: RunBody) -> StreamingResponse:
     async def stream():
+        if body.dataset in _active_runs:
+            yield _line({"phase": "error",
+                         "detail": "A run is already in progress for this dataset. Wait for it "
+                                   "to finish or pause it first — starting a second run would "
+                                   "rebuild the same memory and pay for it twice."})
+            return
+        _active_runs.add(body.dataset)
         try:
             async for ev in runner.run_bench(
                 body.dataset, body.configs,
@@ -157,8 +169,10 @@ def run(body: RunBody) -> StreamingResponse:
                 yield _line(ev)
         except Exception as exc:  # noqa: BLE001 — surface it; the build is preserved
             yield _line({"phase": "error",
-                         "detail": f"{exc} — everything built so far is preserved; "
-                                   "press Continue to resume."})
+                         "detail": f"{exc} — everything built and answered so far is saved; "
+                                   "press Continue to resume from here."})
+        finally:
+            _active_runs.discard(body.dataset)
 
     return StreamingResponse(stream(), media_type="application/x-ndjson")
 

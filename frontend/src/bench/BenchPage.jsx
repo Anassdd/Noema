@@ -299,13 +299,24 @@ export default function BenchPage() {
   };
 
   const doRun = async () => {
-    if (est?.ready && !est.build_exists) {
+    if (!est?.ready) {
+      // The cost gate must never silently vanish just because the estimate failed to load.
       const ok = window.confirm(
-        est.build_partial
+        "Cost estimate is unavailable right now, so this run could build indexes and spend " +
+        "money without a number shown first.\n\nStart the run anyway?",
+      );
+      if (!ok) return;
+    } else if (!est.build_exists) {
+      const unpriced = est.unpriced_models?.length
+        ? `\n⚠ ${est.unpriced_models.join(", ")} not in the price table — priced at mini-tier, treat the build figure as a floor.`
+        : "";
+      const ok = window.confirm(
+        (est.build_partial
           ? `Resume the paused build: RAG ${est.rag_done}/${est.rag_total} docs, graph ${est.resumable_episodes}/${est.expected_episodes} episodes already done.\n` +
-            `Remaining: ~$${est.build_usd}, ~${est.build_minutes} min, then queries ~$${est.queries_usd}.\n\nContinue?`
+            `Remaining: ~$${est.build_usd}, ~${est.build_minutes} min, then queries ~$${est.queries_usd}.`
           : `This run will BUILD the indexes once (~$${est.build_usd}, ~${est.build_minutes} min, extractor ${est.extract_model}).\n` +
-            `Queries on top: ~$${est.queries_usd}.\n\nContinue?`,
+            `Queries on top: ~$${est.queries_usd}${est.judge_minutes ? `, ~${est.judge_minutes} min of judging` : ""}.`) +
+        unpriced + `\n\nContinue?`,
       );
       if (!ok) return;
     }
@@ -618,10 +629,16 @@ export default function BenchPage() {
                     ) : est.build_partial ? (
                       <>paused build: <b>RAG {est.rag_done}/{est.rag_total} docs{est.rag_done === est.rag_total ? " ✓ (done)" : ""}</b> · <b>graph {est.resumable_episodes}/{est.expected_episodes} episodes</b> — Continue finishes the rest for <b>~${est.build_usd}</b> (~{est.build_minutes} min) + queries <b>~${est.queries_usd}</b></>
                     ) : (
-                      <>estimated cost: build <b>~${est.build_usd}</b> (one-time, ~{est.build_minutes} min, extractor <code>{est.extract_model}</code>) + queries <b>~${est.queries_usd}</b> = <b>~${est.total_usd}</b></>
+                      <>estimated cost: build <b>~${est.build_usd}</b> (one-time, ~{est.build_minutes} min, extractor <code>{est.extract_model}</code>) + queries <b>~${est.queries_usd}</b> = <b>~${est.total_usd}</b>
+                        {est.build_breakdown?.contextualization_usd != null && (
+                          <span style={{ color: "#7a87a6" }}> · build = ${est.build_breakdown.contextualization_usd} contextualize + ${est.build_breakdown.graph_extraction_usd} extract</span>
+                        )}</>
                     )}
-                    {est.judge_free ? " · judging free (Gemini tier)" : " · judging included at chat-model rates"}
-                    <span style={{ color: "#7a87a6" }}> · ±2× until the first real build calibrates it</span>
+                    {est.judge_free ? ` · judging free (Gemini tier)${est.judge_minutes ? `, ~${est.judge_minutes} min throttled` : ""}` : " · judging included at chat-model rates"}
+                    {est.unpriced_models?.length > 0 && (
+                      <span style={{ color: "#e8a3b8" }}> · ⚠ {est.unpriced_models.join(", ")} priced at mini-tier (unknown) — build figure is a floor</span>
+                    )}
+                    <span style={{ color: "#7a87a6" }}> · graph-extraction term still ±2× until a real build calibrates it</span>
                   </div>
                 )}
                 {log.length > 0 && (

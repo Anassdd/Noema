@@ -42,7 +42,8 @@ export async function goldverifyStream(dataset, onEvent) {
 }
 
 // Streams the whole run: build (or build_skip) → per-question scoring → report.
-// `signal` aborts mid-run (a partial build gets wiped and redone next time).
+// `signal` aborts mid-run; everything ingested AND every answered question is persisted,
+// so re-running resumes from exactly where it stopped (nothing is re-paid).
 export async function runStream({ dataset, configs, extractModel, answerModel, scope, signal }, onEvent) {
   const res = await authFetch(`${API_BASE}/bench/run`, {
     method: "POST",

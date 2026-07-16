@@ -131,13 +131,38 @@ def _throttle() -> None:
         _next_call_at = max(now, _next_call_at) + 60.0 / rpm
 
 
+def _coerce_bool(v) -> bool | None:
+    """A judge's `correct` field, read literally. A STRING "false" must not become
+    truthy (the old `bool(j.get("correct"))` scored every string as correct), and a
+    missing/garbled value must be UNSCORED (None), never a confident wrong."""
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, (int, float)):
+        return bool(v)
+    if isinstance(v, str):
+        s = v.strip().lower()
+        if s in ("true", "yes", "1", "correct"):
+            return True
+        if s in ("false", "no", "0", "incorrect"):
+            return False
+    return None
+
+
 def _parse_verdict(text: str) -> dict | None:
     try:
         j = json.loads(text[text.index("{"): text.rindex("}") + 1])
-        return {"correct": bool(j.get("correct")), "score": float(j.get("score", 0.0)),
-                "note": str(j.get("note", ""))[:200]}
     except (ValueError, json.JSONDecodeError, TypeError):
         return None
+    if not isinstance(j, dict):
+        return None
+    correct = _coerce_bool(j.get("correct"))
+    if correct is None:
+        return None  # no usable verdict -> let the caller retry, then go unscored
+    try:
+        score = float(j.get("score"))
+    except (TypeError, ValueError):
+        score = 1.0 if correct else 0.0  # a null score must not discard a good verdict
+    return {"correct": correct, "score": score, "note": str(j.get("note", ""))[:200]}
 
 
 def _is_rate_error(exc: Exception) -> bool:
@@ -149,6 +174,11 @@ def judge(question: str, gold_answer: str, candidate: str,
           alternatives: tuple[str, ...] = ()) -> dict:
     """Gold-anchored judgement, tolerant of annotator variants. Paced + retried on
     rate limits, falls back to the main provider, and only then goes unscored."""
+    if not (candidate or "").strip():
+        # An empty candidate is an infrastructure failure (a burned generation), not a
+        # wrong answer — never spend a judge call turning it into a scored 'incorrect'.
+        return {"correct": None, "score": None, "note": "no answer produced (not judged)",
+                "judge_model": None, "usage": None}
     golds = f"Gold answer: {gold_answer}"
     if alternatives:
         golds += "\nAlternative gold answers (any counts as correct): " + " | ".join(alternatives)

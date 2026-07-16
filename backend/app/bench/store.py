@@ -93,6 +93,45 @@ def load_run(dataset: str, run_id: str) -> dict | None:
     return _read_json(work_dir(dataset) / "runs" / f"{run_id}.json", None)
 
 
+# ---- in-flight query records (crash-safe resume of the ANSWER phase) -----------
+# The query phase can run for hours; persisting records only at the end means a crash
+# or a disconnect at question 900/1000 re-pays everything. Each answered record is
+# appended here as one JSON line, keyed by a resume_key derived from the run's identity
+# (build fingerprint + configs + answer model + scope + gold content) so a re-launched
+# identical run finds its own partial and skips what it already answered. Deleted once
+# the final report is written.
+
+def _inflight_path(dataset: str, resume_key: str) -> Path:
+    d = work_dir(dataset) / "runs" / "inflight"
+    d.mkdir(parents=True, exist_ok=True)
+    return d / f"{resume_key}.jsonl"
+
+
+def append_record(dataset: str, resume_key: str, rec: dict) -> None:
+    with _inflight_path(dataset, resume_key).open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+
+def load_records(dataset: str, resume_key: str) -> list[dict]:
+    path = _inflight_path(dataset, resume_key)
+    if not path.exists():
+        return []
+    out = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            out.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue  # a torn final line from a hard crash — skip it, keep the rest
+    return out
+
+
+def clear_inflight(dataset: str, resume_key: str) -> None:
+    _inflight_path(dataset, resume_key).unlink(missing_ok=True)
+
+
 def load_run_markdown(dataset: str, run_id: str) -> str | None:
     path = work_dir(dataset) / "runs" / f"{run_id}.md"
     return path.read_text(encoding="utf-8") if path.exists() else None

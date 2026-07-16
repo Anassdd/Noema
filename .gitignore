@@ -43,6 +43,10 @@ backend/uploads/
 #   git rm -r --cached tests/results/rag_store/
 tests/results/rag_store/
 
+# Bench in-flight query records — crash-resume state for a run on THIS machine;
+# deleted when its run completes, meaningless on any other box.
+tests/results/bench/*/runs/inflight/
+
 # Accounts + sessions (salted password hashes and tokens).
 backend/data/auth/
 

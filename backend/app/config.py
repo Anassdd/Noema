@@ -82,6 +82,16 @@ class Settings:
     # dedicated reranker above), or "off". The single biggest published retrieval win.
     retrieval_rerank: str = "llm"
 
+    # Contextualizer guard (see retrieval/contextual.py). Documents at/under the cap are
+    # situated against the WHOLE document (Anthropic's recipe verbatim); larger ones
+    # against head+region excerpts of ~context_part_tokens. Default 250k = the GPT-5
+    # family's usable input (272k) minus headroom; drop to ~100k on a 128k-context model.
+    context_doc_cap: int = 250_000
+    context_part_tokens: int = 48_000
+    # Blurb calls per prompt-prefix group run 1 (cache-priming) + this many in parallel.
+    # 1 = fully sequential; raise only within the API key's rate-limit comfort.
+    context_concurrency: int = 4
+
     # Judge seam (optional) — a separate OpenAI-compatible endpoint used ONLY for
     # scoring bench answers, so the judge can be a different model family than the
     # generator (e.g. Gemini's OpenAI-compatible endpoint on dev). All three unset ->
@@ -117,6 +127,9 @@ def load_settings() -> Settings:
         rerank_base_url=os.getenv("RERANK_BASE_URL", ""),
         rerank_api_key=os.getenv("RERANK_API_KEY", ""),
         retrieval_rerank=(os.getenv("RETRIEVAL_RERANK", "llm").strip().lower() or "llm"),
+        context_doc_cap=int(os.getenv("CONTEXT_DOC_CAP", "250000")),
+        context_part_tokens=int(os.getenv("CONTEXT_PART_TOKENS", "48000")),
+        context_concurrency=int(os.getenv("CONTEXT_CONCURRENCY", "4")),
         judge_model=os.getenv("JUDGE_MODEL", ""),
         judge_base_url=os.getenv("JUDGE_BASE_URL", ""),
         judge_api_key=os.getenv("JUDGE_API_KEY", ""),

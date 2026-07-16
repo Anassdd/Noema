@@ -61,16 +61,39 @@ for the purposes of improving search retrieval of the chunk. Answer only with th
 succinct context and nothing else.
 ```
 
+## Oversized documents — excerpt mode
+
+Anthropic's recipe silently assumes the document fits the model's input; a 522k-token
+SEC filing doesn't (and blurb quality *degrades* with irrelevant bulk — see Chroma's
+"context rot" study). So the contextualizer has two modes, switched by document size:
+
+- **≤ `CONTEXT_DOC_CAP` tokens (env): whole-document mode** — Anthropic's recipe,
+  byte-identical to before. The default 250k fits the whole GPT-5 family (usable
+  input 272k, minis included); drop the cap to ~100k on a 128k-context model.
+- **Over the cap: excerpt mode** — each chunk is situated against the document **head**
+  (~6k tokens: title, TOC, intro — the document's identity) plus the **region around the
+  chunk** (± margins), totalling ~`CONTEXT_PART_TOKENS` (env, default 48k). Regions are
+  rebuilt from the ordered chunk list (the chunker keeps every character, in order), and
+  batch boundaries snap to top-level **section** boundaries, so an excerpt is a coherent
+  part of the document, not an arbitrary cut.
+- **Caching still works**: consecutive chunks are batched to share one byte-identical
+  excerpt, so the prefix cache fires per batch exactly as it does per document. Each
+  ~45k prefix is paid uncached once, then read at the cached rate for its chunks.
+- The prompt swaps `<document>` for `<document_excerpt>` plus one line saying the text
+  is the document's beginning + the part around the chunk; the situating instruction
+  itself stays Anthropic's verbatim. `ContextualChunk.excerpted` (and the ingest
+  report's `excerpted` flag) says which mode a document got.
+
 ## Cost & caveats
 
-- **One LLM call per chunk.** Made cheap by the cached document prefix; still, a 100-chunk
+- **One LLM call per chunk.** Made cheap by the cached prefix; still, a 100-chunk
   document is 100 calls — an **ingestion-time, one-time** cost (nobody is waiting on it).
-- **Whole document per chunk** is Anthropic's method and is fine for a paper-sized
-  document. For a very long document that blows the context window, situate the chunk
-  against its **section** instead of the whole doc (future option).
 - Default model is the configured **chat model** (cheap tier is fine for blurbs); override
   per call with `model=`.
-- Sequential for now; **concurrency** is an easy later win for ingestion throughput.
+- **Concurrent, cache-safely**: per prompt-prefix group (a document, or one excerpt
+  batch), the FIRST call runs alone — it writes the prefix cache — then the rest run in a
+  `CONTEXT_CONCURRENCY`-worker pool (default 4) reading it. Set 1 for fully sequential on
+  heavily rate-limited keys.
 
 ## Output (`ContextualChunk`)
 
@@ -84,7 +107,10 @@ cc.prompt_tokens, cc.completion_tokens, cc.total_tokens
 ## Tested
 `tests/test_contextual.py` (mocked LLM — free, no network): prompt structure
 (document-first, chunk wrapped, temp 0), blurb assembly onto the chunk, token accounting,
-empty-context fallback, no-chunks. Run: `backend/.venv/bin/python tests/test_contextual.py`.
+empty-context fallback, no-chunks; excerpt mode (cap switch, shared per-batch prefixes,
+head in every excerpt, each chunk inside its own excerpt, section-aligned batches);
+concurrency (cache-priming first call runs alone, order preserved, sequential fallback).
+Run: `backend/.venv/bin/python tests/test_contextual.py`.
 
 ## Try it
 The lab's **Contextualizer** page shows it live and on cached examples:

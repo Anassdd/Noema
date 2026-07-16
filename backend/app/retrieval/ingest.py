@@ -23,7 +23,8 @@ def ingest_parsed_doc(doc, *, domain_id: str = "default", store: VectorStore | N
     n = store.add(ctx)
     return {"doc_id": doc.filename, "pages": doc.pages, "chunks": n,
             "context_tokens": sum(c.total_tokens for c in ctx),
-            "cached_tokens": sum(c.cached_tokens for c in ctx)}
+            "cached_tokens": sum(c.cached_tokens for c in ctx),
+            "excerpted": any(c.excerpted for c in ctx)}
 
 
 def ingest_pdf(data: bytes, filename: str, *, domain_id: str = "default",
@@ -40,4 +41,5 @@ def ingest_markdown(markdown: str, doc_id: str, *, domain_id: str = "default",
     n = store.add(ctx)
     return {"doc_id": doc_id, "chunks": n,
             "context_tokens": sum(c.total_tokens for c in ctx),
-            "cached_tokens": sum(c.cached_tokens for c in ctx)}
+            "cached_tokens": sum(c.cached_tokens for c in ctx),
+            "excerpted": any(c.excerpted for c in ctx)}

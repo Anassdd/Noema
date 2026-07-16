@@ -16,6 +16,7 @@ query:   question ─▶ embed ─▶ [dense ‖ BM25] ─▶ fuse (RRF) ─▶ 
 |---|---|
 | `store.py` | `VectorStore` — embed contextual chunks, upsert into **Chroma** (embedded, on-disk, no server/GPU). One collection per `domain_id`. Incremental. |
 | `bm25.py` | `BM25` — pure-Python Okapi BM25 (keyword search). No dependency, no GPU. |
+| `index_cache.py` | Per-domain cache of the record list + corpus BM25 index — built on first query, reused until a write (or an external count change) invalidates it. |
 | `rerank.py` | Reranker seam — `off` / `llm` (RankGPT via the chat endpoint) / `endpoint` (hosted cross-encoder). Optional. |
 | `search.py` | `search_trace()` / `search()` — dense + BM25 → **RRF fusion** → optional rerank. Returns every stage. |
 | `answer.py` | `answer()` — assemble a source-cited prompt from the top chunks → grounded answer. |
@@ -39,7 +40,9 @@ BM25 indexes the same `blurb + chunk` text. The blurb is a findability aid; prov
 1. **Embed** the question (same provider model as the chunks).
 2. **Dense search** — cosine nearest in Chroma → `scores.dense`.
 3. **BM25 search** — keyword match over the same chunks → `scores.bm25`. Catches exact
-   terms (symbols, names, French technical words) that embeddings blur.
+   terms (symbols, names, French technical words) that embeddings blur. The index comes
+   from the per-domain cache (rebuilt only when the corpus changes — not per query);
+   doc-scoped searches build a small per-document index so IDF reflects the subset.
 4. **Fuse with RRF** — `score += 1/(60 + rank)` across both lists; a chunk found by
    **both** rises. → `scores.rrf`.
 5. **Rerank** (optional) — reorder the top candidates by true relevance (`llm` mode = one

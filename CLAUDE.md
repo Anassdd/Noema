@@ -46,6 +46,12 @@ Rules:
   rather than separate code paths.
 - Conditionally include optional params (e.g. token limits) so newer models that reject
   certain keys don't break — don't pass nulls.
+- **When changing the chat model, resize `CONTEXT_DOC_CAP` in `.env`.** The contextualizer
+  (`app/retrieval/contextual.py`) sends the whole document per chunk only when it fits this
+  cap; larger docs auto-switch to head+section excerpts. The cap must stay ≈20k tokens under
+  the model's usable input: 250000 (the default) fits the whole GPT-5 family (272k input);
+  a 128k-context model needs ~100000. A too-high cap = hard API errors mid-ingestion on big
+  documents; a too-low cap just excerpts more docs than necessary.
 
 ## Memory / graph requirements
 

@@ -11,6 +11,7 @@ from pathlib import Path
 
 from app import llm_client
 from app.config import settings
+from app.retrieval import index_cache
 from app.retrieval.base import ScoredChunk
 
 _DEFAULT_DIR = Path(__file__).resolve().parent.parent.parent / ".chroma"
@@ -35,6 +36,7 @@ class VectorStore:
 
         self.domain_id = domain_id
         self._path = path or settings.vector_dir or str(_DEFAULT_DIR)
+        self.cache_key = (self._path, domain_id)  # keys the query-side index cache
         Path(self._path).mkdir(parents=True, exist_ok=True)
         self._client = chromadb.PersistentClient(path=self._path)
         self._col = self._client.get_or_create_collection(
@@ -60,6 +62,7 @@ class VectorStore:
                 "domain_id": self.domain_id,
             } for c in items],
         )
+        index_cache.invalidate(self.cache_key)
         return len(items)
 
     # ---- read ----
@@ -108,6 +111,7 @@ class VectorStore:
         self._client.delete_collection(_collection_name(self.domain_id))
         self._col = self._client.get_or_create_collection(
             _collection_name(self.domain_id), metadata={"hnsw:space": "cosine"})
+        index_cache.invalidate(self.cache_key)
 
     # ---- snapshot / restore (for memory checkpoints) ----
     def copy_into(self, dest_domain_id: str) -> int:
@@ -124,6 +128,7 @@ class VectorStore:
             return 0
         dest.add(ids=r["ids"], embeddings=r["embeddings"],
                  documents=r["documents"], metadatas=r["metadatas"])
+        index_cache.invalidate((self._path, dest_domain_id))
         return len(r["ids"])
 
     def drop(self) -> None:
@@ -132,3 +137,4 @@ class VectorStore:
             self._client.delete_collection(_collection_name(self.domain_id))
         except Exception:
             pass
+        index_cache.invalidate(self.cache_key)

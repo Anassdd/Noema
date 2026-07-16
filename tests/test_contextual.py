@@ -136,6 +136,147 @@ def test_clean_preserves_real_context_and_french():
     print("  clean_preserve: clean + French context untouched ✓")
 
 
+# ---- excerpt mode: documents too big to ride whole -------------------------
+
+def _big_doc(sections=("Alpha", "Beta", "Gamma", "Delta"), paras=8):
+    parts = []
+    for s in sections:
+        parts.append(f"# {s} section")
+        parts.extend(f"In {s}, paragraph {i} explains the {s.lower()} topic number {i} "
+                     "in enough words to carry a few dozen tokens of body text."
+                     for i in range(paras))
+    return "\n\n".join(parts)
+
+
+def _small_excerpt_knobs():
+    """Shrink the excerpt anatomy so a page-sized fixture exercises batching."""
+    saved = (contextual._HEAD_TOKENS, contextual._MARGIN_TOKENS, contextual._MIN_SPAN_TOKENS)
+    contextual._HEAD_TOKENS, contextual._MARGIN_TOKENS, contextual._MIN_SPAN_TOKENS = 60, 40, 50
+
+    def restore():
+        (contextual._HEAD_TOKENS, contextual._MARGIN_TOKENS,
+         contextual._MIN_SPAN_TOKENS) = saved
+    return restore
+
+
+def _run_excerpted(doc, chunks, part_tokens=340):
+    """contextualize with a tiny cap (forcing excerpt mode), capturing every prompt."""
+    prompts = []
+
+    def fake(messages, **kw):
+        prompts.append(messages[0]["content"])
+        return _Result("A situating blurb.")
+
+    restore_llm, restore_knobs = _patch(fake), _small_excerpt_knobs()
+    try:
+        out = contextual.contextualize_chunks(doc, chunks, doc_cap=50, part_tokens=part_tokens)
+    finally:
+        restore_llm()
+        restore_knobs()
+    return out, prompts
+
+
+def _prefix(prompt):
+    return prompt.split("Here is the chunk", 1)[0]
+
+
+def test_cap_switches_modes():
+    doc = _big_doc()
+    chunks = chunk_markdown(doc, doc_id="d", target_tokens=60)
+    from app.chunking.tokens import count_tokens
+    prompts = []
+
+    def fake(messages, **kw):
+        prompts.append(messages[0]["content"])
+        return _Result("Blurb.")
+
+    restore = _patch(fake)
+    try:
+        whole = contextual.contextualize_chunks(doc, chunks, doc_cap=count_tokens(doc))
+    finally:
+        restore()
+    assert all("<document>" in p and "<document_excerpt>" not in p for p in prompts)
+    assert not any(c.excerpted for c in whole), "under the cap must stay whole-doc mode"
+
+    out, prompts = _run_excerpted(doc, chunks)
+    assert all("<document_excerpt>" in p for p in prompts)
+    assert all(c.excerpted for c in out), "over the cap must mark chunks excerpted"
+    print("  cap_switch: ≤cap whole-doc (unchanged), >cap excerpt mode ✓")
+
+
+def test_excerpt_batches_share_prefix_and_cover_chunks():
+    doc = _big_doc()
+    chunks = chunk_markdown(doc, doc_id="d", target_tokens=60)
+    out, prompts = _run_excerpted(doc, chunks)
+    assert len(out) == len(chunks) and all(cc.chunk is c for cc, c in zip(out, chunks))
+    prefixes = [_prefix(p) for p in prompts]
+    distinct = list(dict.fromkeys(prefixes))
+    assert 1 < len(distinct) < len(chunks), f"expected several shared batches, got {len(distinct)}"
+    for i, p in enumerate(prompts):  # a chunk must sit inside its own excerpt
+        assert chunks[i].text in _prefix(p), f"chunk {i} missing from its excerpt"
+    assert prefixes == sorted(prefixes, key=distinct.index), "batches must be consecutive"
+    print(f"  excerpt_batches: {len(distinct)} shared prefixes over {len(chunks)} chunks, "
+          "every chunk inside its own excerpt ✓")
+
+
+def test_excerpt_head_and_sections():
+    doc = _big_doc()
+    chunks = chunk_markdown(doc, doc_id="d", target_tokens=60)
+    out, prompts = _run_excerpted(doc, chunks)
+    head = chunks[0].text
+    assert all(head in _prefix(p) for p in prompts), "document head must open every excerpt"
+    by_prefix = {}
+    for i, p in enumerate(prompts):
+        by_prefix.setdefault(_prefix(p), []).append(chunks[i].header_path[0])
+    mixed = [set(secs) for secs in by_prefix.values() if len(set(secs)) > 1]
+    assert not mixed, f"batches must not straddle sections: {mixed}"
+    print(f"  excerpt_head_sections: head in all {len(prompts)} excerpts, "
+          f"{len(by_prefix)} batches all section-pure ✓")
+
+
+# ---- concurrency: prime the cache first, then parallel workers -------------
+
+def test_concurrent_prime_first_and_order():
+    import threading
+    doc = _big_doc()
+    chunks = chunk_markdown(doc, doc_id="d", target_tokens=60)
+    events, lock = [], threading.Lock()
+
+    def fake(messages, **kw):
+        chunk_body = messages[0]["content"].split("<chunk>\n", 1)[1].split("\n</chunk>", 1)[0]
+        with lock:
+            events.append(("start", chunk_body))
+        with lock:
+            events.append(("end", chunk_body))
+        return _Result(f"blurb")
+
+    restore = _patch(fake)
+    try:
+        from app.chunking.tokens import count_tokens
+        out = contextual.contextualize_chunks(doc, chunks, doc_cap=count_tokens(doc),
+                                              concurrency=4)
+    finally:
+        restore()
+    assert [cc.chunk for cc in out] == chunks, "results must keep chunk order"
+    assert events[0] == ("start", chunks[0].text) and events[1] == ("end", chunks[0].text), \
+        "the first (cache-priming) call must run alone before any worker starts"
+    assert len(events) == 2 * len(chunks)
+    print(f"  concurrency: prime-first honored, order kept over {len(chunks)} chunks ✓")
+
+
+def test_concurrency_one_is_sequential():
+    doc = _big_doc()
+    chunks = chunk_markdown(doc, doc_id="d", target_tokens=60)
+    order = []
+    restore = _patch(lambda messages, **kw: (order.append(1), _Result("b"))[1])
+    try:
+        out = contextual.contextualize_chunks(doc, chunks, doc_cap=10**9, concurrency=1)
+    finally:
+        restore()
+    assert len(out) == len(chunks) == len(order)
+    print("  concurrency=1: fully sequential fallback works ✓")
+
+
 TESTS = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
 
 if __name__ == "__main__":

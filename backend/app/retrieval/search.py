@@ -8,8 +8,10 @@ just the final list. The graph layer will later add a third retriever behind thi
 from __future__ import annotations
 
 import time
+from dataclasses import replace
 
 from app import llm_client
+from app.retrieval import index_cache
 from app.retrieval import rerank as _rerank
 from app.retrieval.base import RetrievalTrace, ScoredChunk
 from app.retrieval.bm25 import BM25
@@ -35,11 +37,15 @@ def search_trace(query: str, *, k: int = 8, domain_id: str = "default",
     store = store or VectorStore(domain_id)
     trace = RetrievalTrace(query=query)
 
+    # Records + the corpus-wide BM25 index come from the per-domain cache (rebuilt only
+    # when the store changes). The cached records are shared templates — per-query scores
+    # are stamped on fresh copies, never on the cache.
+    base, corpus_bm = index_cache.get(store)
     # doc_id scopes the whole search to one source document (both dense and BM25 candidate
     # pools), so a per-document question can't retrieve another document's passages.
-    records = store.all_records()
     if doc_id:
-        records = [r for r in records if r.doc_id == doc_id]
+        base = [r for r in base if r.doc_id == doc_id]
+    records = [replace(r, score=0.0, scores={}) for r in base]
     by_id = {r.chunk_id: r for r in records}
     if not records:
         return trace
@@ -55,9 +61,10 @@ def search_trace(query: str, *, k: int = 8, domain_id: str = "default",
     trace.dense = [by_id[c] for c in dense_ranking]
     trace.timings["dense_ms"] = round((time.perf_counter() - t0) * 1000, 1)
 
-    # bm25
+    # bm25 — the cached corpus index, unless doc-scoped (then a small per-doc index, so
+    # IDF reflects the searched subset exactly as it always did)
     t0 = time.perf_counter()
-    bm = BM25().build([(r.chunk_id, r.embed_text) for r in records])
+    bm = BM25().build([(r.chunk_id, r.embed_text) for r in records]) if doc_id else corpus_bm
     bm_hits = bm.search(query, bm25_k)
     for cid, s in bm_hits:
         by_id[cid].scores["bm25"] = s

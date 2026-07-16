@@ -1,94 +1,108 @@
-# CLAUDE.md — Build Spec for Noema (Expert Chatbot)
+# CLAUDE.md — Working Spec for Noema (Expert Chatbot)
 
-This file is context for Claude Code working in this repo. Read it before generating code.
-It describes intent and constraints, not a fixed implementation. Ask before locking in
-library choices or schemas that aren't specified here.
+Context for Claude Code working in this repo. Read it before generating code.
+It describes the system as built, its invariants, and the working rules. The deep
+documentation lives in `docs/01–11` (the book) and `studies/` (frozen design specs);
+prefer those over re-deriving decisions.
 
 ## One-line summary
 
-A single-domain (later multi-domain) expert chatbot whose knowledge is an **evolving
-GraphRAG memory** built from uploaded documents (mainly research papers), with grounded,
-source-citing answers and a **visual, navigable graph**.
+A domain-expert chatbot whose knowledge is an **evolving graph+vector memory** built
+from uploaded documents, with grounded source-citing answers, a navigable 3D graph,
+and a benchmark that compares memory methods head-to-head on the same corpus.
 
-## Architecture intent
+## What exists (Phase 1 complete, Phase 2 partial)
 
-- **Backend:** Python + FastAPI.
-- **Frontend:** React + Vite + Tailwind. Two main surfaces:
-  1. an **ingestion page** (upload PDFs / documents → build/extend the graph memory),
-  2. a **chat page** (ask questions → grounded answers with references).
-  Plus a **graph visualization/navigation view** to inspect the memory.
-- **LLM/embedding access MUST be isolated** behind a single provider-abstraction module
-  (one client, configured via `.env`). See "Provider abstraction" below — this is the most
-  important architectural rule in the project.
-- **Memory type is a pluggable, user-selectable strategy.** Classic RAG, LightRAG, and
-  GraphRAG are interchangeable implementations behind ONE common interface (ingest, query,
-  update, inspect). A setting selects which one answers. Build GraphRAG end-to-end FIRST
-  (monitor asked to see it), freeze the interface from it, then add the others — do NOT build
-  the abstraction before one method works. Each method keeps its own pre-built store; the
-  setting selects which store answers a query, NOT a live rebuild on toggle. Same corpus
-  indexed multiple ways enables same-question side-by-side comparison (a deliverable).
+- **Backend:** Python + FastAPI (`backend/app/`). **Frontend:** React + Vite
+  (`frontend/`) — chat, ingestion, `?view=graph` (3D Graphiti view + ✎ Beliefs),
+  `?view=bench` (the eval bench). File-backed auth (accounts + guests, no DB —
+  locked-down-machine constraint); conversations, memory and beliefs are per-user.
+- **Retrieval strategies**, user-selectable per message (`retrieval=`), each with its
+  own store per domain, checkpointable via saves (`app/saves.py`):
+  - `rag` — contextual retrieval (`app/retrieval/`): 512-token structure-aware chunks
+    → LLM situating blurb → embed + BM25 (both over blurb+chunk) → RRF → LLM rerank
+    (`RETRIEVAL_RERANK`, default on). Query-side records+BM25 are cached per domain
+    (`index_cache.py`) — never rebuild per query.
+  - `graph` — Graphiti temporal KG on FalkorDB (`app/graph/`), episodes per page named
+    `<file> · p<N>` so facts cite doc+page. Search recipe via `GRAPH_SEARCH_RECIPE`
+    (default `rrf` — the measured baseline).
+  - `hybrid` — **supplement fusion** (`app/pipeline.py`): the vector top-k reaches the
+    context IDENTICAL to rag-alone; graph facts only append through a novelty gate.
+    This contract is MEASURED (cross-store RRF and graph-promotion both lost badly on
+    the bench) and locked by `tests/test_fusion.py` — do not re-litigate without a
+    bench run.
+  - `lightrag` — self-contained second engine (`app/lightrag/`), not fused.
+- **Expert answer loop:** route (typed: factoid/relational/global, corpus-map-aware)
+  → retrieve → CRAG sufficiency check → grounded answer with `[S#]` citations →
+  Self-RAG groundedness check → escalating retry ladder.
+- **Evolution (Phase 2):** Dream for Graphiti (`app/graph/evolution.py`, archival tier
+  + eval gate); the cross-method contract is specced in
+  `studies/NOEMA_EVOLUTION_CONTRACT.md`. Phase 3 (multi-field routing) not started.
 
-## Provider abstraction (critical)
+## Provider abstraction (critical — unchanged)
 
-Two target environments share one OpenAI-compatible interface:
+- Providers are `openai` (dev Mac, personal key) and `llmaas` (prod: the company's
+  OpenAI-compatible gateway at a custom base_url — the same SDK, NOT the AzureOpenAI
+  SDK; that branch was removed deliberately).
+- ALL chat/embedding calls go through `app/llm_client.py`, configured only by
+  `app/config.py` from `.env`. The graph layer gets its Graphiti clients (LLM,
+  embedder, cross-encoder) exclusively from `app/graph/providers.py`. The bench judge
+  has its own seam (`JUDGE_*` env — a different model family than the generator).
+  Nothing else may import an LLM SDK.
+- Switching providers is a config change, never a code change. Include optional params
+  conditionally (newer models reject unknown/legacy keys — don't pass nulls).
+- **When changing the chat model, resize `CONTEXT_DOC_CAP` in `.env`.** The
+  contextualizer sends the whole document per chunk only when it fits this cap;
+  larger docs auto-switch to head+section excerpts. Keep the cap ≈20k tokens under
+  the model's usable input (250000 fits the GPT-5 family; a 128k model needs
+  ~100000). Too high = hard API errors mid-ingestion; too low = merely more excerpts.
+- Current models: chat/judge-fallback `gpt-5.4-mini`, strong parse+extraction
+  `gpt-5.4`, embeddings `text-embedding-3-large` (multilingual — much of the corpus
+  is French).
 
-- **Dev:** personal Mac, **OpenAI** API key, standard `api.openai.com`.
-- **Prod:** locked-down corporate **Windows**, **Azure OpenAI** via an **OpenAI-compatible
-  `/v1` endpoint** (different base_url, key, deployment/model names; possible restricted
-  package installs).
+## Bench rules (the expensive part — treat with care)
 
-Rules:
-- All chat + embedding calls go through ONE module. The rest of the codebase never imports the
-  OpenAI/Azure SDK directly.
-- Everything provider-specific (base_url, api_key, model/deployment names, api version) comes
-  from `.env` / config. Switching OpenAI ↔ Azure is a config change, NO code change.
-- Because Azure here is OpenAI-compatible, prefer using the same SDK with a different base_url
-  rather than separate code paths.
-- Conditionally include optional params (e.g. token limits) so newer models that reject
-  certain keys don't break — don't pass nulls.
-- **When changing the chat model, resize `CONTEXT_DOC_CAP` in `.env`.** The contextualizer
-  (`app/retrieval/contextual.py`) sends the whole document per chunk only when it fits this
-  cap; larger docs auto-switch to head+section excerpts. The cap must stay ≈20k tokens under
-  the model's usable input: 250000 (the default) fits the whole GPT-5 family (272k input);
-  a 128k-context model needs ~100000. A too-high cap = hard API errors mid-ingestion on big
-  documents; a too-low cap just excerpts more docs than necessary.
-
-## Memory / graph requirements
-
-- Build a knowledge graph (entities + relationships) from documents; keep **provenance**:
-  every node/edge should trace back to its source document (and page where possible) so
-  answers can cite.
-- Support **incremental updates**: adding documents must NOT require rebuilding the whole
-  graph.
-- Plan for **curation** (update / enhance / clean) in a later phase so the graph stays
-  bounded and high-quality — leave seams for this, don't hardcode an append-only design.
-- **Extraction quality matters:** entity/relationship extraction should use a capable model,
-  even if cheaper models are used elsewhere. A weak extractor produces a sparse, low-value
-  graph — flag this rather than silently degrading.
-- Expose graph data to the frontend for **visualization and navigation** (nodes, edges,
-  source links) and for inspecting retrieval.
-
-## Phasing (don't build ahead of the current phase)
-
-1. **Monofield expert:** ingest → graph memory → grounded chat → graph visualization.
-2. **Evolutive memory:** update/enhance/clean rules; keep memory bounded ("don't explode").
-3. **Multifield + routing:** multiple experts; route a question to the right field, detect
-   multi-field questions, decide if we're actually expert in it. This is an
-   orchestration/router layer above the experts.
+- Design frozen in `studies/NOEMA_EVAL_BENCH.md`; datasets documented in
+  `studies/BENCH_DATASETS.md` (QASPER + CRAG/FinanceBench/Basel-FAQ via the
+  `noema-humanqa-v1` loader — human gold, pre-approved, no LLM drafting).
+- **Never launch builds or runs yourself — the user launches and pays.** Respect the
+  cost gate (estimate) before any build; builds are fingerprinted
+  (corpus|cap|extractor|embed|`_EP_VERSION`) and build_skip reuses them. Anything
+  that changes what a build produces (extraction prompts, episode windows) MUST bump
+  `_EP_VERSION`; anything that changes query behavior (recipes, rerankers, judge
+  rubric) MUST land in run provenance. Runs made under different settings never share
+  a results table.
+- Judging is decoupled and parallel (`JUDGE_CONCURRENCY`); `JUDGE_RPM` pacing is
+  opt-in for free tiers only. Reports (schema v3) carry bootstrap CIs, paired McNemar
+  on fusion, and priced run cost — keep new metrics additive and recomputable from
+  stored records.
 
 ## Working style
 
-- **CODE STYLE (SUPER IMPORTANT):** Write highly readable, self-explanatory code — clear names,
-  small functions, obvious structure. Do NOT add many comments; rely on readable code instead of
-  comment noise (keeps token usage low). Comment only where intent is genuinely non-obvious.
-- Generate in **staged increments**, smallest working slice first (e.g. bare app → ingest one
-  doc → query it → add graph view). Don't generate the whole system at once.
-- Keep modules small and single-purpose so pieces can be understood and swapped.
-- When a design choice isn't specified here, surface the options and trade-offs instead of
-  silently picking one.
+- **CODE STYLE (SUPER IMPORTANT):** highly readable, self-explanatory code — clear
+  names, small functions, obvious structure. Comment only where intent is genuinely
+  non-obvious (constraints, measured decisions), never narrating the next line.
+- Staged increments, smallest working slice first. Keep modules small and
+  single-purpose. When a design choice isn't specified, surface options and
+  trade-offs instead of silently picking one.
+- Tests are plain-python scripts under `tests/` (`.venv/bin/python tests/test_*.py`),
+  no-network wherever possible; run the relevant suites after touching their area.
+- **Git:** never commit `backend/.env` or any key; `.claude/` stays gitignored (only
+  this file is tracked); no AI/Co-Authored-By attribution trailers on commits or PRs.
+  Knowledge stores (`.chroma`, graph saves, bench workdirs) are committed only as
+  deliberate "refresh" commits — never fold store churn into feature commits.
+- Free API tiers may only ever receive public benchmark corpora — never internal
+  documents.
+- Windows/prod portability matters (`RUN_ON_WINDOWS.md`): bundled FalkorDB is
+  Unix-only (use `falkor_server`), the gateway may rate-limit harder
+  (`GRAPH_MAX_COROUTINES`), and datasets are carried as files (no HF access).
 
-## Out of scope / undecided (ask, don't assume)
+## Where to look before working
 
-- Specific GraphRAG library, graph store backend, chunking strategy.
-- Phase-2 curation rules and Phase-3 routing strategy.
-- Evaluation method for "is it really an expert" — owned by the developer.
+| Topic | Read |
+|---|---|
+| Architecture tour, config, pipeline | `docs/01–11` |
+| Bench design (frozen) + datasets | `studies/NOEMA_EVAL_BENCH.md`, `studies/BENCH_DATASETS.md` |
+| Evolution contract (Phase 2) | `studies/NOEMA_EVOLUTION_CONTRACT.md` |
+| Parsing / memory / SOTA decisions | `studies/NOEMA_PARSING_SOTA.md`, `studies/NOEMA_MEMORY_SOTA.md`, `studies/NOEMA_PLAN_LOG.md` |
+| Deploying on the company machine | `RUN_ON_WINDOWS.md` |

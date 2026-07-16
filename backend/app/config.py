@@ -77,6 +77,10 @@ class Settings:
     rerank_model: str = ""
     rerank_base_url: str = ""
     rerank_api_key: str = ""
+    # Retrieval-time reranking of fused candidates: "llm" (RankGPT-style, one cheap call
+    # through the normal chat endpoint — works on dev and the gateway), "endpoint" (the
+    # dedicated reranker above), or "off". The single biggest published retrieval win.
+    retrieval_rerank: str = "llm"
 
     # Judge seam (optional) — a separate OpenAI-compatible endpoint used ONLY for
     # scoring bench answers, so the judge can be a different model family than the
@@ -112,6 +116,7 @@ def load_settings() -> Settings:
         rerank_model=os.getenv("RERANK_MODEL", ""),
         rerank_base_url=os.getenv("RERANK_BASE_URL", ""),
         rerank_api_key=os.getenv("RERANK_API_KEY", ""),
+        retrieval_rerank=(os.getenv("RETRIEVAL_RERANK", "llm").strip().lower() or "llm"),
         judge_model=os.getenv("JUDGE_MODEL", ""),
         judge_base_url=os.getenv("JUDGE_BASE_URL", ""),
         judge_api_key=os.getenv("JUDGE_API_KEY", ""),

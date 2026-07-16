@@ -29,8 +29,8 @@ def rrf(rankings: list[list[str]], k: int = _RRF_K) -> dict[str, float]:
 
 
 def search_trace(query: str, *, k: int = 8, domain_id: str = "default",
-                 dense_k: int = 20, bm25_k: int = 20, rerank_mode: str = "off",
-                 rerank_pool: int = 10, store: VectorStore | None = None,
+                 dense_k: int = 50, bm25_k: int = 50, rerank_mode: str = "off",
+                 rerank_pool: int = 30, store: VectorStore | None = None,
                  doc_id: str | None = None) -> RetrievalTrace:
     store = store or VectorStore(domain_id)
     trace = RetrievalTrace(query=query)
@@ -73,8 +73,9 @@ def search_trace(query: str, *, k: int = 8, domain_id: str = "default",
     fused = sorted((by_id[c] for c in fused_scores), key=lambda c: c.score, reverse=True)
     trace.fused = fused
 
-    # rerank (optional)
-    if rerank_mode != "off" and len(fused) > 1:
+    # rerank (optional) — skipped when the pool fits in k anyway: everything would be
+    # included regardless, so the call would only reorder, not select.
+    if rerank_mode != "off" and len(fused) > k:
         t0 = time.perf_counter()
         trace.reranked = _rerank.rerank(query, fused[:rerank_pool], mode=rerank_mode)
         trace.reranked_applied = True

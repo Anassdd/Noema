@@ -187,6 +187,20 @@ class GraphMemory:
         except Exception:
             return set()
 
+    async def top_entities(self, limit: int = 15) -> list[str]:
+        """The most connected entity names — a one-line map of what this graph knows,
+        fed to the chat router so it can tell same-document from cross-document questions."""
+        try:
+            records, _, _ = await self._driver.execute_query(
+                "MATCH (x:Entity) WHERE x.group_id = $g "
+                "OPTIONAL MATCH (x)-[r:RELATES_TO]-() "
+                "RETURN x.name AS name, count(r) AS degree "
+                f"ORDER BY degree DESC LIMIT {int(limit)}",
+                g=self.group_id)
+            return [r["name"] for r in records or [] if r["name"]]
+        except Exception:
+            return []
+
     async def episode_names(self, uuids: list[str]) -> dict[str, str]:
         """Resolve episode UUIDs → their names (we name episodes '<file> · p<N>'), so a
         retrieved fact can cite the document + page it came from. Best-effort."""

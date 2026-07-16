@@ -1,9 +1,11 @@
-"""The expert answer pipeline — route → retrieve (RAG ⊕ graph, fused) → answer → verify.
+"""The expert answer pipeline — route → retrieve (RAG + graph supplement) → answer → verify.
 
-Built in slices. This slice is retrieval + fusion: the graph is treated as *just another
-retriever* that returns `ScoredChunk`s, and its ranking is RRF-fused with the hybrid vector
-base. Fusing (not routing to one store) is the SOTA base pattern and is robust to a wrong
-store choice — see NOEMA_SOTA_RESEARCH_SUMMARY.md §3–4.
+Fusion design, learned the hard way: cross-store RRF between the vector base and the graph
+is degenerate — their ids never overlap, so "fusion" collapses into a fixed 50/50 interleave
+where one-line graph facts displace evidence-bearing chunks (measured on QASPER: evidence
+recall 0.89 → 0.43, five rag-correct answers broken, zero rescued). So hybrid now keeps the
+vector top-k INTACT and appends graph facts as a novelty-gated supplement: a fact gets in
+only if it brings content the chunks don't already cover. The graph can add, never displace.
 
 Async, because the graph search is async (FalkorDriver on the app loop) while the vector
 search is sync (run in a thread).
@@ -13,11 +15,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import string
+import time
 from typing import AsyncIterator
 
 from app import beliefs, llm_client
+from app.config import settings
 from app.graph.manager import graph_manager
-from app.retrieval import ScoredChunk, rrf, search_trace
+from app.retrieval import ScoredChunk, VectorStore, search_trace
 
 
 def _fact_to_chunk(fact, episode_names: dict[str, str], domain_id: str) -> ScoredChunk:
@@ -47,6 +52,7 @@ def _fact_to_chunk(fact, episode_names: dict[str, str], domain_id: str) -> Score
         pages=pages,
         section=fact.name or "",
         domain_id=domain_id,
+        score=float(fact.score or 0.0),
         scores={"graph": float(fact.score or 0.0)},
     )
 
@@ -125,6 +131,92 @@ async def lightrag_chunks(query: str, *, domain_id: str = "default",
     return out
 
 
+# Function words ignored when measuring what content a chunk/fact carries (English +
+# the French the corpus speaks). Small on purpose: it only feeds the novelty gate.
+_STOP = frozenset(
+    "a an the of to in on for and or is are was were be been with as at by from that this "
+    "these those it its their they we you which who what when where why how not no but if "
+    "than then so such can could may might will would shall should must do does did has "
+    "have had more most some any all each into over under between within also using used "
+    "le la les un une des de du et à que pour dans sur est sont avec par ce cette ces au "
+    "aux ne pas plus".split())
+
+
+def _content_words(text: str) -> set[str]:
+    text = (text or "").lower().translate(str.maketrans("", "", string.punctuation))
+    return {w for w in text.split() if w not in _STOP and len(w) > 2}
+
+
+def _novel_facts(chunks: list[ScoredChunk], facts: list[ScoredChunk],
+                 budget: int, min_novelty: float = 0.3) -> list[ScoredChunk]:
+    """The graph facts worth ADDING to the chunks: taken in relevance order, a fact is kept
+    only if enough of its content words aren't already covered by the chunks (and the facts
+    already kept). A fact restating what a chunk says adds distraction, not knowledge; a
+    fact bridging entities the chunks miss is exactly the cross-document signal a graph is
+    for. Adaptive by construction — anywhere from 0 to `budget` facts get in."""
+    covered = _content_words(" ".join(c.text for c in chunks))
+    picked: list[ScoredChunk] = []
+    for fact in facts:
+        words = _content_words(fact.text)
+        if not words:
+            continue
+        if len(words - covered) / len(words) < min_novelty:
+            continue
+        picked.append(fact)
+        covered |= words
+        if len(picked) >= budget:
+            break
+    return picked
+
+
+# Retrieval profiles per question type — the router's typed guess picks one; a failed
+# sufficiency check escalates to the next (see _escalate). Budgets only SHIFT between
+# chunks and graph — both stores always run, so a misrouted question degrades, never breaks.
+PROFILES = {
+    "factoid": {"k": 8, "facts": 8, "graph_limit": 10},
+    "relational": {"k": 6, "facts": 8, "graph_limit": 20},
+    "global": {"k": 4, "facts": 12, "graph_limit": 30},
+}
+_LADDER = ("factoid", "relational", "global")
+
+
+def _escalate(qtype: str, steps: int) -> str:
+    """The retry ladder: each failed attempt climbs one profile toward global."""
+    start = _LADDER.index(qtype) if qtype in _LADDER else 0
+    return _LADDER[min(start + steps, len(_LADDER) - 1)]
+
+
+# The router's corpus map — a ~200-token standing summary of what this memory holds
+# (document names + most-connected entities), so "compare A and B" can be classified
+# as same-document or cross-document. Cached per domain; failures degrade to "".
+_MAP_TTL_S = 300
+_map_cache: dict[str, tuple[float, str]] = {}
+
+
+async def _corpus_map(domain_id: str) -> str:
+    cached = _map_cache.get(domain_id)
+    if cached and time.monotonic() - cached[0] < _MAP_TTL_S:
+        return cached[1]
+    try:
+        docs = await asyncio.to_thread(lambda: sorted(VectorStore(domain_id).doc_ids()))
+    except Exception:
+        docs = []
+    try:
+        mem = await graph_manager.get(domain_id)
+        entities = await mem.top_entities(15)
+    except Exception:
+        entities = []
+    parts = []
+    if docs:
+        parts.append("Documents in the knowledge base: " + ", ".join(docs[:15])
+                     + (" …" if len(docs) > 15 else "") + ".")
+    if entities:
+        parts.append("Key entities: " + ", ".join(entities) + ".")
+    text = " ".join(parts)
+    _map_cache[domain_id] = (time.monotonic(), text)
+    return text
+
+
 async def retrieve(
     query: str,
     *,
@@ -133,53 +225,59 @@ async def retrieve(
     use_graph: bool = True,
     use_vector: bool = True,
     use_lightrag: bool = False,
-    rerank_mode: str = "off",
+    rerank_mode: str | None = None,
     graph_limit: int = 10,
+    max_facts: int | None = None,
     doc_id: str | None = None,
 ) -> tuple[list[ScoredChunk], dict]:
-    """Retrieve from the vector base and the graph, RRF-fuse the two rankings, return the
-    top-k plus a small meta dict (per-source counts) the runtime trace can surface.
+    """Retrieve the context for one question, plus a small meta dict (per-source counts)
+    the runtime trace can surface.
+
+    Hybrid (vector + graph) is SUPPLEMENT fusion: the vector top-k — the evidence backbone,
+    identical to what rag-alone returns — plus up to k novelty-gated graph facts appended
+    at the end. Two stronger graph roles were tried and MEASURED WORSE on QASPER, both by
+    displacing query-relevant chunks: cross-store RRF (fixed interleave: acc 0.59, broke
+    5/rescued 0 vs rag) and graph-corroborated promotion into the tail slots (acc 0.61 vs
+    0.74, evidence recall 0.89→0.83 — fact-adjacent ≠ question-relevant). The graph earns
+    its keep as added facts, not as a chunk-ranking signal.
 
     `use_lightrag` swaps in the LightRAG strategy as the retriever instead — it is a
     self-contained method (own graph + own vectors), so it isn't fused with the others.
 
+    `rerank_mode` None = the configured default (RETRIEVAL_RERANK, "llm" unless overridden):
+    one cheap listwise call re-reads the fused candidate pool against the question before
+    the top-k cut. `max_facts` caps the graph supplement (None = k, the 8+8 default).
+
     `doc_id` scopes both retrievers to one source document — for per-document benchmarks
     (e.g. QASPER) whose questions presuppose their paper."""
-    rankings: list[list[str]] = []
-    by_id: dict[str, ScoredChunk] = {}
-    meta = {"vector": 0, "graph": 0}
-
     if use_lightrag:
-        use_vector = use_graph = False
         lchunks = await lightrag_chunks(query, domain_id=domain_id, limit=max(k, 8))
-        for c in lchunks:
-            by_id[c.chunk_id] = c
-        rankings.append([c.chunk_id for c in lchunks])
-        meta["lightrag"] = len(lchunks)
+        final = lchunks[:k]
+        return final, {"vector": 0, "graph": 0, "lightrag": len(lchunks), "fused": len(final)}
 
+    rerank = rerank_mode if rerank_mode is not None else settings.retrieval_rerank
+    vchunks: list[ScoredChunk] = []
+    gchunks: list[ScoredChunk] = []
     if use_vector:
         vtrace = await asyncio.to_thread(
-            search_trace, query, k=max(k, 8), domain_id=domain_id, rerank_mode=rerank_mode,
+            search_trace, query, k=max(k, 8), domain_id=domain_id, rerank_mode=rerank,
             doc_id=doc_id,
         )
-        for c in vtrace.final:
-            by_id[c.chunk_id] = c
-        rankings.append([c.chunk_id for c in vtrace.final])
-        meta["vector"] = len(vtrace.final)
-
+        vchunks = vtrace.final
     if use_graph:
         gchunks = await graph_chunks(query, domain_id=domain_id, limit=graph_limit, doc_id=doc_id)
-        for c in gchunks:
-            by_id.setdefault(c.chunk_id, c)
-        rankings.append([c.chunk_id for c in gchunks])
-        meta["graph"] = len(gchunks)
 
-    fused = rrf(rankings)
-    for cid, s in fused.items():
-        if cid in by_id:
-            by_id[cid].scores["fused"] = round(s, 5)
-            by_id[cid].score = round(s, 5)
-    final = sorted((by_id[c] for c in fused if c in by_id), key=lambda c: c.score, reverse=True)[:k]
+    meta = {"vector": len(vchunks), "graph": 0}
+    if vchunks and gchunks:
+        facts = _novel_facts(vchunks[:k], gchunks, budget=max_facts if max_facts is not None else k)
+        final = vchunks[:k] + facts
+        meta["graph"] = len(facts)
+        meta["graph_candidates"] = len(gchunks)
+    elif vchunks:
+        final = vchunks[:k]
+    else:
+        final = gchunks[:k]
+        meta["graph"] = len(final)
     meta["fused"] = len(final)
     return final, meta
 
@@ -235,7 +333,12 @@ _ROUTE_SYS = (
     "2. Decide whether answering it needs searching a document library (the knowledge base). "
     "Retrieve for questions about facts, content, or knowledge that would live in documents; "
     "do NOT retrieve for greetings, small talk, or meta questions about the conversation.\n"
-    'Reply ONLY JSON: {"standalone": "<rewritten query>", "retrieve": true|false}.'
+    "3. Classify the question's retrieval TYPE, using the knowledge-base map when given:\n"
+    '   "factoid"    — asks one fact, value or definition that likely sits in one passage.\n'
+    '   "relational" — asks to connect, compare or trace across entities or documents.\n'
+    '   "global"     — asks about themes, patterns, or the corpus as a whole.\n'
+    'Reply ONLY JSON: {"standalone": "<rewritten query>", "retrieve": true|false, '
+    '"type": "factoid"|"relational"|"global"}.'
 )
 _SUFF_SYS = (
     "Grade whether the provided sources contain enough to answer the question. Reply ONLY "
@@ -391,10 +494,14 @@ async def answer_stream(
 
     yield {"type": "status", "stage": "routing", "detail": "Reading the question in context…"}
     context = _recent_context(messages)
+    corpus_map = await _corpus_map(domain_id)
     route_input = f"Recent conversation:\n{context}\n\nLatest message: {query}" if context else query
+    if corpus_map:
+        route_input = f"Knowledge-base map: {corpus_map}\n\n{route_input}"
     j = await asyncio.to_thread(_judge_sync, _ROUTE_SYS, route_input)
     search_query = (j.get("standalone") or "").strip() or query  # fail open to the raw message
     need = bool(j.get("retrieve", True))  # fail open to grounding
+    qtype = j.get("type") if j.get("type") in PROFILES else "factoid"  # fail open to the safe profile
 
     if context and search_query.strip().lower() != query.strip().lower():
         yield {"type": "status", "stage": "contextualized", "detail": f"Understood as: “{search_query}”"}
@@ -413,7 +520,8 @@ async def answer_stream(
         yield {"type": "usage", "usage": res.usage.__dict__ if res.usage else None}
         return
 
-    yield {"type": "status", "stage": "route", "detail": "This needs the knowledge base"}
+    yield {"type": "status", "stage": "route",
+           "detail": f"This needs the knowledge base · {qtype} question"}
 
     final_chunks: list[ScoredChunk] = []
     answer_text, usage, grounded, covered = "", None, True, True
@@ -421,10 +529,18 @@ async def answer_stream(
     stores = {"hybrid": "vector base + graph", "rag": "vector base only",
               "graph": "graph only", "lightrag": "LightRAG memory"}
     for attempt in range(1, max_tries + 1):
+        # The retry ladder: attempt 1 runs the router's typed profile; a failed sufficiency
+        # check escalates one profile up (factoid → relational → global) AND doubles budgets.
+        ptype = _escalate(qtype, attempt - 1)
+        prof = PROFILES[ptype]
         detail = (f"Searching the {stores.get(retrieval, 'vector base + graph')}…"
-                  if attempt == 1 else "Retrieving more and re-fusing…")
+                  if attempt == 1
+                  else f"Escalating — retrying as a {ptype} question with a wider net…")
         yield {"type": "status", "stage": "retrieving", "detail": detail}
-        chunks, meta = await retrieve(search_query, domain_id=domain_id, k=8 * attempt,
+        chunks, meta = await retrieve(search_query, domain_id=domain_id,
+                                      k=prof["k"] * attempt,
+                                      graph_limit=prof["graph_limit"],
+                                      max_facts=prof["facts"] * attempt,
                                       use_graph=use_graph, use_vector=use_vector,
                                       use_lightrag=use_lightrag)
         final_chunks = chunks

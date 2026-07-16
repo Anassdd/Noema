@@ -63,10 +63,28 @@ npm run dev
 
 Open `http://localhost:5173`, drop a PDF on the Graph page, wait for extraction, switch to
 the chat, enable **Expert mode** in Settings, and ask a question about the document.
+(With `make` installed: `make backend`, `make frontend`, `make test` wrap the above.)
 
 - **Windows / production:** see [RUN_ON_WINDOWS.md](RUN_ON_WINDOWS.md) (Docker FalkorDB +
   `GRAPH_BACKEND=falkor_server`, llmaas provider, corporate proxy/TLS notes).
 - **Every setting explained:** [docs/03-configuration.md](docs/03-configuration.md).
+
+### Taking over this project? The 3-day path
+
+- **Day 1 — run it.** This page top to bottom, then [ARCHITECTURE.md](ARCHITECTURE.md)
+  (10 minutes, includes the runtime model), then [GLOSSARY.md](GLOSSARY.md). Do the
+  quickstart above; upload one PDF, watch the graph grow, ask one question, click a
+  citation. Run `make test` — 9 suites, ~1 min, $0.
+- **Day 2 — read it.** [docs/04](docs/04-backend-tour.md)–[07](docs/07-dream-evolution.md)
+  with the code side-by-side (the book was written for exactly this); trace one question
+  through `backend/app/pipeline.py`. Open [STORAGE.md](STORAGE.md) and find every file
+  your Day-1 actions created.
+- **Day 3 — trust it.** [studies/README.md](studies/README.md) (the decision record),
+  then [docs/12-gotchas.md](docs/12-gotchas.md) (the lessons that were paid for). Run the
+  cheap bench end-to-end on `basel-faq` (estimate gate → build → detached run → close the
+  tab on purpose → reattach → read the report's confidence intervals).
+
+Operating it day-to-day (runs, saves, keys, failures): [RUNBOOK.md](RUNBOOK.md).
 
 ### Switching providers
 
@@ -137,6 +155,10 @@ The `docs/` folder is a numbered reading path — a new developer can go top to 
 
 | Doc | What's inside |
 |---|---|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | The one-pager: layers, the three flows, the single-worker runtime model |
+| [STORAGE.md](STORAGE.md) | Every byte of state: where it lives, who writes it, what to back up |
+| [RUNBOOK.md](RUNBOOK.md) | Operating it: runs, saves, keys, the top failures and their fixes |
+| [GLOSSARY.md](GLOSSARY.md) | The ~30 words this project thinks in |
 | [01 — Overview & architecture](docs/01-overview.md) | The concept, the two memories, every flow end-to-end |
 | [03 — Configuration](docs/03-configuration.md) | Every env var, typical dev/prod setups |
 | [04 — Backend tour](docs/04-backend-tour.md) | Module-by-module walk of `backend/app` |
@@ -147,6 +169,7 @@ The `docs/` folder is a numbered reading path — a new developer can go top to 
 | [09 — Frontend guide](docs/09-frontend.md) | Structure, state model, how to extend |
 | [10 — Testing & the lab](docs/10-testing.md) | Streamlit lab, test suites, what's free vs billed |
 | [11 — Roadmap & limitations](docs/11-roadmap.md) | What's next (eval bench, more memory types), known limits |
+| [12 — Gotchas](docs/12-gotchas.md) | The measured lessons: fusion history, cache economics, fingerprints, judge honesty |
 | [Architecture Explorer](docs/architecture.html) | Interactive map of the whole system — open in a browser and click through the layers |
 
 Deep-dives live next to the code they document: [GRAPH.md](backend/app/graph/GRAPH.md),

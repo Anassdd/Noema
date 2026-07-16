@@ -47,6 +47,10 @@ tests/results/rag_store/
 # deleted when its run completes, meaningless on any other box.
 tests/results/bench/*/runs/inflight/
 
+# Official upstream benchmark releases (CRAG bz2, FinanceBench PDFs, BCBS crawl) —
+# hundreds of MB, re-downloadable; only the converted <name>.json files are tracked.
+backend/data/bench/raw/
+
 # Accounts + sessions (salted password hashes and tokens).
 backend/data/auth/
 

@@ -24,6 +24,10 @@ from app.bench.goldgen import NULL_ANSWER
 from app.chunking.tokens import count_tokens
 
 GOLD_SOURCE = "human (QASPER annotators — Dasigi et al. 2021)"
+ABOUT = ("QASPER (Dasigi et al., NAACL 2021): questions written by NLP researchers who read "
+         "only a paper's title and abstract, answered by other researchers reading the full "
+         "paper, with evidence paragraphs marked. Papers are ingested whole; the human gold "
+         "arrives pre-approved when you prepare.")
 
 
 def is_qasper(path) -> bool:

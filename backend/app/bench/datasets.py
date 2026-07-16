@@ -16,11 +16,33 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 
 from app.bench import store
 from app.chunking.tokens import count_tokens
 
 _CONTEXT_KEYS = ("context", "ctx", "document", "text", "passage")
+_ABOUT_RE = re.compile(r'"about"\s*:\s*"((?:[^"\\]|\\.)*)"')
+
+
+def _raw_hints(f) -> dict:
+    """about text + human-gold flag from the raw file's head — the adapters put
+    these fields up front so a 40 MB file never gets parsed just to list it."""
+    if f.suffix != ".json":
+        return {"about": "", "human_gold": False}
+    try:
+        with open(f, encoding="utf-8", errors="ignore") as fh:
+            head = fh.read(32768)
+    except OSError:
+        return {"about": "", "human_gold": False}
+    if '"noema-humanqa-v1"' in head:
+        m = _ABOUT_RE.search(head)
+        about = json.loads(f'"{m.group(1)}"') if m else ""
+        return {"about": about, "human_gold": True}
+    if '"full_text"' in head:
+        from app.bench import qasper
+        return {"about": qasper.ABOUT, "human_gold": True}
+    return {"about": "", "human_gold": False}
 
 
 def _last_used(name: str, raw) -> float:
@@ -42,7 +64,7 @@ def list_datasets() -> list[dict]:
     out = []
     for f in list(store.RAW_DIR.glob("*.jsonl")) + list(store.RAW_DIR.glob("*.json")):
         out.append({"name": f.stem, "file": f.name, "size_mb": round(f.stat().st_size / 1e6, 1),
-                    "last_used": _last_used(f.stem, f), **dataset_status(f.stem)})
+                    "last_used": _last_used(f.stem, f), **_raw_hints(f), **dataset_status(f.stem)})
     return sorted(out, key=lambda d: d["last_used"], reverse=True)
 
 
@@ -127,10 +149,12 @@ def prepare(dataset: str, cap_tokens: int) -> dict:
     a small cap yields cross-document graph structure."""
     raw_json = store.RAW_DIR / f"{dataset}.json"
     if raw_json.exists():
-        from app.bench import qasper
+        from app.bench import humanqa, qasper
+        if humanqa.is_humanqa(raw_json):
+            return humanqa.prepare(dataset, cap_tokens)
         if qasper.is_qasper(raw_json):
             return qasper.prepare(dataset, cap_tokens)
-        raise ValueError("Unrecognized .json format (expected QASPER structure).")
+        raise ValueError("Unrecognized .json format (expected QASPER or noema-humanqa-v1 structure).")
 
     raw = store.RAW_DIR / f"{dataset}.jsonl"
     if not raw.exists():

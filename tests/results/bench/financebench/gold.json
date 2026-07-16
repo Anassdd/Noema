@@ -1,0 +1,26 @@
+[
+ {
+  "id": "q001",
+  "n": 1,
+  "doc_id": "PEPSICO_2023Q1_EARNINGS",
+  "source": "human",
+  "question": "As of FY2023Q1, by how many percentage points did Pepsico raise full year guidance in respect of core constant currency EPS growth?",
+  "answer": "Pepsico raised full year guidance in respect of core constant currency EPS growth by 1 percentage point.",
+  "alt_answers": [],
+  "evidence": "We are very pleased with our performance and business momentum as our categories and \ngeographies remained resilient during the first quarter. Given our strong start to the year, we \nnow expect our full-year 2023 organic revenue to increase 8 percent (previously 6 percent) and \ncore constant currency EPS to increase 9 percent (previously 8 percent), said Chairman and \nCEO Ramon Laguarta.",
+  "type": "novel-generated",
+  "status": "approved"
+ },
+ {
+  "id": "q002",
+  "n": 2,
+  "doc_id": "PEPSICO_2023Q1_EARNINGS",
+  "source": "human",
+  "question": "As of FY2023Q1, why did Pepsico raise full year guidance for FY2023?",
+  "answer": "Pepsico experienced a strong start to FY2023.",
+  "alt_answers": [],
+  "evidence": "We are very pleased with our performance and business momentum as our categories and \ngeographies remained resilient during the first quarter. Given our strong start to the year, we \nnow expect our full-year 2023 organic revenue to increase 8 percent (previously 6 percent) and \ncore constant currency EPS to increase 9 percent (previously 8 percent), said Chairman and \nCEO Ramon Laguarta.",
+  "type": "novel-generated",
+  "status": "approved"
+ }
+]

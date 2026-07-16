@@ -26,6 +26,13 @@ This is why graph ingest is the slow, expensive path (~several LLM calls per pag
 the upload endpoint streams per-page progress. Extraction quality depends on the model —
 weak extractors produce sparse graphs (the config exposes `GRAPH_EXTRACT_MODEL`).
 
+Extraction instructions come in two flavors (`GraphMemory.instructions_for(kind)`):
+**document** — for corpus/PDF ingestion: domain concepts, standards with identifiers,
+metrics with values, directional assertions (defines / requires / applies-to /
+supersedes…) — used by the bench builder and the PDF upload; and **memory** — the
+original broad flavor for conversational or pasted-note text (preferences, opinions,
+everyday entities). Both compose with the induced schema when the domain has one.
+
 ### Induced schemas
 
 `graph/schema.py` can sample a corpus and derive a domain-specific schema (entity/relation
@@ -59,7 +66,10 @@ Persisted per domain, applied automatically when present.
 `GraphMemory.search()` runs Graphiti's hybrid fact search (semantic + BM25 + graph),
 filtered to the domain's `group_id`, minus any facts Dream has **archived** (an
 `archived` flag checked via `_archived_uuids()` — archived facts stay in snapshots but
-leave active retrieval).
+leave active retrieval; the fetch is widened by the archived count, so a full page of
+live facts always comes back). The recipe is selectable via `GRAPH_SEARCH_RECIPE`
+(`rrf` default — the measured baseline; `cross_encoder` re-ranks facts with cheap LLM
+calls; `mmr` diversifies) — flipping it is a bench experiment, not a code change.
 
 Provenance: episodes are named `"<file> · p<N>"` at ingestion. A retrieved fact carries its
 episode uuids; `episode_names()` maps them back, and the pipeline parses doc + page out of

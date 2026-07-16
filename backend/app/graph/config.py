@@ -39,6 +39,13 @@ class GraphConfig:
     password: str = ""
     neo4j_uri: str = "bolt://localhost:7687"   # neo4j
     extract_model: str = ""                    # blank -> resolved from settings in providers
+    # Graph search recipe: "rrf" (Graphiti's basic hybrid — the measured baseline),
+    # "cross_encoder" (LLM-reranked facts, ~graph_limit extra cheap calls per query),
+    # or "mmr". Part of run provenance — don't mix recipes within one comparison.
+    search_recipe: str = "rrf"
+    # Cap on Graphiti's internal concurrent LLM calls during ingestion.
+    # 0 = library default (~20); lower it on rate-limited keys or gateways.
+    max_coroutines: int = 0
 
 
 def load_graph_config() -> GraphConfig:
@@ -51,6 +58,8 @@ def load_graph_config() -> GraphConfig:
         password=os.getenv("FALKOR_PASSWORD", ""),
         neo4j_uri=os.getenv("NEO4J_URI", "bolt://localhost:7687"),
         extract_model=os.getenv("GRAPH_EXTRACT_MODEL", ""),
+        search_recipe=os.getenv("GRAPH_SEARCH_RECIPE", "rrf").strip().lower(),
+        max_coroutines=int(os.getenv("GRAPH_MAX_COROUTINES", "0") or 0),
     )
 
 

@@ -127,10 +127,12 @@ async def upload(
         pages = [p for p in doc.page_markdown if p and p.strip()]
         yield _line({"phase": "parsed", "filename": doc.filename, "pages": len(pages)})
 
+        doc_instructions = mem.instructions_for("document")
         async with _mgr.lock(domain):
             for i, page in enumerate(pages):
                 try:
-                    await mem.add_episode(page, name=f"{doc.filename} · p{i + 1}")
+                    await mem.add_episode(page, name=f"{doc.filename} · p{i + 1}",
+                                          extraction_instructions=doc_instructions)
                 except Exception as exc:  # noqa: BLE001 — surface, keep going
                     yield _line({"phase": "error", "page": i + 1, "detail": str(exc)})
                     continue

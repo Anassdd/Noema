@@ -22,7 +22,7 @@ from graphiti_core.utils.maintenance.graph_data_operations import clear_data
 
 from app.graph.base import GraphEdge, GraphFact, GraphNode, GraphSnapshot, iso
 from app.graph.config import GraphConfig, graph_config
-from app.graph.providers import build_embedder, build_llm_client
+from app.graph.providers import build_cross_encoder, build_embedder, build_llm_client
 from app.graph.schema import InducedSchema, load_schema, schema_instructions
 from app.saves import base_group_id
 
@@ -37,6 +37,24 @@ DEFAULT_EXTRACTION_INSTRUCTIONS = (
     "— and the relationships, preferences, opinions, comparisons and attributes that connect "
     "them. Always include the person or subject who holds an opinion or preference as an "
     "entity, linked to the things they prefer or reject."
+)
+
+# Corpus ingestion (PDF pages, bench documents) extracts with this instead: expository
+# text has no speaker holding preferences — its value is domain concepts and the
+# assertions connecting them. The chat-memory default above would litter a filing's
+# graph with everyday nouns.
+DOCUMENT_EXTRACTION_INSTRUCTIONS = (
+    "This text is from a reference document (a paper, regulation, filing, manual or "
+    "article), not a conversation. Extract what a domain expert would index: domain "
+    "concepts and defined terms, organizations and institutions, standards and "
+    "regulations with their identifiers, named methods, models, products and financial "
+    "instruments, metrics and quantities with their values, and people in their "
+    "professional roles. Use the canonical name the document itself uses; resolve "
+    "pronouns and abbreviations to their referents. Capture the relationships the text "
+    "asserts — definitions, requirements and obligations, applicability and scope, "
+    "causal and quantitative links, comparisons, part-whole and supersession — as "
+    "specific directional facts. Do not extract conversational filler, generic everyday "
+    "nouns, or document-structure words (section, table, figure, page)."
 )
 
 
@@ -89,11 +107,21 @@ class GraphMemory:
             graph_driver=self._driver,
             llm_client=build_llm_client(extract_model or self.config.extract_model or None),
             embedder=build_embedder(),
+            cross_encoder=build_cross_encoder(),
+            max_coroutines=self.config.max_coroutines or None,
         )
 
-    def _resolve_instructions(self) -> str:
+    def instructions_for(self, kind: str = "memory") -> str:
+        """Extraction instructions for one episode: the induced-schema prefix (when the
+        domain has one) + the base suited to the text — "document" for corpus/PDF
+        ingestion, "memory" for conversational or pasted notes. A raw per-episode
+        override would silently drop the schema prefix; this keeps it."""
+        base = DOCUMENT_EXTRACTION_INSTRUCTIONS if kind == "document" else self._base_instructions
         si = schema_instructions(self.schema) if self.schema else ""
-        return f"{si} {self._base_instructions}".strip() if si else self._base_instructions
+        return f"{si} {base}".strip() if si else base
+
+    def _resolve_instructions(self) -> str:
+        return self.instructions_for("memory")
 
     def apply_schema(self, schema: InducedSchema | None):
         """Bound future extraction to an induced domain schema (or clear it)."""
@@ -157,10 +185,35 @@ class GraphMemory:
 
     # ---- retrieval --------------------------------------------------------
     async def search(self, query: str, limit: int = 10) -> list[GraphFact]:
-        edges = await self.graphiti.search(query, group_ids=[self.group_id], num_results=limit)
+        """Top `limit` LIVE facts: archived ones are known up front and the fetch is
+        widened by their count, so they never eat result slots."""
         archived = await self._archived_uuids()
+        fetch = min(limit + len(archived), limit * 3) if archived else limit
+        edges = await self._search_edges(query, fetch)
+        live = [e for e in edges if e.uuid not in archived][:limit]
         names = await self._node_names()
-        return [self._to_fact(e, names) for e in edges if e.uuid not in archived]
+        return [self._to_fact(e, names) for e in live]
+
+    async def _search_edges(self, query: str, limit: int):
+        """The one place the search recipe is chosen. "rrf" keeps Graphiti's basic
+        hybrid search — the measured baseline; richer recipes go through search_() on
+        a COPY (the module-level recipes are shared singletons, never mutate them)."""
+        recipe = (self.config.search_recipe or "rrf").lower()
+        if recipe == "rrf":
+            return await self.graphiti.search(query, group_ids=[self.group_id],
+                                              num_results=limit)
+        from graphiti_core.search.search_config_recipes import (
+            EDGE_HYBRID_SEARCH_CROSS_ENCODER, EDGE_HYBRID_SEARCH_MMR)
+        recipes = {"cross_encoder": EDGE_HYBRID_SEARCH_CROSS_ENCODER,
+                   "mmr": EDGE_HYBRID_SEARCH_MMR}
+        if recipe not in recipes:
+            raise ValueError(f"Unknown GRAPH_SEARCH_RECIPE={recipe!r} "
+                             "(expected rrf | cross_encoder | mmr)")
+        config = recipes[recipe].model_copy(deep=True)
+        config.limit = limit
+        results = await self.graphiti.search_(query, config=config,
+                                              group_ids=[self.group_id])
+        return results.edges
 
     async def _edge_count(self) -> int:
         """Raw fact-edge count straight from Cypher — independent of edge parsing."""

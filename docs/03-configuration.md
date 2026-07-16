@@ -94,6 +94,8 @@ duplicated here — they come from the provider settings above.
 | `FALKOR_PASSWORD` | `""` | Password, if the graph server requires auth. Also used as the Neo4j password. |
 | `NEO4J_URI` | `bolt://localhost:7687` | Neo4j connection URI (`GRAPH_BACKEND=neo4j` only). |
 | `GRAPH_EXTRACT_MODEL` | `""` | Model used for entity/relationship extraction. Blank = resolved from the provider settings. Extraction quality matters — a weak extractor produces a sparse graph. |
+| `GRAPH_SEARCH_RECIPE` | `rrf` | Graph fact-search recipe: `rrf` (Graphiti's basic hybrid — the measured baseline), `cross_encoder` (LLM-reranked facts, ~`graph_limit` extra cheap calls per query), or `mmr`. Recorded in bench run provenance — never mix recipes within one comparison. |
+| `GRAPH_MAX_COROUTINES` | `0` | Cap on Graphiti's internal concurrent LLM calls during ingestion. `0` = library default (~20); lower it on rate-limited keys or corporate gateways. |
 
 ## Dream (graph self-maintenance)
 

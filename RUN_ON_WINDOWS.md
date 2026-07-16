@@ -103,6 +103,8 @@ FALKOR_PORT=6379
 
 # --- Optional ---
 # PARSER=vision            # or docintel (+ DOCINTEL_ENDPOINT / DOCINTEL_KEY)
+# GRAPH_MAX_COROUTINES=8   # cap Graphiti's parallel LLM calls — corporate gateways
+#                          # usually rate-limit harder than OpenAI (0 = default ~20)
 # VECTOR_DIR=              # where Chroma persists (default: backend\.chroma)
 # CHAT_TEMPERATURE=0.2
 ```

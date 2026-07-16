@@ -9,6 +9,7 @@ llm_client.py does for the rest of the app. No SDK config is scattered elsewhere
 from __future__ import annotations
 
 from app.config import settings
+from graphiti_core.cross_encoder.openai_reranker_client import OpenAIRerankerClient
 from graphiti_core.embedder.openai import OpenAIEmbedder, OpenAIEmbedderConfig
 from graphiti_core.llm_client.config import LLMConfig
 from graphiti_core.llm_client.openai_client import OpenAIClient
@@ -52,3 +53,15 @@ def build_embedder():
     if settings.base_url:
         kw["base_url"] = settings.base_url
     return OpenAIEmbedder(config=OpenAIEmbedderConfig(**kw))
+
+
+def build_cross_encoder():
+    """Reranker for the graph search recipes that use one (GRAPH_SEARCH_RECIPE=
+    cross_encoder). Without this, Graphiti silently builds its own client pointed at
+    api.openai.com — a provider leak. Ranks passages by the logprob of a yes/no
+    relevance answer, so the endpoint must expose logprobs (OpenAI does; verify on
+    the gateway before enabling that recipe in prod)."""
+    kw = dict(api_key=_api_key(), model=settings.chat_model)
+    if settings.base_url:
+        kw["base_url"] = settings.base_url
+    return OpenAIRerankerClient(config=LLMConfig(**kw))

@@ -8,11 +8,16 @@ per-question records (so new metrics can be recomputed later without re-running)
 
 from __future__ import annotations
 
+import math
+import random
 import time
 
 # v2: quality metrics exclude infrastructure-error records; per-config judge coverage;
 # honest paired fusion diagnostic; judge/scope/anchoring provenance recorded.
-SCHEMA_VERSION = 2
+# v3 (additive): bootstrap 95% CIs on judge accuracy, McNemar + delta CI on the paired
+# hybrid-vs-rag flips, priced run cost, judge_prompt_version + graph_search_recipe
+# provenance. Older reports remain mergeable — the new fields just read as absent.
+SCHEMA_VERSION = 3
 
 
 def _mean(xs) -> float | None:
@@ -28,6 +33,30 @@ def _rate(xs) -> float | None:
 def _judge(rec: dict) -> dict:
     """A record's verdict, tolerating error records that never carried one."""
     return rec.get("judge") or {}
+
+
+_BOOT = 2000  # bootstrap resamples — deterministic (seeded), model-free, recomputable
+
+
+def _bootstrap_ci(values: list[float]) -> list[float] | None:
+    """Seeded percentile-bootstrap 95% CI of the mean. None when too few points."""
+    if len(values) < 5:
+        return None
+    rng = random.Random(0)
+    n = len(values)
+    means = sorted(sum(values[rng.randrange(n)] for _ in range(n)) / n
+                   for _ in range(_BOOT))
+    return [round(means[int(0.025 * _BOOT)], 4), round(means[int(0.975 * _BOOT) - 1], 4)]
+
+
+def _mcnemar_p(gained: int, lost: int) -> float | None:
+    """Exact two-sided McNemar on the paired flips: the probability that a split at
+    least this lopsided arises by chance if fusion truly changed nothing."""
+    n = gained + lost
+    if n == 0:
+        return None
+    tail = sum(math.comb(n, k) for k in range(0, min(gained, lost) + 1))
+    return round(min(1.0, 2 * tail / 2 ** n), 4)
 
 
 def _row(config: str, recs: list[dict]) -> dict:
@@ -50,6 +79,7 @@ def _row(config: str, recs: list[dict]) -> dict:
         # trustworthy when this is high (a half-dead judge otherwise hides behind a number).
         "coverage": round(len(judged) / len(answered), 4) if answered else None,
         "judge_accuracy": _rate(correct),
+        "judge_accuracy_ci95": _bootstrap_ci([1.0 if c else 0.0 for c in judged]),
         "judge_score": _mean([_judge(r).get("score") for r in answered]),
         "em": _rate([r.get("em") for r in answered]),
         "f1": _mean([r.get("f1") for r in answered]),
@@ -89,16 +119,48 @@ def _fusion(by_config: dict[str, list[dict]]) -> dict | None:
     hyq = {r["qid"]: r for r in hy}
     both = rag.keys() & hyq.keys()
     if both:
-        gained = sum(1 for q in both if _judge(hyq[q]).get("correct") and not _judge(rag[q]).get("correct"))
-        lost = sum(1 for q in both if _judge(rag[q]).get("correct") and not _judge(hyq[q]).get("correct"))
+        pairs = [(1.0 if _judge(hyq[q]).get("correct") else 0.0,
+                  1.0 if _judge(rag[q]).get("correct") else 0.0) for q in both]
+        gained = sum(1 for h, r in pairs if h and not r)
+        lost = sum(1 for h, r in pairs if r and not h)
         out.update({"paired_questions": len(both),
-                    "hybrid_gained_over_rag": gained, "hybrid_lost_vs_rag": lost})
+                    "hybrid_gained_over_rag": gained, "hybrid_lost_vs_rag": lost,
+                    # paired stats: the flip test and a CI on the accuracy delta itself
+                    "mcnemar_p": _mcnemar_p(gained, lost),
+                    "hybrid_delta_ci95": _bootstrap_ci([h - r for h, r in pairs])})
     return out
+
+
+def _run_cost(usage_totals: dict, answer_model: str, judge_models: list[str]) -> dict:
+    """This run's query-side spend, priced from the same table as the pre-run estimate
+    (cached prompt tokens at the discount). Unknown models read None, never a made-up
+    number; build cost stays on the provider dashboard (it isn't in these usage sums)."""
+    from app.bench.estimate import _CACHE_DISCOUNT, _price, PRICES
+
+    def leg(usage: dict, model: str) -> float | None:
+        if not model or not any(model.startswith(k) for k in PRICES):
+            return None
+        pin, pout = _price(model)
+        prompt = usage.get("prompt_tokens", 0) or 0
+        cached = min(usage.get("cached_tokens", 0) or 0, prompt)
+        out = usage.get("completion_tokens", 0) or 0
+        return round(((prompt - cached) * pin + cached * pin * _CACHE_DISCOUNT
+                      + out * pout) / 1e6, 4)
+
+    judge_model = next((m for m in judge_models or [] if m), "").replace(" (fallback)", "")
+    gen = leg(usage_totals.get("generation", {}), answer_model)
+    jud = leg(usage_totals.get("judging", {}), judge_model)
+    total = round((gen or 0) + (jud or 0), 4) if (gen is not None or jud is not None) else None
+    return {"generation_usd": gen, "judging_usd": jud, "total_usd": total,
+            "note": "queries + judging only, priced from the estimate table; "
+                    "None = model not in the price table"}
 
 
 def assemble(*, run_id: str, dataset: str, prepared: dict, build: dict,
              configs: list[str], gold: list[dict], records: list[dict],
-             answer_model: str, scope: str = "auto") -> dict:
+             answer_model: str, scope: str = "auto",
+             graph_search_recipe: str | None = None,
+             judge_prompt_version: str | None = None) -> dict:
     by_config = {c: [r for r in records if r["config"] == c] for c in configs}
     headline = [_row(c, by_config[c]) for c in configs]
 
@@ -155,6 +217,8 @@ def assemble(*, run_id: str, dataset: str, prepared: dict, build: dict,
         "questions_document_anchored": any(r.get("asked") for r in records),
         "answer_model_resolved": sorted({r.get("answer_model") for r in records
                                          if r.get("answer_model")}),
+        "graph_search_recipe": graph_search_recipe,
+        "judge_prompt_version": judge_prompt_version,
     }
 
     fusion = _fusion(by_config)
@@ -176,6 +240,7 @@ def assemble(*, run_id: str, dataset: str, prepared: dict, build: dict,
                      for t in ("factoid", "synthesis", "global", "null")],
         "graph_health": build.get("graph_health"),
         "usage_totals": usage_totals,
+        "run_cost_usd": _run_cost(usage_totals, answer_model, judge_models),
         "headline": headline,
         "verdict": _verdict(headline, fusion, provenance),
         "slices": slices,
@@ -224,8 +289,13 @@ def _verdict(headline: list[dict], fusion: dict | None, provenance: dict | None 
         parts.append(f"closed-book floor {floor['judge_accuracy']:.0%} — "
                      f"{'clean corpus, lifts are real' if floor['judge_accuracy'] <= 0.2 else 'the model partly knows this corpus; read lifts, not raw scores'}")
     if fusion and fusion.get("hybrid_lost_vs_rag") is not None:
-        parts.append(f"fusion vs rag (paired): fixed {fusion['hybrid_gained_over_rag']}, "
-                     f"broke {fusion['hybrid_lost_vs_rag']} of {fusion['paired_questions']}")
+        sentence = (f"fusion vs rag (paired): fixed {fusion['hybrid_gained_over_rag']}, "
+                    f"broke {fusion['hybrid_lost_vs_rag']} of {fusion['paired_questions']}")
+        p = fusion.get("mcnemar_p")
+        if p is not None:
+            sentence += (f" (p={p:.3f} — the direction is statistically real)" if p < 0.05
+                         else f" (p={p:.2f} — could be chance at this sample size; don't over-read)")
+        parts.append(sentence)
     return " ".join(warnings + [". ".join(parts) + "."])
 
 
@@ -245,6 +315,10 @@ _CONFIG_EXPLAIN = {
 
 def _pct(x) -> str:
     return "—" if x is None else f"{100 * x:.0f}%"
+
+
+def _ci(ci) -> str:
+    return "—" if not ci else f"[{100 * ci[0]:.0f}–{100 * ci[1]:.0f}%]"
 
 
 def render_markdown(report: dict) -> str:
@@ -285,11 +359,12 @@ def render_markdown(report: dict) -> str:
         f"- **Answer model** (identical for every config): `{report['answer_model']}`",
         f"- **Extraction model** (graph build): `{b['models']['extract']}` · "
         f"**embeddings**: `{b['models'].get('embed', '?')}`",
-        (lambda pv: f"- **Judge**: {', '.join(f'`{m}`' for m in pv['judge_models']) or 'unrecorded'}"
-                    f"{' ⚠ includes a self-judged fallback' if pv.get('judge_used_fallback') else ''} · "
+        (lambda pv, rubric: f"- **Judge**: {', '.join(f'`{m}`' for m in pv['judge_models']) or 'unrecorded'}"
+                    f"{' ⚠ includes a self-judged fallback' if pv.get('judge_used_fallback') else ''}"
+                    f"{' · rubric `' + rubric + '`' if rubric else ''} · "
                     f"**scope**: `{pv.get('scope', '?')}` · "
                     f"**questions {'document-anchored' if pv.get('questions_document_anchored') else 'used as-is'}**"
-         )(report.get("provenance", {})),
+         )(report.get("provenance", {}), report.get("provenance", {}).get("judge_prompt_version") or ""),
         f"- **Memory build** `{b['fingerprint']}` → checkpointed as save **{b['save_name']}**: "
         f"{b.get('nodes', '?')} entities · {b.get('edges', '?')} facts · {b.get('chunks', '?')} chunks"
         + (f" · built in {b['build_seconds']}s" if b.get("build_seconds") else ""),
@@ -304,8 +379,8 @@ def render_markdown(report: dict) -> str:
         "",
         "## 4. Results",
         "",
-        "| config | answered | judged | judge acc | lift vs closed-book | EM | F1 | evidence recall | evidence overlap | latency avg | tok/q |",
-        "|---|---|---|---|---|---|---|---|---|---|---|",
+        "| config | answered | judged | judge acc | 95% CI | lift vs closed-book | EM | F1 | evidence recall | evidence overlap | latency avg | tok/q |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for r in report["headline"]:
         answered = f"{r.get('answered', r['n'])}/{r['n']}"
@@ -313,6 +388,7 @@ def render_markdown(report: dict) -> str:
             answered += f" ⚠{r['errors']} err"
         lines.append(
             f"| {r['config']} | {answered} | {r.get('judged', '—')} | {_pct(r['judge_accuracy'])} | "
+            f"{_ci(r.get('judge_accuracy_ci95'))} | "
             f"{_pct(r['lift_over_closed_book']) if r['lift_over_closed_book'] is not None else '—'} | "
             f"{_pct(r['em'])} | {r['f1'] if r['f1'] is not None else '—'} | "
             f"{_pct(r['evidence_recall'])} | {_pct(r['evidence_overlap'])} | "
@@ -323,7 +399,9 @@ def render_markdown(report: dict) -> str:
         "*How to read this: **answered** = questions that produced an answer (the rest hit "
         "infrastructure errors and are excluded from every accuracy figure, not scored wrong); "
         "**judged** = answers that received a verdict; **judge acc** = of those, the fraction "
-        "graded correct against the gold answer; "
+        "graded correct against the gold answer; **95% CI** = seeded-bootstrap interval on "
+        "judge acc — two configs whose intervals overlap heavily are not distinguishable at "
+        "this sample size; "
         "**lift** = points above the closed-book floor (what retrieval actually earned); "
         "**evidence recall** = how often the gold evidence *paragraph* was retrieved verbatim "
         "(a passage-retrieval metric — the graph reads 0 by construction, since it stores "
@@ -351,6 +429,15 @@ def render_markdown(report: dict) -> str:
                 f"**broke {fusion['hybrid_lost_vs_rag']}** rag-correct ones — "
                 + ("fusion earns its place here" if fusion['hybrid_gained_over_rag'] > fusion['hybrid_lost_vs_rag']
                    else "fusion is net-negative on this corpus; the graph is displacing evidence chunks"))
+            if fusion.get("mcnemar_p") is not None:
+                delta = fusion.get("hybrid_delta_ci95")
+                lines.append(
+                    f"- statistics: exact McNemar on the flips p = {fusion['mcnemar_p']:.3f}"
+                    + (f" · paired accuracy delta 95% CI [{100 * delta[0]:+.1f}, {100 * delta[1]:+.1f}] pts"
+                       if delta else "")
+                    + (" — **significant**: the direction is real, not sampling noise"
+                       if fusion["mcnemar_p"] < 0.05 else
+                       " — **not significant** at this sample size: treat the direction as a hint, not a finding"))
 
     health = report.get("graph_health")
     if health:
@@ -361,10 +448,17 @@ def render_markdown(report: dict) -> str:
     u = report.get("usage_totals", {})
     if u:
         g, j = u.get("generation", {}), u.get("judging", {})
-        lines += ["", "### Cost (tokens; build cost tracked on the provider dashboard)", "",
+        cost = report.get("run_cost_usd") or {}
+
+        def _usd(x):
+            return "n/a (model not in price table)" if x is None else f"${x:.2f}"
+
+        lines += ["", "### Cost (queries + judging; build cost tracked on the provider dashboard)", "",
                   f"- generation: {g.get('prompt_tokens', 0):,} in / {g.get('completion_tokens', 0):,} out "
-                  f"({g.get('cached_tokens', 0):,} cached)",
-                  f"- judging: {j.get('prompt_tokens', 0):,} in / {j.get('completion_tokens', 0):,} out"]
+                  f"({g.get('cached_tokens', 0):,} cached) → {_usd(cost.get('generation_usd'))}",
+                  f"- judging: {j.get('prompt_tokens', 0):,} in / {j.get('completion_tokens', 0):,} out "
+                  f"→ {_usd(cost.get('judging_usd'))}",
+                  f"- **run total: {_usd(cost.get('total_usd'))}**"]
 
     if report["failure_gallery"]:
         lines += ["", "## 5. Failure analysis", "",
@@ -382,8 +476,9 @@ def render_markdown(report: dict) -> str:
         "",
         f"- Corpus capped at {p['cap_tokens']:,} tokens — results are comparative "
         "(method vs method on identical conditions), not absolute quality claims.",
-        f"- {sum(r['n'] for r in report['headline'][:1])} questions: differences of a few "
-        "points are within noise at this sample size.",
+        f"- {sum(r['n'] for r in report['headline'][:1])} questions: read differences through "
+        "the 95% CIs in the results table (heavily overlapping intervals = not "
+        "distinguishable) and the paired McNemar p-value in the fusion block.",
         "",
         "> ✎ TO COMPLETE — anything specific to this run worth flagging.",
         "",

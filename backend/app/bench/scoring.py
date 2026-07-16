@@ -96,30 +96,41 @@ def evidence_hit(evidence: str, retrieved_texts: list[str]) -> bool:
     return found >= max(1, len(shingles) // 3)
 
 
+# Bump JUDGE_PROMPT_VERSION whenever _JUDGE_SYS changes: it is stamped into run
+# provenance, so verdicts graded under different rubrics can never mix silently
+# (rejudge any old run to bring it onto the current rubric — generation is not re-paid).
+JUDGE_PROMPT_VERSION = "v2"
+
 _JUDGE_SYS = (
     "You grade a candidate answer against GOLD answers for a benchmark question. "
     "The gold answers are the ground truth — grade agreement, not style or length. "
     "If several gold answers are given they are alternative correct answers from "
     "different human annotators: matching ANY of them means correct, and a candidate "
-    "that combines or extends them with details is still correct. A candidate that says "
-    "the information is unavailable when a gold answer exists is wrong. "
+    "that combines or extends them with details is still correct. "
+    "Numbers are equal when they match after normalizing formatting, currency symbols, "
+    "separators, units and scale ($1,577.00 = 1577 = 1.577 billion when context sets the "
+    "scale) or reasonable rounding; a different magnitude, sign or unit is wrong. "
+    "If the gold answer says the question is invalid, unanswerable, or rests on a false "
+    "premise, then a candidate that refuses, corrects the premise, or states the "
+    "information does not exist is CORRECT — and any confident direct answer is wrong. "
+    "Otherwise, a candidate that says the information is unavailable when a gold answer "
+    "exists is wrong. "
     'Reply ONLY JSON: {"correct": true|false, "score": <0.0-1.0>, "note": "<short reason>"}.'
 )
 
-# Free judge tiers are heavily rate-limited (Gemini free ≈ 10 req/min) — a run fires
-# hundreds of verdicts, so calls are paced and 429s retried; if the judge endpoint
-# stays unavailable, the verdict falls back to the MAIN provider (recorded as such)
-# rather than going unscored.
+# Pacing is OPT-IN: unset JUDGE_RPM = full speed (a paid judge tier handles the bench's
+# parallel verdicts fine). Point a heavily rate-limited free tier (Gemini free ≈ 10
+# req/min) at the bench by setting JUDGE_RPM≈9 — calls are then paced globally (across
+# the judge phase's worker threads) and 429s retried; if the judge endpoint stays
+# unavailable, the verdict falls back to the MAIN provider (recorded as such) rather
+# than going unscored.
 _throttle_lock = threading.Lock()
 _next_call_at = 0.0
 
 
 def _throttle() -> None:
     global _next_call_at
-    from app.config import settings
-    judge_configured = bool(settings.judge_model and settings.judge_base_url
-                            and settings.judge_api_key)
-    rpm = float(os.getenv("JUDGE_RPM", "9" if judge_configured else "0"))
+    rpm = float(os.getenv("JUDGE_RPM", "0") or 0)
     if rpm <= 0:
         return
     with _throttle_lock:

@@ -14,10 +14,11 @@ from app import saves
 from app.bench import store
 from app.config import settings
 
-# The contextualizer chunks each doc to ~512 tokens and, per chunk, resends the WHOLE
-# document as a cacheable prefix (see retrieval/contextual.py). So its cost scales with
-# chunk_count × doc_tokens, NOT a flat multiple of the corpus — the old 5× model
-# under-counted a 50k-token doc by ~9×. Cached prefix tokens are billed at a discount.
+# The contextualizer chunks each doc to ~512 tokens and, per chunk, resends a cacheable
+# prefix (see retrieval/contextual.py): the WHOLE document up to CONTEXT_DOC_CAP, a
+# ~CONTEXT_PART_TOKENS excerpt beyond it. So its cost scales with chunk_count × prefix,
+# NOT a flat multiple of the corpus — the old 5× model under-counted a 50k-token doc by
+# ~9×. Cached prefix tokens are billed at a discount.
 _CHUNK_TOKENS = 512
 _BLURB_OUT_TOKENS = 45
 _CACHE_DISCOUNT = float(os.getenv("BENCH_CACHE_DISCOUNT", "0.5"))  # cached input billed fraction
@@ -86,13 +87,16 @@ def estimate(dataset: str, configs: list[str], extract_model: str | None = None)
     build = 0.0
     build_breakdown = {}
     if not build_exists:
-        # Contextualization: per doc, chunk_count × (whole doc as a mostly-cached prefix).
+        # Contextualization: per doc, chunk_count × (a mostly-cached prefix — the whole
+        # doc when it fits CONTEXT_DOC_CAP, else the ~CONTEXT_PART_TOKENS excerpt).
         ctx_in = ctx_out = 0.0
         for d in store.load_corpus(dataset):
             doc_tokens = d.get("tokens", 0)
+            prefix = (doc_tokens if doc_tokens <= settings.context_doc_cap
+                      else settings.context_part_tokens)
             chunks = max(1, -(-doc_tokens // _CHUNK_TOKENS))  # ceil
-            uncached = doc_tokens + chunks * (_CHUNK_TOKENS + 70)  # first doc pass + per-call chunk+instr
-            cached = max(0, chunks - 1) * doc_tokens              # repeated doc prefix, cached
+            uncached = doc_tokens + chunks * (_CHUNK_TOKENS + 70)  # first prefix passes + per-call chunk+instr
+            cached = max(0, chunks - 1) * prefix                   # repeated prefix, cached
             ctx_in += uncached + cached * _CACHE_DISCOUNT
             ctx_out += chunks * _BLURB_OUT_TOKENS
         contextualization = (ctx_in * cin + ctx_out * cout) / 1e6 * doc_frac
@@ -115,11 +119,12 @@ def estimate(dataset: str, configs: list[str], extract_model: str | None = None)
                       and settings.judge_api_key)
     judging = 0.0 if judge_free else n_q * len(configs) * (400 * cin + 60 * cout) / 1e6
 
-    # Query wall-clock is dominated by the judge throttle (JUDGE_RPM, default 9/min when a
-    # judge endpoint is configured) — hundreds of paced verdicts, not the generations.
-    rpm = float(os.getenv("JUDGE_RPM", "9" if judge_free else "0"))
+    # Judge wall-clock: paced only when JUDGE_RPM is explicitly set (free tiers);
+    # otherwise verdicts run JUDGE_CONCURRENCY-wide at ~2s each in the judge phase.
+    rpm = float(os.getenv("JUDGE_RPM", "0") or 0)
+    concurrency = max(1, int(os.getenv("JUDGE_CONCURRENCY", "4") or 4))
     verdicts = n_q * len(configs)
-    judge_minutes = round(verdicts / rpm) if rpm > 0 else 0
+    judge_minutes = round(verdicts / rpm) if rpm > 0 else round(verdicts * 2 / 60 / concurrency)
 
     unpriced = sorted({m for m in (extract, settings.chat_model)
                        if not any(m.startswith(k) for k in PRICES)})

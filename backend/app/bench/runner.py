@@ -23,11 +23,14 @@ from app.bench import scoring, store
 from app.bench.datasets import split_windows
 from app.bench.report import assemble, render_markdown
 from app.config import settings
+from app.graph.config import graph_config
 from app.graph.manager import graph_manager
 from app.retrieval import ingest_markdown
 
 EPISODE_TOKENS = 700
-_EP_VERSION = "ep700-v1"
+# v2 = document-tuned extraction instructions; graphs built before/after must never
+# share a build_skip (or a results table), hence the version lives in the fingerprint.
+_EP_VERSION = "ep700-v2"
 
 # config name -> (use_vector, use_graph); closed_book skips retrieval entirely.
 CONFIGS = {
@@ -107,19 +110,21 @@ async def _build(dataset: str, docs: list[dict], domain: str, extract_model: str
                                    "cached_tokens": info.get("cached_tokens", 0),
                                    "completion_tokens": 0})
         yield {"phase": "rag_doc", "doc": doc["id"], "i": i + 1, "total": len(docs),
-               "chunks": info.get("chunks", 0)}
+               "chunks": info.get("chunks", 0), "excerpted": info.get("excerpted", False)}
 
     from app.retrieval import VectorStore
     chunks_total = await asyncio.to_thread(lambda: VectorStore(domain).count())
 
     mem = await graph_manager.get(domain, extract_model)
+    doc_instructions = mem.instructions_for("document")
     for i, doc in enumerate(docs):
         pieces = split_windows(doc["text"], EPISODE_TOKENS)
         for n, piece in enumerate(pieces):
             name = f"{doc['id']} · p{n + 1}"
             if name in skip_episodes:
                 continue
-            await mem.add_episode(piece, name=name)
+            await mem.add_episode(piece, name=name,
+                                  extraction_instructions=doc_instructions)
             tokens["graph_episodes"] += 1
             yield {"phase": "graph_episode", "doc": doc["id"], "doc_i": i + 1,
                    "docs": len(docs), "episode": n + 1, "episodes": len(pieces)}
@@ -196,8 +201,19 @@ async def _answer(config: str, question: dict, domain: str, model: str | None,
     golds = [question["answer"]] + [a for a in question.get("alt_answers", []) if a]
     rec["em"] = any(scoring.exact_match(rec["answer"], g) for g in golds)
     rec["f1"] = round(max(scoring.token_f1(rec["answer"], g) for g in golds), 4)
-    verdict = await asyncio.to_thread(scoring.judge, q, golds[0], rec["answer"],
-                                      tuple(golds[1:]))
+    # No verdict here: judging is a separate phase (see run_bench), so generation is
+    # never gated on the judge's speed and answers persist the moment they exist.
+    return rec
+
+
+async def _judge_record(rec: dict, gold_by_id: dict[str, dict]) -> dict:
+    """One verdict for one answered record — judged on the SAME question form the run
+    asked (the document-anchored one when it was used)."""
+    q = gold_by_id.get(rec["qid"], {})
+    golds = [q.get("answer", "")] + [a for a in q.get("alt_answers", []) if a]
+    asked = rec.get("asked") or q.get("question", "")
+    verdict = await asyncio.to_thread(scoring.judge, asked, golds[0],
+                                      rec.get("answer", ""), tuple(golds[1:]))
     rec["judge"] = {k: verdict.get(k) for k in ("correct", "score", "note", "judge_model")}
     _usage_add(rec.setdefault("judge_usage", {}), verdict.get("usage"))
     return rec
@@ -243,7 +259,11 @@ async def rejudge_run(dataset: str, run_id: str) -> AsyncIterator[dict]:
     report = assemble(run_id=new_id, dataset=dataset, prepared=old["prepared"],
                       build=old["build"], configs=[r["config"] for r in old["headline"]],
                       gold=list(gold_map.values()), records=records,
-                      answer_model=old.get("answer_model", ""), scope=old.get("scope", "auto"))
+                      answer_model=old.get("answer_model", ""), scope=old.get("scope", "auto"),
+                      # a rejudge re-scores old answers — keep the recipe THEY ran under,
+                      # but stamp the CURRENT judge rubric (that's what just graded them)
+                      graph_search_recipe=(old.get("provenance") or {}).get("graph_search_recipe"),
+                      judge_prompt_version=scoring.JUDGE_PROMPT_VERSION)
     markdown = render_markdown(report)
     await asyncio.to_thread(store.save_run, dataset, new_id, report, markdown)
     yield {"phase": "report", "run_id": new_id, "report": {**report, "records": []}}
@@ -354,12 +374,15 @@ async def run_bench(dataset: str, configs: list[str], *,
         f"{fp}|{sorted(configs)}|{ans_model}|{scope}|{gold_sig}".encode()).hexdigest()[:16]
 
     # Load anything a prior attempt already answered. Dedup per (config, qid), preferring
-    # a real answer over a stale error record; only OK answers count as "done" — an
-    # errored question is retried on resume, never silently left scored-wrong.
+    # a real answer over a stale error record and a JUDGED record over its unjudged
+    # earlier append; only OK answers count as "done" — an errored question is retried
+    # on resume, never silently left scored-wrong.
     by_key: dict[tuple[str, str], dict] = {}
     for r in await asyncio.to_thread(store.load_records, dataset, resume_key):
         k = (r.get("config"), r.get("qid"))
-        if k not in by_key or (not by_key[k].get("ok") and r.get("ok")):
+        cur = by_key.get(k)
+        if (cur is None or (r.get("ok") and not cur.get("ok"))
+                or (r.get("ok") and r.get("judge") and not cur.get("judge"))):
             by_key[k] = r
     done = {k for k, r in by_key.items() if r.get("ok")}
     if done:
@@ -372,18 +395,17 @@ async def run_bench(dataset: str, configs: list[str], *,
         for i, q in enumerate(gold):
             key = (config, q["id"])
             if key in done:
-                yield {"phase": "scored", "config": config, "i": i + 1, "total": len(gold),
+                yield {"phase": "answered", "config": config, "i": i + 1, "total": len(gold),
                        "qid": q["id"], "resumed": True}
                 continue
             rec = await _answer(config, q, domain, answer_model, doc_titles, scope=scope)
             await asyncio.to_thread(store.append_record, dataset, resume_key, rec)
             by_key[key] = rec
-            ev = {"phase": "scored", "config": config, "i": i + 1, "total": len(gold),
+            ev = {"phase": "answered", "config": config, "i": i + 1, "total": len(gold),
                   "qid": q["id"]}
             if rec.get("ok"):
                 done.add(key)
                 consecutive_errors = 0
-                ev["judge_correct"] = rec["judge"].get("correct")
                 ev["f1"] = rec.get("f1")
             else:
                 consecutive_errors += 1
@@ -399,10 +421,36 @@ async def run_bench(dataset: str, configs: list[str], *,
                 return
         yield {"phase": "config_done", "config": config}
 
+    # ---- judge phase: verdicts decoupled from generation. Answers landed at full
+    # speed above; now JUDGE_CONCURRENCY verdicts run in parallel (JUDGE_RPM, when set,
+    # still paces globally across these workers — that's the free-tier mode). Each
+    # verdict is persisted immediately, so an interrupted judge phase resumes without
+    # re-paying any generation.
+    gold_by_id = {q["id"]: q for q in gold}
+    pending = [r for r in by_key.values() if r.get("ok") and not r.get("judge")]
+    if pending:
+        concurrency = max(1, int(os.getenv("JUDGE_CONCURRENCY", "4") or 4))
+        yield {"phase": "judge_start", "verdicts": len(pending), "concurrency": concurrency}
+        sem = asyncio.Semaphore(concurrency)
+
+        async def _judged(rec: dict) -> dict:
+            async with sem:
+                return await _judge_record(rec, gold_by_id)
+
+        tasks = [asyncio.ensure_future(_judged(r)) for r in pending]
+        for i, fut in enumerate(asyncio.as_completed(tasks)):
+            rec = await fut
+            await asyncio.to_thread(store.append_record, dataset, resume_key, rec)
+            yield {"phase": "scored", "config": rec["config"], "i": i + 1,
+                   "total": len(pending), "qid": rec["qid"],
+                   "judge_correct": rec["judge"].get("correct"), "f1": rec.get("f1")}
+
     records = list(by_key.values())
     report = assemble(run_id=run_id, dataset=dataset, prepared=prepared, build=build,
                       configs=configs, gold=gold, records=records,
-                      answer_model=ans_model, scope=scope)
+                      answer_model=ans_model, scope=scope,
+                      graph_search_recipe=graph_config.search_recipe,
+                      judge_prompt_version=scoring.JUDGE_PROMPT_VERSION)
     markdown = render_markdown(report)
     await asyncio.to_thread(store.save_run, dataset, run_id, report, markdown)
     await asyncio.to_thread(store.clear_inflight, dataset, resume_key)

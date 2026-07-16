@@ -248,6 +248,9 @@ export default function BenchPage() {
     try {
       await prepareDataset(selected, cap);
       await refresh();
+      const r = await getGold(selected).catch(() => ({ questions: [] }));
+      setGold(r.questions);
+      setGoldDirty(false);
       pushLog(`✓ prepared at ${cap.toLocaleString()} tokens`);
     } catch (e) {
       pushLog(`✗ prepare failed: ${e.message}`);
@@ -337,7 +340,9 @@ export default function BenchPage() {
         if (ev.phase === "graph_episode") pushLog(`graph · doc ${ev.doc_i}/${ev.docs} · episode ${ev.episode}/${ev.episodes}`);
         if (ev.phase === "build_done") pushLog(`✓ built: ${ev.nodes} nodes · ${ev.edges} edges · ${ev.chunks} chunks · saved as a graph-page save (${ev.save_name}) · ${ev.build_seconds}s`);
         if (ev.phase === "config_start") pushLog(`— ${CONFIG_LABELS[ev.config] || ev.config} —`);
-        if (ev.phase === "scored") pushLog(`${ev.config} · q${ev.i}/${ev.total} ${ev.judge_correct === true ? "✓" : ev.judge_correct === false ? "✗" : "·"} (F1 ${ev.f1})`);
+        if (ev.phase === "answered") pushLog(ev.resumed ? `${ev.config} · q${ev.i}/${ev.total} — already answered ✓` : ev.error ? `${ev.config} · q${ev.i}/${ev.total} ✗ infra error (excluded, will retry on resume)` : `${ev.config} · q${ev.i}/${ev.total} answered (F1 ${ev.f1})`);
+        if (ev.phase === "judge_start") pushLog(`— judging ${ev.verdicts} answers (${ev.concurrency} in parallel) —`);
+        if (ev.phase === "scored") pushLog(`judge · ${ev.i}/${ev.total} ${ev.config} ${ev.judge_correct === true ? "✓" : ev.judge_correct === false ? "✗" : "·"} (F1 ${ev.f1})`);
         if (ev.phase === "report") setReport(ev.report);
         if (ev.phase === "error") pushLog(`✗ ${ev.detail}`);
         if (ev.phase === "done") pushLog("✓ done");
@@ -395,7 +400,7 @@ export default function BenchPage() {
   };
 
   const approved = gold.filter((q) => q.status === "approved").length;
-  const humanGold = !!ds?.prepared?.gold_source?.startsWith("human");
+  const humanGold = !!ds?.human_gold || !!ds?.prepared?.gold_source?.startsWith("human");
 
   return (
     <div style={page}>
@@ -446,7 +451,7 @@ export default function BenchPage() {
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 8 }}>
                 <Chip text={d.prepared ? `${(d.prepared.tokens / 1000).toFixed(0)}k tok · ${d.prepared.docs} docs` : "raw"} color={d.prepared ? "#8fd6c2" : "#7a87a6"} />
-                {d.prepared?.gold_source?.startsWith("human") && <Chip text="human gold" color="#8fd6c2" />}
+                {(d.human_gold || d.prepared?.gold_source?.startsWith("human")) && <Chip text="human gold" color="#8fd6c2" />}
                 <Chip text={`${d.gold_approved}/${d.gold_total} gold`} color={d.gold_approved ? "#5cc8ff" : "#7a87a6"} />
                 {d.builds.length > 0 && <Chip text={`${d.builds.length} build${d.builds.length > 1 ? "s" : ""}`} color="#9b8cff" />}
               </div>
@@ -484,6 +489,12 @@ export default function BenchPage() {
             <div style={{ ...card, color: "#7a87a6", fontSize: 13 }}>Select a dataset.</div>
           ) : (
             <>
+              {ds.about && (
+                <div style={{ ...card, fontSize: 12.5, color: "#cdd5ea", lineHeight: 1.6, marginBottom: 12 }}>
+                  <div style={{ ...label, marginBottom: 5 }}>About this dataset</div>
+                  {ds.about}
+                </div>
+              )}
               <Section n="1" title="Prepare the corpus" right={ds.prepared && <Chip text={`hash ${ds.prepared.corpus_hash}`} color="#8fd6c2" />}>
                 <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                   <div style={{ width: 170 }}>
@@ -498,6 +509,12 @@ export default function BenchPage() {
                     <span style={{ fontSize: 12, color: "#cdd5ea", marginTop: 14 }}>
                       {ds.prepared.docs} docs · {ds.prepared.tokens.toLocaleString()} tokens
                       <span style={{ color: "#7a87a6" }}> (of {ds.prepared.unique_contexts_in_file} contexts in the file)</span>
+                      {ds.prepared.questions_kept != null && (
+                        <span style={{ color: "#8fd6c2" }}
+                          title="A question is only kept when EVERY document it needs fits under the cap — no question ever runs without its context in the corpus.">
+                          {" "}· {ds.prepared.questions_kept} of {ds.prepared.questions_in_file} questions kept, each with all its documents
+                        </span>
+                      )}
                     </span>
                   )}
                 </div>
@@ -532,7 +549,9 @@ export default function BenchPage() {
               >
                 {gold.length === 0 ? (
                   <div style={{ fontSize: 12.5, color: "#7a87a6" }}>
-                    No questions yet — draft some (the LLM proposes, you edit and approve; only approved questions run).
+                    {humanGold
+                      ? "This dataset ships its own human questions — prepare the corpus above and they appear here, pre-approved (no LLM involved)."
+                      : "No questions yet — draft some (the LLM proposes, you edit and approve; only approved questions run)."}
                   </div>
                 ) : (
                   <div style={{ maxHeight: 340, overflowY: "auto" }}>

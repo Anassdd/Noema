@@ -22,8 +22,10 @@ from pathlib import Path
 from app import llm_client
 from app.config import settings
 
+from app.config import state_path
+
 _REPO = Path(__file__).resolve().parents[3]
-_SCHEMA_DIR = _REPO / "tests" / "results" / "graph_schemas"
+_SCHEMA_DIR = state_path("schemas", _REPO / "tests" / "results" / "graph_schemas")
 
 
 @dataclass

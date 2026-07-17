@@ -26,7 +26,9 @@ from dotenv import load_dotenv
 _REPO = Path(__file__).resolve().parents[3]
 load_dotenv(_REPO / "backend" / ".env")
 
-_DEFAULT_STORE = _REPO / "tests" / "results" / "graph_store"
+from app.config import state_path
+
+_DEFAULT_STORE = state_path("falkor", _REPO / "tests" / "results" / "graph_store")
 
 
 @dataclass(frozen=True)

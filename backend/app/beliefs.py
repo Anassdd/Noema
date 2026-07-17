@@ -15,7 +15,10 @@ from pathlib import Path
 
 from app.config import settings
 
-_DIR = Path(settings.beliefs_dir) if settings.beliefs_dir else Path(__file__).resolve().parent.parent / ".beliefs"
+from app.config import state_path
+
+_DIR = (Path(settings.beliefs_dir) if settings.beliefs_dir
+        else state_path("beliefs", Path(__file__).resolve().parent.parent / ".beliefs"))
 MAX_CHARS = 8000  # keep it context-sized: a screenful of beliefs, not a corpus
 
 

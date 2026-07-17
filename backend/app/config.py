@@ -65,6 +65,10 @@ class Settings:
     # supplies a placeholder, which the SDK requires but the server ignores).
     base_url: str = ""
 
+    # Consolidated state root (STORAGE.md §3). Empty = every store keeps its
+    # historical location; set (e.g. "backend/var") = all state defaults move under
+    # it. Individual overrides below still win. Adopt via scripts/migrate_state.py.
+    state_dir: str = ""
     # Retrieval: where the embedded vector store persists (empty -> backend/.chroma).
     vector_dir: str = ""
     # LightRAG: where its file-based stores persist (empty -> backend/data/lightrag).
@@ -117,6 +121,7 @@ def load_settings() -> Settings:
 
     # Parser selection + DI creds — orthogonal to the LLM provider, shared by all.
     _common = dict(
+        state_dir=os.getenv("NOEMA_STATE_DIR", "").strip(),
         parser=os.getenv("PARSER", "vision").strip().lower(),
         docintel_endpoint=os.getenv("DOCINTEL_ENDPOINT", ""),
         docintel_key=os.getenv("DOCINTEL_KEY", ""),
@@ -180,3 +185,15 @@ def load_settings() -> Settings:
 
 # Loaded once at import. Fail fast on bad config rather than on first request.
 settings = load_settings()
+
+
+def state_path(sub: str, legacy) -> "Path":
+    """A state artifact's default home: `<NOEMA_STATE_DIR>/<sub>` when the consolidated
+    root is set, else the historical `legacy` location — so adopting the clean layout
+    is a config change, never a code change. Explicit per-store env vars still win at
+    the call sites."""
+    from pathlib import Path
+
+    if settings.state_dir:
+        return Path(settings.state_dir) / sub
+    return Path(legacy)

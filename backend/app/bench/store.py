@@ -16,9 +16,12 @@ import os
 import time
 from pathlib import Path
 
+from app.config import state_path
+
 _REPO = Path(__file__).resolve().parents[3]
 RAW_DIR = Path(os.getenv("BENCH_DATA_DIR", "") or _REPO / "backend" / "data" / "bench")
-WORK_DIR = Path(os.getenv("BENCH_WORK_DIR", "") or _REPO / "tests" / "results" / "bench")
+WORK_DIR = Path(os.getenv("BENCH_WORK_DIR", "")
+                or state_path("bench", _REPO / "tests" / "results" / "bench"))
 
 
 def work_dir(dataset: str) -> Path:

@@ -23,7 +23,8 @@ from app.lightrag.providers import build_embedding_func, build_llm_func, extract
 def lightrag_root() -> Path:
     if settings.lightrag_dir:
         return Path(settings.lightrag_dir)
-    return Path(__file__).resolve().parents[2] / "data" / "lightrag"
+    from app.config import state_path
+    return state_path("lightrag", Path(__file__).resolve().parents[2] / "data" / "lightrag")
 
 
 def workspace_dir(domain_id: str) -> Path:

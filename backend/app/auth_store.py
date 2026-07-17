@@ -20,7 +20,9 @@ from pathlib import Path
 
 from app import beliefs, conversation_store, memory_store
 
-_AUTH_DIR = Path(__file__).resolve().parents[1] / "data" / "auth"
+from app.config import state_path
+
+_AUTH_DIR = state_path("auth", Path(__file__).resolve().parents[1] / "data" / "auth")
 _USERS_PATH = _AUTH_DIR / "users.json"
 _SESSIONS_PATH = _AUTH_DIR / "sessions.json"
 

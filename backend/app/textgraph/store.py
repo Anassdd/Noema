@@ -15,7 +15,9 @@ from pathlib import Path
 
 from .cooccurrence import accumulate, tokenize
 
-STORE_DIR = Path(__file__).resolve().parent.parent / "textgraph_store"
+from app.config import state_path
+
+STORE_DIR = state_path("textgraph", Path(__file__).resolve().parent.parent / "textgraph_store")
 DEFAULT_LIMIT = 160  # max nodes returned to the UI — keeps the network legible
 
 

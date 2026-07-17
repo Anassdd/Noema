@@ -18,7 +18,9 @@ import re
 from pathlib import Path
 
 # Gitignored — these hold personal facts.
-_DIR = Path(__file__).resolve().parents[1] / "data" / "memory"
+from app.config import state_path
+
+_DIR = state_path("memory", Path(__file__).resolve().parents[1] / "data" / "memory")
 
 _HEADER = (
     "# User memory\n\n"

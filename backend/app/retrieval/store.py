@@ -10,11 +10,11 @@ import re
 from pathlib import Path
 
 from app import llm_client
-from app.config import settings
+from app.config import settings, state_path
 from app.retrieval import index_cache
 from app.retrieval.base import ScoredChunk
 
-_DEFAULT_DIR = Path(__file__).resolve().parent.parent.parent / ".chroma"
+_DEFAULT_DIR = state_path("chroma", Path(__file__).resolve().parent.parent.parent / ".chroma")
 _BATCH = 64
 
 

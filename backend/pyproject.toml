@@ -1,0 +1,16 @@
+# Project metadata only. Dependencies stay in requirements.txt — the pinned,
+# comment-annotated list is the reproducibility contract for the locked-down prod
+# install (offline wheels are built from it), so it remains the single source of truth.
+
+[project]
+name = "noema-backend"
+version = "1.0.0"
+description = "Noema — domain-expert chatbot on an evolving graph+vector memory, with a memory-method benchmark"
+requires-python = ">=3.12"
+dynamic = ["dependencies"]
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }

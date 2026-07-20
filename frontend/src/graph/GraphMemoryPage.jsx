@@ -161,6 +161,7 @@ export default function GraphMemoryPage() {
   const [beliefText, setBeliefText] = useState("");
   const [beliefSaved, setBeliefSaved] = useState(false);
   const [viewMode, setViewMode] = useState("concepts"); // "concepts" | "topics"
+  const [legendOpen, setLegendOpen] = useState(false); // the edge-color legend, tucked away by default
   const [particlesOn, setParticlesOn] = useState(true); // moving dots on the edges
   const [compact, setCompact] = useState(false); // Gather: stronger pull toward the center
   const [engine, setEngine] = useState(engineFromUrl); // "graphiti" | "lightrag"
@@ -1084,18 +1085,18 @@ export default function GraphMemoryPage() {
     });
   }
 
-  async function handleSave() {
+  async function handleSave(shared = false) {
     const name = saveName.trim();
     if (!name) return;
     setError("");
     setBusy(true);
     setStatus(`Saving “${name}”…`);
     try {
-      await saveGraph(name, engineRef.current);
+      await saveGraph(name, engineRef.current, "default", shared);
       setSaveName("");
       stampMemory(name); // the live memory now equals this fresh checkpoint
       await refreshSaves();
-      setStatus(`Saved “${name}” (${ENGINES[engineRef.current].tag}).`);
+      setStatus(`Saved “${name}” (${ENGINES[engineRef.current].tag}${shared ? ", shared with everyone" : ", yours only"}).`);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -1303,7 +1304,6 @@ export default function GraphMemoryPage() {
               </button>
             ))}
           </span>
-          <span style={{ fontSize: 11, color: "#6b7693" }}>3D</span>
           {/* which memory this engine's live store mirrors — a restored save's name,
               marked "· changed" once anything is added, or plain Live */}
           <span
@@ -1345,7 +1345,7 @@ export default function GraphMemoryPage() {
                 whiteSpace: "nowrap",
               }}
             >
-              ⚑ Benchmark test dataset{readOnly ? " · read-only" : ""}
+              ⚑ Bench dataset{readOnly ? " · read-only" : ""}
             </span>
           )}
         </div>
@@ -1375,7 +1375,7 @@ export default function GraphMemoryPage() {
           />
           <BeliefsPanel
             busy={busy}
-            saves={saves}
+            saves={saves.map((s) => s.name)}
             open={beliefsOpen}
             onToggle={toggleBeliefs}
             context={beliefContext}
@@ -1595,7 +1595,7 @@ export default function GraphMemoryPage() {
 
         <div style={{ marginBottom: 9 }}>
           <div style={{ fontSize: 10.5, color: "#7a87a6", marginBottom: 4 }}>
-            Extraction model · builds the graph
+            Extraction model
           </div>
           <select
             value={model}
@@ -1639,7 +1639,7 @@ export default function GraphMemoryPage() {
                 border: "1.5px solid #ff6b8a",
               }}
             />
-            {showHistory ? "Showing no-longer-active facts" : "Hiding no-longer-active facts"}
+            Inactive facts · {showHistory ? "shown" : "hidden"}
           </button>
         )}
 
@@ -1658,10 +1658,9 @@ export default function GraphMemoryPage() {
           ⬆ Upload PDF(s)
         </label>
 
-        <div style={{ fontSize: 11, color: readOnly ? "#c9a24d" : "#6b7693", textAlign: "center", margin: "8px 0" }}>
-          {readOnly
-            ? "Benchmark test dataset — read-only. Restore another save or reset to work here."
-            : "or drop a PDF anywhere · or paste text"}
+        <div style={{ fontSize: 11, color: readOnly ? "#c9a24d" : "#6b7693", textAlign: "center", margin: "8px 0" }}
+          title={readOnly ? "Bench content is admin-managed — restore another save or reset to work here." : undefined}>
+          {readOnly ? "read-only bench dataset" : "or drop a PDF anywhere · paste text below"}
         </div>
 
         <textarea
@@ -1697,33 +1696,50 @@ export default function GraphMemoryPage() {
         )}
       </div>
 
-      {/* legend */}
-      <div
-        style={{
-          position: "absolute",
-          right: 18,
-          bottom: 18,
-          fontSize: 11,
-          color: "#8a93ad",
-          background: "rgba(13,18,32,0.7)",
-          border: "1px solid rgba(120,135,175,0.15)",
-          borderRadius: 10,
-          padding: "8px 11px",
-          lineHeight: 1.7,
-        }}
-      >
-        <div>
-          <span style={{ color: "#ffffff" }}>──▶</span> just added
-        </div>
-        <div>
-          <span style={{ color: "#96c8ff" }}>──▶</span> active fact
-        </div>
-        {engine === "graphiti" && (
-          <div>
-            <span style={{ color: "#ff6b8a" }}>╌╌▶</span> no longer active
+      {/* legend — a quiet ⓘ toggle; the box only appears on demand */}
+      <div style={{ position: "absolute", right: 18, bottom: 18, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+        {legendOpen && (
+          <div
+            style={{
+              fontSize: 11,
+              color: "#8a93ad",
+              background: "rgba(13,18,32,0.85)",
+              border: "1px solid rgba(120,135,175,0.15)",
+              borderRadius: 10,
+              padding: "8px 11px",
+              lineHeight: 1.7,
+            }}
+          >
+            <div>
+              <span style={{ color: "#ffffff" }}>──▶</span> just added
+            </div>
+            <div>
+              <span style={{ color: "#96c8ff" }}>──▶</span> active fact
+            </div>
+            {engine === "graphiti" && (
+              <div>
+                <span style={{ color: "#ff6b8a" }}>╌╌▶</span> no longer active
+              </div>
+            )}
+            <div style={{ color: "#6b7693", marginTop: 3 }}>color = cluster · size = connections · hover to focus</div>
           </div>
         )}
-        <div style={{ color: "#6b7693", marginTop: 3 }}>color = cluster · size = connections · hover to focus</div>
+        <button
+          onClick={() => setLegendOpen((o) => !o)}
+          title="What the colors and edges mean"
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: "50%",
+            border: "1px solid rgba(120,135,175,0.25)",
+            background: legendOpen ? "rgba(92,200,255,0.15)" : "rgba(13,18,32,0.7)",
+            color: legendOpen ? "#bfe4ff" : "#8a93ad",
+            fontSize: 13,
+            cursor: "pointer",
+          }}
+        >
+          ⓘ
+        </button>
       </div>
 
       {/* time slider — scrub the memory's history */}

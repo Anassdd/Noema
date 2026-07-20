@@ -19,20 +19,23 @@ export function resetGraph(domain = "default") {
 }
 
 // Save / restore checkpoints, scoped per memory engine ("graphiti" | "lightrag");
-// an empty engine lists the union of both (the chat selector's view).
+// an empty engine lists every save the user may see (shared + their own), each as
+// {name, mine, engines: [...]} — the engines list drives which retrieval modes
+// are clickable for a selected memory.
 export function listSaves(domain = "default", engine = "") {
   return authFetch(`${API_BASE}/graphmem/saves?domain=${domain}&engine=${engine}`).then(asJson);
 }
 
-function savePost(path, name, domain, engine) {
+function savePost(path, name, domain, engine, shared = false) {
   return authFetch(`${API_BASE}/graphmem/${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, domain, engine }),
+    body: JSON.stringify({ name, domain, engine, shared }),
   }).then(asJson);
 }
 
-export const saveGraph = (name, engine, domain = "default") => savePost("save", name, domain, engine);
+export const saveGraph = (name, engine, domain = "default", shared = false) =>
+  savePost("save", name, domain, engine, shared);
 export const restoreGraph = (name, engine, domain = "default") => savePost("restore", name, domain, engine);
 export const deleteSave = (name, engine, domain = "default") => savePost("delete-save", name, domain, engine);
 

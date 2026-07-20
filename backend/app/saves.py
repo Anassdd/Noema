@@ -15,6 +15,7 @@ from here at module load, so a top-level import back into app.graph would be cir
 
 from __future__ import annotations
 
+import re
 import shutil
 
 SAVE_PREFIX = "__save__"
@@ -78,13 +79,59 @@ def _lightrag_names(domain: str) -> set[str]:
 
 
 def list_saves(domain: str, engine: str = "") -> list[str]:
-    """Save names for one engine — "graphiti" (has a Falkor graph), "lightrag" (has a
-    LightRAG workspace), or "" for the union (the chat selector's view)."""
+    """RAW stored save names for one engine — "graphiti" (has a Falkor graph),
+    "lightrag" (has a LightRAG workspace), or "" for the union. Internal view
+    (bench, ops): user-facing surfaces go through `visible_saves` instead."""
     if engine == "graphiti":
         return sorted(_graphiti_names(domain))
     if engine == "lightrag":
         return sorted(_lightrag_names(domain))
     return sorted(_graphiti_names(domain) | _lightrag_names(domain))
+
+
+# ---- per-user saves ----------------------------------------------------------
+# A personal save is stored under "u<uid>__<name>" (uid = auth_store.user_uid, an
+# 8-hex id that survives renames). Names without that prefix are SHARED — visible
+# to everyone, created by admins (and by history: bench builds, pre-accounts saves).
+_PERSONAL_RE = re.compile(r"^u([0-9a-f]{8})__(.+)$")
+
+
+def personal_name(uid: str, name: str) -> str:
+    return f"u{uid}__{name}"
+
+
+def split_owner(stored: str) -> tuple[str | None, str]:
+    """(owner uid, display name) for a stored save name; owner None = shared."""
+    m = _PERSONAL_RE.match(stored)
+    return (m.group(1), m.group(2)) if m else (None, stored)
+
+
+def visible_saves(domain: str, uid: str) -> list[dict]:
+    """What ONE user may see: every shared save plus their own personal ones —
+    each as {name (display), mine, engines:[...]}. Other users' personal saves
+    stay invisible. `engines` is what makes the UI existence-aware: a save that
+    only exists for one engine must not be selectable with the other's retrieval."""
+    entries: dict[tuple[str | None, str], dict] = {}
+    for engine, names in (("graphiti", _graphiti_names(domain)),
+                          ("lightrag", _lightrag_names(domain))):
+        for stored in names:
+            owner, display = split_owner(stored)
+            if owner is not None and owner != uid:
+                continue
+            entry = entries.setdefault(
+                (owner, display), {"name": display, "mine": owner is not None, "engines": []})
+            entry["engines"].append(engine)
+    return sorted(entries.values(), key=lambda e: (e["mine"], e["name"].lower()))
+
+
+def resolve_stored(domain: str, name: str, uid: str) -> str:
+    """The stored save name a user's display `name` points at: their own copy wins
+    over a shared save of the same name. Falls through to the shared name (a
+    missing save then fails downstream with the normal 'doesn't exist' error)."""
+    personal = personal_name(uid, name)
+    if personal in _graphiti_names(domain) | _lightrag_names(domain):
+        return personal
+    return name
 
 
 def _copy_lightrag(src_domain: str, dest_domain: str) -> None:

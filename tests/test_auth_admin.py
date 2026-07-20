@@ -198,6 +198,41 @@ def test_bench_write_guard():
     print("  bench guard: bench saves/domains 403 for non-admins, open otherwise ✓")
 
 
+def test_personal_saves_namespace():
+    from app import saves
+
+    uid = auth_store.user_uid("Alice")
+    assert auth_store.user_uid("Alice") == uid and len(uid) == 8, "uid must be stable, 8 hex"
+    # A rename must not orphan personal saves: the uid rides the record, not the name.
+    auth_store.register("Renamee", "password-r")
+    uid_r = auth_store.user_uid("Renamee")
+    auth_store.rename_user("renamee", "Renamed")
+    assert auth_store.user_uid("Renamed") == uid_r, "uid must survive a rename"
+
+    mine = saves.personal_name(uid, "v1")
+    assert saves.split_owner(mine) == (uid, "v1")
+    assert saves.split_owner("plain-save") == (None, "plain-save")
+
+    someone_else = saves.personal_name("deadbeef", "v1")
+    orig_g, orig_lr = saves._graphiti_names, saves._lightrag_names
+    saves._graphiti_names = lambda d: {mine, someone_else, "shared-x", "bench-q"}
+    saves._lightrag_names = lambda d: {"shared-x", saves.personal_name(uid, "lr-only")}
+    try:
+        vis = {(e["name"], e["mine"]): sorted(e["engines"])
+               for e in saves.visible_saves("default", uid)}
+        assert vis[("v1", True)] == ["graphiti"]
+        assert vis[("lr-only", True)] == ["lightrag"]
+        assert vis[("shared-x", False)] == ["graphiti", "lightrag"]
+        assert ("bench-q", False) in vis
+        assert ("v1", False) not in vis, "another user's personal save must stay invisible"
+        assert saves.resolve_stored("default", "v1", uid) == mine, "own copy wins"
+        assert saves.resolve_stored("default", "shared-x", uid) == "shared-x"
+        assert saves.resolve_stored("default", "v1", "00000000") == "v1", "no personal copy -> shared name"
+    finally:
+        saves._graphiti_names, saves._lightrag_names = orig_g, orig_lr
+    print("  personal saves: uid rename-stable; visibility + resolution correct ✓")
+
+
 TESTS = [
     test_first_account_bootstraps_admin,
     test_admin_users_env_override,
@@ -208,6 +243,7 @@ TESTS = [
     test_router_guards,
     test_default_admin_seeding,
     test_bench_write_guard,
+    test_personal_saves_namespace,
 ]
 
 if __name__ == "__main__":

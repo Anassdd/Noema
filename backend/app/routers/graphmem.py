@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app import parsing, saves
+from app import auth_store, parsing, saves
 from app.graph import GraphSnapshot, evolution
 from app.graph.manager import graph_manager
 from app.lightrag.manager import lightrag_manager
@@ -196,16 +196,27 @@ async def reset(domain: str = DOMAIN_DEFAULT, user: dict = Depends(require_user)
 # ---- save / restore checkpoints (per memory engine) --------------------------
 # A save belongs to one engine: "graphiti" (graph + vector base) or "lightrag"
 # (its self-contained workspace). Same names may exist in both — separate saves.
+# Ownership: saves are PERSONAL by default (stored as u<uid>__<name>, visible only
+# to their creator); admins may share one with everyone. Shared saves are
+# admin-managed to delete. See saves.visible_saves / resolve_stored.
 class SaveBody(BaseModel):
     name: str
     domain: str | None = None
     engine: str = "graphiti"
+    shared: bool = False  # admins only: publish the save to every user
 
 
 @router.get("/saves")
-async def list_saves(domain: str = DOMAIN_DEFAULT, engine: str = "") -> dict:
-    """This engine's saves; empty engine = union of both (the chat selector)."""
-    return {"saves": await asyncio.to_thread(saves.list_saves, domain, engine)}
+async def list_saves(domain: str = DOMAIN_DEFAULT, engine: str = "",
+                     user: dict = Depends(require_user)) -> dict:
+    """The saves THIS user may see — shared + their own — as {name, mine, engines}.
+    `engine` filters to one engine; empty = all saves, each listing the engines it
+    exists in (the chat selector greys out impossible retrieval modes from that)."""
+    uid = auth_store.user_uid(user["username"])
+    entries = await asyncio.to_thread(saves.visible_saves, domain, uid)
+    if engine:
+        entries = [e for e in entries if engine in e["engines"]]
+    return {"saves": entries}
 
 
 @router.post("/save")
@@ -214,23 +225,28 @@ async def save_graph(body: SaveBody, user: dict = Depends(require_user)) -> dict
     if not name:
         raise HTTPException(status_code=400, detail="Give the save a name.")
     domain = body.domain or DOMAIN_DEFAULT
+    if body.shared and not user.get("is_admin"):
+        raise HTTPException(status_code=403,
+                            detail="Only admins can share a save with everyone.")
+    stored = name if body.shared else saves.personal_name(
+        auth_store.user_uid(user["username"]), name)
     # Non-admins can neither claim the bench- namespace nor write into a bench save.
-    block_bench_writes(user, domain, name)
+    block_bench_writes(user, domain, stored)
     try:
         if body.engine == "lightrag":
             async with lightrag_manager.lock(domain):
                 # LightRAG state lives in memory and flushes on close — drop the
                 # cached instance so the file copy captures everything.
                 await lightrag_manager.drop(domain)
-                chunks = await asyncio.to_thread(saves.create_save, domain, name, "lightrag")
+                chunks = await asyncio.to_thread(saves.create_save, domain, stored, "lightrag")
         else:
             await _mgr.get(domain)  # ensure the server is up and the graph exists
             async with _mgr.lock(domain):
-                chunks = await asyncio.to_thread(saves.create_save, domain, name, "graphiti")
+                chunks = await asyncio.to_thread(saves.create_save, domain, stored, "graphiti")
     except ValueError:
         raise HTTPException(status_code=400,
                             detail=f"Nothing to save — the {body.engine} memory is empty.")
-    return {"saved": name, "engine": body.engine, "chunks": chunks}
+    return {"saved": name, "engine": body.engine, "chunks": chunks, "shared": body.shared}
 
 
 @router.post("/restore")
@@ -242,17 +258,19 @@ async def restore_graph(body: SaveBody, user: dict = Depends(require_user)) -> d
     # Restoring FROM a bench save is fine (viewing); restoring INTO one is a write.
     block_bench_writes(user, domain)
     name = body.name.strip()
+    stored = await asyncio.to_thread(
+        saves.resolve_stored, domain, name, auth_store.user_uid(user["username"]))
     try:
         if body.engine == "lightrag":
             async with lightrag_manager.lock(domain):
                 # The live files are about to be overwritten — drop the cached
                 # instance first so nothing stale flushes back over the restore.
                 await lightrag_manager.drop(domain)
-                await asyncio.to_thread(saves.restore_save, domain, name, "lightrag")
+                await asyncio.to_thread(saves.restore_save, domain, stored, "lightrag")
             return {"restored": name, "engine": "lightrag"}
         await _mgr.get(domain)
         async with _mgr.lock(domain):
-            await asyncio.to_thread(saves.restore_save, domain, name, "graphiti")
+            await asyncio.to_thread(saves.restore_save, domain, stored, "graphiti")
     except ValueError:
         raise HTTPException(status_code=404, detail="That save doesn't exist.")
     mem = await _mgr.get(domain)
@@ -263,9 +281,16 @@ async def restore_graph(body: SaveBody, user: dict = Depends(require_user)) -> d
 async def delete_save(body: SaveBody, user: dict = Depends(require_user)) -> dict:
     domain = body.domain or DOMAIN_DEFAULT
     name = body.name.strip()
-    block_bench_writes(user, domain, name)
+    stored = await asyncio.to_thread(
+        saves.resolve_stored, domain, name, auth_store.user_uid(user["username"]))
+    owner, _display = saves.split_owner(stored)
+    if owner is None and not user.get("is_admin"):
+        raise HTTPException(status_code=403,
+                            detail="Shared saves are managed by admins — you can only "
+                                   "delete your own.")
+    block_bench_writes(user, domain, stored)
     if body.engine == "lightrag":
         # Chat may have opened this save's LightRAG store — evict it before the files go.
-        await lightrag_manager.drop(saves.save_key(domain, name))
-    await asyncio.to_thread(saves.delete_save, domain, name, body.engine)
+        await lightrag_manager.drop(saves.save_key(domain, stored))
+    await asyncio.to_thread(saves.delete_save, domain, stored, body.engine)
     return {"deleted": name, "engine": body.engine}

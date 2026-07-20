@@ -7,6 +7,11 @@
 
 import { API_BASE, authFetch } from "./client.js";
 
+// Sentinel for the chat's memory selector: "answer with NO memory at all" (plain
+// chat for this conversation, even with expert mode on). Distinct from null,
+// which means "the live working memory".
+export const NO_MEMORY = "__none__";
+
 /**
  * Stream a chat completion.
  *

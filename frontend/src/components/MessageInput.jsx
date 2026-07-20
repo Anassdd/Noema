@@ -1,7 +1,8 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { estimateTokens } from "../lib/tokens.js";
 import { findCommand, matchCommands } from "../lib/commands.js";
+import { NO_MEMORY } from "../api/chat.js";
 import { listSaves } from "../api/graphmem.js";
 import { PlusIcon, SendIcon, StopIcon, SparkIcon, Icon, ChevronDownIcon, CheckIcon } from "./icons.jsx";
 
@@ -30,6 +31,25 @@ export default function MessageInput({
   const taRef = useRef(null);
   const fileRef = useRef(null);
   const overlayRef = useRef(null);
+
+  // The saves this user may answer from (shared + their own), each with the
+  // engines it exists in — that list decides which retrieval modes are clickable
+  // (a Graphiti-only save must never be queried through LightRAG, and vice versa).
+  const [memSaves, setMemSaves] = useState([]);
+  const loadSaves = () =>
+    listSaves("default", "").then((r) => setMemSaves(r.saves || [])).catch(() => {});
+  useEffect(() => {
+    if (expertEnabled) loadSaves();
+  }, [expertEnabled]);
+
+  const allowedModes = modesFor(memory, memSaves);
+  useEffect(() => {
+    // A memory switch can make the current retrieval mode impossible — snap to
+    // the first mode the selected memory actually supports.
+    if (allowedModes.length && !allowedModes.includes(retrieval)) {
+      onSelectRetrieval(allowedModes[0]);
+    }
+  }, [memory, memSaves, retrieval]);
 
   const estTokens = showTokenEstimate ? estimateTokens(text) : 0;
   const command = findCommand(text.trim());
@@ -206,8 +226,12 @@ export default function MessageInput({
             )}
           </button>
 
-          {expertEnabled && <MemorySelector value={memory} onChange={onSelectMemory} retrieval={retrieval} />}
-          {expertEnabled && <RetrievalSelector value={retrieval} onChange={onSelectRetrieval} />}
+          {expertEnabled && (
+            <MemorySelector value={memory} onChange={onSelectMemory} saves={memSaves} onOpen={loadSaves} />
+          )}
+          {expertEnabled && memory !== NO_MEMORY && (
+            <RetrievalSelector value={retrieval} onChange={onSelectRetrieval} allowed={allowedModes} />
+          )}
 
           <div className="ml-auto" />
 
@@ -238,7 +262,13 @@ export default function MessageInput({
         className="mt-2.5 flex items-center px-1 font-mono text-[11px]"
         style={{ color: "var(--text-faint)" }}
       >
-        <span>{memory ? `Answering from “${memory}”.` : "Answers may be inaccurate."}</span>
+        <span>
+          {memory === NO_MEMORY
+            ? "Memory off — plain chat."
+            : memory
+              ? `Answering from “${memory}”.`
+              : "Answers may be inaccurate."}
+        </span>
         <span className="ml-auto flex items-center gap-3.5">
           {showTokenEstimate && estTokens > 0 && (
             <span title="Exact token count of your message (tiktoken o200k_base).">
@@ -253,15 +283,30 @@ export default function MessageInput({
   );
 }
 
-// Pick which memory the expert grounds answers in: the live working memory, or one of
-// the saved snapshots. Saves are per engine (made on the graph page), so the list follows
-// the retrieval mode — LightRAG mode shows LightRAG saves, the others show Graphiti's.
-function MemorySelector({ value, onChange, retrieval }) {
+const ENGINE_LABELS = { graphiti: "Graphiti", lightrag: "LightRAG" };
+
+// Which retrieval modes a memory choice supports: no memory -> none; the live
+// memory -> all; a save -> only the engines it was made in (a Graphiti save
+// carries graph + vector base -> hybrid/rag/graph; a LightRAG save only itself).
+// A save missing from a stale list fails open rather than locking the UI.
+function modesFor(memory, saves) {
+  if (memory === NO_MEMORY) return [];
+  if (!memory) return RETRIEVAL_MODES.map((m) => m.id);
+  const entry = saves.find((s) => s.name === memory);
+  if (!entry) return RETRIEVAL_MODES.map((m) => m.id);
+  const out = [];
+  if (entry.engines.includes("graphiti")) out.push("hybrid", "rag", "graph");
+  if (entry.engines.includes("lightrag")) out.push("lightrag");
+  return out;
+}
+
+// Pick which memory the expert grounds answers in: none at all (plain chat), the
+// live working memory, or one of the saved snapshots the user may see (shared +
+// their own, with the engines each exists in).
+function MemorySelector({ value, onChange, saves, onOpen }) {
   const [open, setOpen] = useState(false);
-  const [saves, setSaves] = useState([]);
-  const engine = retrieval === "lightrag" ? "lightrag" : "graphiti";
   const toggle = () => {
-    if (!open) listSaves("default", engine).then((r) => setSaves(r.saves || [])).catch(() => {});
+    if (!open) onOpen();
     setOpen((o) => !o);
   };
   const active = !!value;
@@ -282,21 +327,27 @@ function MemorySelector({ value, onChange, retrieval }) {
           <path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5" />
           <path d="M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6" />
         </Icon>
-        <span className="max-w-[130px] truncate">{value || "Live memory"}</span>
+        <span className="max-w-[130px] truncate">
+          {value === NO_MEMORY ? "No memory" : value || "Live memory"}
+        </span>
         <ChevronDownIcon size={12} sw={2} />
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
           <div
-            className="animate-pop-in absolute bottom-full left-0 z-30 mb-2 max-h-72 w-60 overflow-y-auto rounded-xl border p-1.5"
+            className="animate-pop-in absolute bottom-full left-0 z-30 mb-2 max-h-72 w-64 overflow-y-auto rounded-xl border p-1.5"
             style={{ background: "var(--sidebar-bg)", borderColor: "var(--border)", boxShadow: "var(--win-shadow)" }}
           >
+            <MemoryItem active={value === NO_MEMORY} onClick={() => { onChange(NO_MEMORY); setOpen(false); }}
+              label="No memory" hint="plain chat — no retrieval at all" />
             <MemoryItem active={!value} onClick={() => { onChange(null); setOpen(false); }}
               label="Live memory" hint="the current working memory" />
             {saves.map((s) => (
-              <MemoryItem key={s} active={value === s} onClick={() => { onChange(s); setOpen(false); }}
-                label={s} hint="saved snapshot" />
+              <MemoryItem key={s.name} active={value === s.name}
+                onClick={() => { onChange(s.name); setOpen(false); }}
+                label={s.name}
+                hint={`${s.engines.map((e) => ENGINE_LABELS[e] || e).join(" + ")} · ${s.mine ? "yours" : "shared"}`} />
             ))}
             {saves.length === 0 && (
               <p className="px-3 py-2 text-[11px]" style={{ color: "var(--text-faint)" }}>
@@ -320,7 +371,7 @@ const RETRIEVAL_MODES = [
   { id: "lightrag", label: "LightRAG", hint: "LightRAG memory — its own graph + vectors" },
 ];
 
-function RetrievalSelector({ value, onChange }) {
+function RetrievalSelector({ value, onChange, allowed }) {
   const [open, setOpen] = useState(false);
   const mode = RETRIEVAL_MODES.find((m) => m.id === value) || RETRIEVAL_MODES[0];
   const active = mode.id !== "hybrid";
@@ -352,11 +403,15 @@ function RetrievalSelector({ value, onChange }) {
             className="animate-pop-in absolute bottom-full left-0 z-30 mb-2 w-64 rounded-xl border p-1.5"
             style={{ background: "var(--sidebar-bg)", borderColor: "var(--border)", boxShadow: "var(--win-shadow)" }}
           >
-            {RETRIEVAL_MODES.map((m) => (
-              <MemoryItem key={m.id} active={mode.id === m.id}
-                onClick={() => { onChange(m.id); setOpen(false); }}
-                label={m.label} hint={m.hint} />
-            ))}
+            {RETRIEVAL_MODES.map((m) => {
+              const ok = !allowed || allowed.includes(m.id);
+              return (
+                <MemoryItem key={m.id} active={mode.id === m.id} disabled={!ok}
+                  onClick={() => { if (ok) { onChange(m.id); setOpen(false); } }}
+                  label={m.label}
+                  hint={ok ? m.hint : "not built for the selected memory"} />
+              );
+            })}
           </div>
         </>
       )}
@@ -364,11 +419,12 @@ function RetrievalSelector({ value, onChange }) {
   );
 }
 
-function MemoryItem({ active, onClick, label, hint }) {
+function MemoryItem({ active, onClick, label, hint, disabled }) {
   return (
     <button
       onClick={onClick}
-      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition hover:bg-[var(--row-hover)]"
+      disabled={disabled}
+      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition hover:bg-[var(--row-hover)] disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
     >
       <span className="grid h-4 w-4 shrink-0 place-items-center" style={{ color: "var(--accent)" }}>
         {active ? <CheckIcon size={13} sw={2.6} /> : null}

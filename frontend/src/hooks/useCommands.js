@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { addBelief } from "../api/beliefs.js";
+import { NO_MEMORY } from "../api/chat.js";
 
 // Slash-command dispatch — these are handled locally, with no model call.
 // `runCommand(text)` returns true when the text was a command (and has been
@@ -52,14 +53,16 @@ export function useCommands({
         addNote("Usage: /note <something to remember in this memory>");
         return true;
       }
-      const where = selectedMemory || "Live memory";
+      // NO_MEMORY means "answer without memory" — notes still land on the live context.
+      const memoryContext = selectedMemory === NO_MEMORY ? null : selectedMemory;
+      const where = memoryContext || "Live memory";
       // Send recent turns (role/content only) so the backend can resolve "he"/"that" against
       // the conversation; the claim itself is never changed. The pill shows what was saved.
       const recent = (messages || [])
         .filter((m) => (m.role === "user" || m.role === "assistant") && m.content)
         .slice(-8)
         .map((m) => ({ role: m.role, content: m.content }));
-      addBelief(note, "default", selectedMemory || null, recent)
+      addBelief(note, "default", memoryContext || null, recent)
         .then((res) => {
           const saved = res.note || note;
           addNote(

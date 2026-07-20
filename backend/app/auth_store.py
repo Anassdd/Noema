@@ -109,6 +109,22 @@ def is_admin(username: str) -> bool:
     return _effective_admin(record) if record else False
 
 
+def user_uid(username: str) -> str:
+    """A stable 8-hex id for an account — survives renames, so per-user artifacts
+    (personal saves) keep their owner. Backfilled lazily for accounts that predate
+    it. Guests get a name-derived id: they never rename and expire with their
+    session."""
+    with _lock:
+        users = _load(_USERS_PATH)
+        record = users.get(username.lower())
+        if record is None:
+            return hashlib.sha1(username.lower().encode()).hexdigest()[:8]
+        if "uid" not in record:
+            record["uid"] = secrets.token_hex(4)
+            _save(_USERS_PATH, users)
+        return record["uid"]
+
+
 def _effective_admin(record: dict) -> bool:
     if record.get("is_admin"):
         return True

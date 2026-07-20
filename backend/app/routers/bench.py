@@ -201,6 +201,13 @@ async def job_stop(job_id: str) -> dict:
     return {"stopped": True}
 
 
+@router.get("/jobs")
+def all_jobs() -> dict:
+    """Every running job across datasets — lets the page show the whole overnight
+    campaign, not just the selected dataset's job."""
+    return {"jobs": [j.info() for j in jobs.all_active()]}
+
+
 @router.get("/estimate")
 def estimate(dataset: str, configs: str = "", extract_model: str = "",
              context_model: str = "", answer_model: str = "") -> dict:

@@ -33,6 +33,17 @@ _STOP = _ARTICLES | {
 }
 
 
+_KEY_RE = re.compile(r"\b(sk|key|token)[-_][A-Za-z0-9_\-]{8,}", re.IGNORECASE)
+
+
+def redact(text: str) -> str:
+    """Strip API-key-shaped fragments from a string before it is PERSISTED.
+    Provider auth errors echo masked keys ('Incorrect API key provided: sk-…');
+    run records live in the tracked workdir and may be committed/pushed, so
+    nothing key-shaped may enter them."""
+    return _KEY_RE.sub("[redacted]", text or "")
+
+
 def _normalize(text: str) -> list[str]:
     text = text.lower().translate(str.maketrans("", "", string.punctuation))
     return [w for w in text.split() if w not in _ARTICLES]
@@ -234,5 +245,6 @@ def judge(question: str, gold_answer: str, candidate: str,
         return {**v, "judge_model": f"{res.model} (fallback)",
                 "usage": res.usage.__dict__ if res.usage else None}
     except Exception as exc:  # noqa: BLE001 — an unscored answer beats a dead run
-        return {"correct": None, "score": None, "note": f"judge failed: {exc}"[:200],
+        return {"correct": None, "score": None,
+                "note": redact(f"judge failed: {exc}")[:200],
                 "judge_model": None, "usage": None}

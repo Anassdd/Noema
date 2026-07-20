@@ -47,6 +47,11 @@ tests/results/rag_store/
 # deleted when its run completes, meaningless on any other box.
 tests/results/bench/*/runs/inflight/
 
+# Pull-proof local archive: every finished run's report is COPIED here
+# (app/bench/archive.py). Gitignored on purpose — `git pull` can never replace
+# or conflict with it; publishing results to git stays a manual act.
+tests/results/bench_archive/
+
 # Official upstream benchmark releases (CRAG bz2, FinanceBench PDFs, BCBS crawl) —
 # hundreds of MB, re-downloadable; only the converted <name>.json files are tracked.
 backend/data/bench/raw/

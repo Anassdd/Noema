@@ -77,6 +77,12 @@ def latest_for(dataset: str) -> BenchJob | None:
     return next((j for j in reversed(_jobs.values()) if j.dataset == dataset), None)
 
 
+def all_active() -> list[BenchJob]:
+    """Every dataset's running job — the overnight view. Jobs are per dataset
+    (one each), so several datasets happily run at once."""
+    return [j for j in _jobs.values() if not j.done]
+
+
 def _prune(dataset: str) -> None:
     done = [j for j in _jobs.values() if j.dataset == dataset and j.done]
     for j in done[:-_KEEP_DONE]:

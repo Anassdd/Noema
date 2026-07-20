@@ -9,6 +9,7 @@ import {
   getEstimate,
   getGold,
   getReport,
+  listAllJobs,
   goldgenStream,
   goldverifyStream,
   listDatasets,
@@ -256,6 +257,7 @@ function Bench() {
   const [models, setModels] = useState({ extract: "", context: "", answer: "", judge: "" });
   const [modelList, setModelList] = useState([]);
   const [defaultModel, setDefaultModel] = useState("");
+  const [activeJobs, setActiveJobs] = useState([]); // every dataset's running job (overnight view)
   const [busy, setBusy] = useState("");
   const [log, setLog] = useState([]);
   const [report, setReport] = useState(null);
@@ -285,8 +287,25 @@ function Bench() {
       .catch(() => {});
   }, []);
 
+  // The overnight view: poll every running job across datasets, so launching
+  // several and sleeping still shows everything spinning in the header.
+  useEffect(() => {
+    const load = () => listAllJobs().then((r) => setActiveJobs(r.jobs || [])).catch(() => {});
+    load();
+    const t = setInterval(load, 8000);
+    return () => clearInterval(t);
+  }, []);
+
   useEffect(() => {
     if (!selected) return;
+    // Switching datasets drops the current TAIL only — the server job keeps
+    // running (that's the point of detached jobs) and this same effect
+    // reattaches when you come back. This is what lets several datasets run
+    // at once from one tab: Run A, switch, Run B, sleep.
+    abortRef.current?.abort();
+    abortRef.current = null;
+    jobRef.current = null;
+    setBusy("");
     setReport(null);
     setLog([]);
     getGold(selected).then((r) => { setGold(r.questions); setGoldDirty(false); }).catch(() => setGold([]));
@@ -309,7 +328,13 @@ function Bench() {
           await refresh();
         })
         .catch(() => {})
-        .finally(() => { setBusy(""); abortRef.current = null; jobRef.current = null; });
+        .finally(() => {
+          // Only clean up if WE are still the attached tail — a dataset switch
+          // may already have handed the refs to another attachment.
+          if (abortRef.current === controller) {
+            setBusy(""); abortRef.current = null; jobRef.current = null;
+          }
+        });
     }).catch(() => {});
   }, [selected]);
 
@@ -346,6 +371,8 @@ function Bench() {
     if (ev.phase === "judge_start") pushLog(`— judging ${ev.verdicts} answers (${ev.concurrency} in parallel) —`);
     if (ev.phase === "scored") pushLog(`judge · ${ev.i}/${ev.total} ${ev.config} ${ev.judge_correct === true ? "✓" : ev.judge_correct === false ? "✗" : "·"} (F1 ${ev.f1})`);
     if (ev.phase === "report") setReport(ev.report);
+    if (ev.phase === "results_archived") pushLog(`⛃ ${ev.detail}`);
+    if (ev.phase === "results_archive_error") pushLog(`⚠ archive: ${ev.detail}`);
     if (ev.phase === "stopped") pushLog(`⏸ ${ev.detail}`);
     if (ev.phase === "error") pushLog(`✗ ${ev.detail}`);
     if (ev.phase === "done") pushLog("✓ done");
@@ -449,7 +476,11 @@ function Bench() {
       await refresh();
     } catch (e) {
       if (e.name !== "AbortError") pushLog(`✗ run failed: ${e.message}`);
-    } finally { setBusy(""); abortRef.current = null; jobRef.current = null; }
+    } finally {
+      if (abortRef.current === controller) {
+        setBusy(""); abortRef.current = null; jobRef.current = null;
+      }
+    }
   };
 
   // Pause = stop the SERVER job (aborting our tail alone would leave it running,
@@ -510,6 +541,21 @@ function Bench() {
           ◇ Noema Bench
         </span>
         <span style={{ fontSize: 11.5, color: "#7a87a6" }}>build once · query per config · fixed report</span>
+        {activeJobs.length > 0 && (
+          <span style={{ display: "flex", gap: 6, alignItems: "center", marginLeft: 6 }}>
+            {activeJobs.map((j) => (
+              <button
+                key={j.job_id}
+                onClick={() => setSelected(j.dataset)}
+                title={`${j.kind} started ${j.started_at} — click to watch (runs keep going server-side while you look elsewhere)`}
+                style={{ ...ghostBtn, padding: "3px 10px", fontSize: 11, color: "#8fd6c2", borderColor: "rgba(143,214,194,0.4)", display: "flex", alignItems: "center", gap: 6 }}
+              >
+                <span style={{ ...spinner, width: 9, height: 9 }} />
+                {j.dataset}
+              </button>
+            ))}
+          </span>
+        )}
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
           <a href="/?view=graph" target="_blank" rel="noreferrer" style={{ ...ghostBtn, textDecoration: "none" }}>◆ Graph</a>
           <a href="/" target="_blank" rel="noreferrer" style={{ ...ghostBtn, textDecoration: "none" }}>✦ Chat</a>

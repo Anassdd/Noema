@@ -19,7 +19,7 @@ import time
 from typing import AsyncIterator
 
 from app import pipeline, saves
-from app.bench import scoring, store
+from app.bench import archive, scoring, store
 from app.bench.datasets import split_windows
 from app.bench.report import assemble, render_markdown
 from app.config import settings
@@ -316,8 +316,10 @@ async def _answer(config: str, question: dict, domain: str, model: str | None,
     except Exception as exc:  # noqa: BLE001 — an infra failure is NOT an answer
         # No answer was produced. Mark it and stop: it must not enter em/f1/judge or any
         # accuracy aggregate, or a provider outage would masquerade as a low score.
-        rec.update({"ok": False, "answer": "", "error": str(exc)[:300], "usage": None,
-                    "retrieved": [], "latency_ms": round((time.perf_counter() - t0) * 1000)})
+        # Redacted: error strings are persisted (and may be committed manually).
+        rec.update({"ok": False, "answer": "", "error": scoring.redact(str(exc))[:300],
+                    "usage": None, "retrieved": [],
+                    "latency_ms": round((time.perf_counter() - t0) * 1000)})
         return rec
 
     rec["latency_ms"] = round((time.perf_counter() - t0) * 1000)
@@ -395,6 +397,7 @@ async def rejudge_run(dataset: str, run_id: str,
     markdown = render_markdown(report)
     await asyncio.to_thread(store.save_run, dataset, new_id, report, markdown)
     yield {"phase": "report", "run_id": new_id, "report": {**report, "records": []}}
+    yield await asyncio.to_thread(archive.save, dataset, new_id)
     yield {"phase": "done", "run_id": new_id}
 
 
@@ -596,4 +599,7 @@ async def run_bench(dataset: str, configs: list[str], *,
     # The stream (and the page) get the report WITHOUT the raw records — at 1000
     # questions those are megabytes; they live in the run JSON on disk.
     yield {"phase": "report", "run_id": run_id, "report": {**report, "records": []}}
+    # Results are paid for — copy the report into the gitignored archive the
+    # moment it exists, so no later pull or checkout can ever touch it.
+    yield await asyncio.to_thread(archive.save, dataset, run_id)
     yield {"phase": "done", "run_id": run_id}

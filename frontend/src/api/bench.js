@@ -92,6 +92,10 @@ export async function rejudgeStream(dataset, runId, judgeModel, onEvent) {
 export const getActiveJob = (dataset) =>
   authFetch(`${API_BASE}/bench/job?dataset=${encodeURIComponent(dataset)}`).then(asJson);
 
+// Every running job across all datasets — the overnight-campaign view.
+export const listAllJobs = () =>
+  authFetch(`${API_BASE}/bench/jobs`).then(asJson);
+
 // Tail a job's event log from `since` (0 = full replay), following live until done.
 export async function attachJobStream(jobId, since, onEvent, signal) {
   const res = await authFetch(

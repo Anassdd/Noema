@@ -23,6 +23,10 @@ class MemoryRequest(BaseModel):
     fact: str
 
 
+class MemoryMarkdown(BaseModel):
+    markdown: str
+
+
 class Credentials(BaseModel):
     username: str
     password: str

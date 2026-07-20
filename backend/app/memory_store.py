@@ -34,35 +34,106 @@ def _path(user: str) -> Path:
     return _DIR / f"{safe}.md"
 
 
-def load_memories(user: str) -> list[str]:
-    """Return this user's saved facts."""
+def load_markdown(user: str) -> str:
+    """The user's memory file VERBATIM (the default header when it doesn't exist).
+
+    The file is the source of truth and is edited as free markdown in the panel;
+    only its '- ' bullet lines are facts (what the judge and the chat read). Every
+    automatic operation below edits bullet lines ONLY — prose, headings and blank
+    lines the user writes around them survive untouched."""
     try:
-        return _parse(_path(user).read_text(encoding="utf-8"))
+        return _path(user).read_text(encoding="utf-8")
     except FileNotFoundError:
-        return []
+        return _HEADER
+
+
+def save_markdown(text: str, user: str) -> list[str]:
+    """Write the file verbatim (the panel's markdown editor). Returns the facts
+    parsed back from its bullet lines."""
+    _DIR.mkdir(parents=True, exist_ok=True)
+    text = text or _HEADER
+    if not text.endswith("\n"):
+        text += "\n"
+    _path(user).write_text(text, encoding="utf-8")
+    return _parse(text)
+
+
+def load_memories(user: str) -> list[str]:
+    """Return this user's saved facts (the bullet lines)."""
+    return _parse(load_markdown(user))
+
+
+def _fact_of(line: str) -> str | None:
+    s = line.strip()
+    if s.startswith("- "):
+        return s[2:].strip() or None
+    return None
 
 
 def add_memory(fact: str, user: str) -> list[str]:
-    """Append a fact (trimmed, de-duplicated) and persist. Returns the new list."""
+    """Append a fact bullet (trimmed, de-duplicated) and persist. Returns the list."""
     fact = " ".join(fact.split())
-    memories = load_memories(user)
-    if fact and fact not in memories:
-        memories.append(fact)
-        _save(memories, user)
-    return memories
+    if not fact or fact in load_memories(user):
+        return load_memories(user)
+    text = load_markdown(user)
+    if not text.endswith("\n"):
+        text += "\n"
+    return save_markdown(text + f"- {fact}\n", user)
 
 
 def remove_memory(fact: str, user: str) -> list[str]:
-    """Remove one fact (exact match) and persist. Returns the updated list."""
-    memories = [m for m in load_memories(user) if m != fact]
-    _save(memories, user)
-    return memories
+    """Remove one fact's bullet line (exact match) and persist. Returns the list."""
+    kept = [l for l in load_markdown(user).splitlines() if _fact_of(l) != fact]
+    return save_markdown("\n".join(kept), user)
 
 
 def clear_memories(user: str) -> list[str]:
     """Wipe this user's saved facts. Returns the now-empty list."""
     _save([], user)
     return []
+
+
+def apply_operations(user: str, add: list[str], update: list[tuple[str, str]],
+                     delete: list[str]) -> list[str]:
+    """Evolve the memory with the judge's operations, editing ONLY bullet lines:
+    updates replace a fact's line in place (it keeps its position and indent),
+    deletes drop the line, adds append at the end. Anything else in the markdown
+    is the user's and stays byte-identical. Returns the new fact list."""
+    updates = dict(update)
+    gone = set(delete)
+    lines = []
+    for line in load_markdown(user).splitlines():
+        fact = _fact_of(line)
+        if fact is None:
+            lines.append(line)
+        elif fact in gone:
+            continue
+        elif fact in updates:
+            indent = line[: len(line) - len(line.lstrip())]
+            lines.append(f"{indent}- {updates[fact]}")
+        else:
+            lines.append(line)
+    text = "\n".join(lines)
+    existing = set(_parse(text))
+    fresh = []
+    for fact in add:
+        fact = " ".join(fact.split())
+        if fact and fact not in existing:
+            fresh.append(f"- {fact}")
+            existing.add(fact)
+    if fresh:
+        text = text.rstrip("\n") + "\n" + "\n".join(fresh)
+    return save_markdown(text, user)
+
+
+def replace_all(user: str, memories: list[str]) -> list[str]:
+    """Swap the fact bullets for `memories` (the consolidation pass) while keeping
+    every non-bullet line the user may have written. Returns the new list."""
+    kept = [l for l in load_markdown(user).splitlines() if _fact_of(l) is None]
+    text = "\n".join(kept).rstrip("\n")
+    bullets = "\n".join(f"- {m}" for m in memories)
+    text = (text + "\n\n" if text.strip() else "") + bullets
+    return save_markdown(text, user)
 
 
 def delete_user(user: str) -> None:

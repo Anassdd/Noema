@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 
-import { streamChat } from "../api/chat.js";
+import { NO_MEMORY, streamChat } from "../api/chat.js";
 import { buildSystemMessage } from "../lib/systemPrompt.js";
 import { looksMemorable, replyLooksMemorable } from "../lib/memoryFilter.js";
 
@@ -96,9 +96,11 @@ export function useChatStream({
           onSources: attachSources,
           signal: controller.signal,
           model,
-          useMemory: expertEnabled,
+          // "No memory" selected in the composer = plain chat for this message,
+          // even with expert mode on.
+          useMemory: expertEnabled && memory !== NO_MEMORY,
           domain,
-          memory,
+          memory: memory === NO_MEMORY ? null : memory,
           retrieval,
         });
 
@@ -115,15 +117,21 @@ export function useChatStream({
             looksMemorable(text) ||
             replyLooksMemorable(answer))
         ) {
-          onJudgeMemory?.([userMsg, { role: "assistant", content: answer }]).then(
-            (added) => {
-              if (added?.length) {
+          const context = { domain, memory: memory === NO_MEMORY ? null : memory };
+          onJudgeMemory?.([userMsg, { role: "assistant", content: answer }], context).then(
+            (result) => {
+              if (!result) return;
+              const quote = (fs) => fs.map((f) => `“${f}”`).join(", ");
+              const parts = [];
+              if (result.added?.length) parts.push(`Remembered ${quote(result.added)}`);
+              if (result.updated?.length) parts.push(`Updated to ${quote(result.updated)}`);
+              if (result.removed?.length) parts.push(`Forgot ${quote(result.removed)}`);
+              if (result.beliefsAdded?.length) parts.push(`Noted your view: ${quote(result.beliefsAdded)}`);
+              if (result.consolidated) parts.push("Memory consolidated");
+              if (parts.length) {
                 setMessages((prev) => [
                   ...prev,
-                  {
-                    role: "note",
-                    content: `Remembered: ${added.map((f) => `“${f}”`).join(", ")}`,
-                  },
+                  { role: "note", content: parts.join(" · ") },
                 ]);
               }
             },

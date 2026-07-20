@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 
 import {
   fetchMemories,
+  fetchMemoryMarkdown,
   saveMemory,
+  saveMemoryMarkdown,
   autoMemory,
   clearMemory,
   removeMemoryFact,
@@ -54,17 +56,26 @@ export function useMemory() {
     }
   };
 
-  // After a turn, let the backend judge what to remember. Returns the facts it
-  // added so the chat can confirm them inline.
-  const judgeMemory = async (recent) => {
+  // After a turn, let the backend judge evolve the memory (add/update/delete +
+  // route beliefs). Returns the change set so the chat can confirm it inline.
+  const judgeMemory = async (recent, context) => {
     try {
-      const { added, memories: updated } = await autoMemory(recent);
-      setMemories(updated);
-      return added;
+      const result = await autoMemory(recent, context?.domain ?? "default", context?.memory ?? null);
+      setMemories(result.memories);
+      return result;
     } catch (err) {
       console.error(err);
-      return [];
+      return null;
     }
+  };
+
+  // The raw memory file, for the panel's markdown editor. Saving refreshes the
+  // fact list from whatever bullets the edited file contains.
+  const loadMarkdown = () => fetchMemoryMarkdown();
+  const saveMarkdown = async (text) => {
+    const { markdown, memories: updated } = await saveMemoryMarkdown(text);
+    setMemories(updated);
+    return markdown;
   };
 
   return {
@@ -74,5 +85,7 @@ export function useMemory() {
     removeMemory,
     forgetMemories,
     judgeMemory,
+    loadMarkdown,
+    saveMarkdown,
   };
 }

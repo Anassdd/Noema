@@ -254,6 +254,8 @@ export default function App() {
           memoryEnabled={settings.memoryEnabled}
           onRemove={memory.removeMemory}
           onClearAll={memory.clearMemories}
+          onLoadMarkdown={memory.loadMarkdown}
+          onSaveMarkdown={memory.saveMarkdown}
           onClose={() => setMemoryPanelOpen(false)}
         />
       )}

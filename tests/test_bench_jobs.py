@@ -90,6 +90,30 @@ def test_crash_becomes_error_event():
     print("  crash: generator exception -> error event, never a silent death ✓")
 
 
+def test_multiple_datasets_run_concurrently():
+    """The overnight contract: one job per dataset, but datasets in PARALLEL —
+    all_active sees them all, tails are independent, stopping one never touches
+    the other."""
+    async def main():
+        a = jobs.start("night-a", "run", _events(n=30, delay=0.02))
+        b = jobs.start("night-b", "run", _events(n=30, delay=0.02))
+        assert a is not None and b is not None, "two datasets must both start"
+        await asyncio.sleep(0.05)
+        active = {j.dataset for j in jobs.all_active()}
+        assert {"night-a", "night-b"} <= active, f"both must show as running: {active}"
+
+        a.stop()
+        events_a = [ev async for ev in a.tail()]
+        assert events_a[-1]["phase"] == "stopped", "stopped job ends with the pause event"
+        assert jobs.active_for("night-b") is b and not b.done, \
+            "stopping one dataset must not touch the other"
+        events_b = [ev async for ev in b.tail()]
+        assert len(events_b) > 10, "the surviving job must have kept producing"
+        assert b.done and not jobs.all_active(), "everything drained -> nothing active"
+    asyncio.run(main())
+    print("  concurrency: two datasets run + tail + stop independently; all_active tracks them ✓")
+
+
 TESTS = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
 
 if __name__ == "__main__":

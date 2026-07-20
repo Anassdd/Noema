@@ -70,6 +70,13 @@ def delete_user(user: str) -> None:
     _path(user).unlink(missing_ok=True)
 
 
+def rename_user(old: str, new: str) -> None:
+    """Carry the memory file across an account rename."""
+    src = _path(old)
+    if src.exists():
+        src.replace(_path(new))
+
+
 def _parse(text: str) -> list[str]:
     out = []
     for line in text.splitlines():

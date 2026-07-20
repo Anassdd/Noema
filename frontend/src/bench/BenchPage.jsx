@@ -19,6 +19,7 @@ import {
   runStream,
   stopJob,
 } from "../api/bench.js";
+import { getSession } from "../api/client.js";
 import { ghostBtn, primaryBtn, selectStyle, spinner } from "../graph/styles.js";
 
 const CONFIGS = ["closed_book", "rag", "graph", "hybrid"];
@@ -193,6 +194,34 @@ function ReportView({ report, dataset, onRejudge, busy }) {
 }
 
 export default function BenchPage() {
+  // Bench builds and runs spend real money — the backend serves it to admins only
+  // (403 otherwise); this gate just explains that instead of showing dead controls.
+  if (!getSession()?.isAdmin) return <AdminOnlyNotice />;
+  return <Bench />;
+}
+
+function AdminOnlyNotice() {
+  return (
+    <div style={{ ...page, display: "grid", placeItems: "center" }}>
+      <div style={{ ...card, maxWidth: 420, textAlign: "center", padding: 28 }}>
+        <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 8 }}>Admin only</div>
+        <div style={{ fontSize: 13, color: "#9aa6c2", lineHeight: 1.6 }}>
+          The bench launches paid builds and runs, so it is limited to admin
+          accounts. Ask an admin to grant you access, or sign in with the admin
+          account and reopen this tab.
+        </div>
+        <a
+          href={`${window.location.origin}/`}
+          style={{ ...ghostBtn, display: "inline-block", marginTop: 16, textDecoration: "none" }}
+        >
+          Open chat ↗
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function Bench() {
   const [datasets, setDatasets] = useState(null);
   const [rawDir, setRawDir] = useState("");
   const [selected, setSelected] = useState(null);

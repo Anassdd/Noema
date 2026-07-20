@@ -131,3 +131,30 @@ export const BenchIcon = (p) => (
     <path d="M3 20h18" />
   </Icon>
 );
+
+export const PencilIcon = (p) => (
+  <Icon {...p}>
+    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+  </Icon>
+);
+
+export const KeyIcon = (p) => (
+  <Icon {...p}>
+    <circle cx="7.5" cy="15.5" r="3.5" />
+    <path d="M10.3 12.7L21 2M15 5l3 3M11 9l3 3" />
+  </Icon>
+);
+
+export const ShieldIcon = (p) => (
+  <Icon {...p}>
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+  </Icon>
+);
+
+export const UsersIcon = (p) => (
+  <Icon {...p}>
+    <circle cx="9" cy="7.5" r="3.5" />
+    <path d="M2.5 20a6.5 6.5 0 0 1 13 0" />
+    <path d="M16 4.5a3.5 3.5 0 0 1 0 6.6M21.5 20a6.5 6.5 0 0 0-4.5-6" />
+  </Icon>
+);

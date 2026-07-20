@@ -63,6 +63,15 @@ def delete_user_files(user: str) -> None:
             path.unlink(missing_ok=True)
 
 
+def rename_user_files(old: str, new: str) -> None:
+    """Carry every context's beliefs across an account rename."""
+    if not _DIR.exists():
+        return
+    prefix = f"{_safe(old)}__"
+    for path in _DIR.glob(f"{prefix}*.md"):
+        path.replace(_DIR / f"{_safe(new)}__{path.name.removeprefix(prefix)}")
+
+
 def append_belief(note: str, domain: str | None = None, memory: str | None = None,
                   user: str = "default") -> int:
     """Add one note as a bullet to a context's beliefs (used by the chat's /note command).

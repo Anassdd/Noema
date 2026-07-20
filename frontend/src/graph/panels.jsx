@@ -15,6 +15,7 @@ export function SavesPanel({
   onRestore,
   onDelete,
   engineTag,
+  isAdmin,
 }) {
   return (
     <div style={{ position: "relative" }}>
@@ -63,23 +64,36 @@ export function SavesPanel({
         {saves.length === 0 ? (
           <div style={{ fontSize: 11.5, color: "#6b7693", padding: "4px 0" }}>None yet.</div>
         ) : (
-          saves.map((s) => (
-            <div key={s} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0" }}>
-              <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "#e7ecf7", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {s}
-              </span>
-              <button onClick={() => onRestore(s)} disabled={busy} style={{ ...ghostBtn, padding: "3px 9px", fontSize: 11.5 }}>
-                Restore
-              </button>
-              <button
-                onClick={() => onDelete(s)}
-                title="Delete this save"
-                style={{ ...ghostBtn, padding: "3px 7px", color: "#ff9db0" }}
-              >
-                ✕
-              </button>
-            </div>
-          ))
+          saves.map((s) => {
+            const bench = s.startsWith("bench-");
+            return (
+              <div key={s} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0" }}>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "#e7ecf7", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {s}
+                </span>
+                {bench && (
+                  <span
+                    title="Benchmark build — frozen test-dataset content, deletable by admins only"
+                    style={{ fontSize: 9.5, fontWeight: 600, color: "#ffd166", border: "1px solid rgba(255,209,102,0.4)", background: "rgba(255,209,102,0.1)", borderRadius: 5, padding: "1px 6px" }}
+                  >
+                    bench
+                  </span>
+                )}
+                <button onClick={() => onRestore(s)} disabled={busy} style={{ ...ghostBtn, padding: "3px 9px", fontSize: 11.5 }}>
+                  Restore
+                </button>
+                {(!bench || isAdmin) && (
+                  <button
+                    onClick={() => onDelete(s)}
+                    title="Delete this save"
+                    style={{ ...ghostBtn, padding: "3px 7px", color: "#ff9db0" }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            );
+          })
         )}
       </div>
     </div>

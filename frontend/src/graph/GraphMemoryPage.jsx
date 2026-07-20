@@ -25,6 +25,7 @@ import {
   resetLightrag,
 } from "../api/lightrag.js";
 import { getBeliefs, saveBeliefs } from "../api/beliefs.js";
+import { getSession } from "../api/client.js";
 import { fetchModels } from "../api/models.js";
 import { enrich, topicsFrom } from "./graph3d.js";
 import { SavesPanel, BeliefsPanel } from "./panels.jsx";
@@ -110,6 +111,22 @@ const ENGINES = {
 const engineFromUrl = () =>
   new URLSearchParams(window.location.search).get("engine") === "lightrag" ? "lightrag" : "graphiti";
 
+// The restored-save breadcrumb survives reloads, so the benchmark-content banner
+// below doesn't forget what the live memory mirrors when the tab reopens.
+const MEMORY_OF_KEY = "noema_graph_memory_of";
+const loadMemoryOf = () => {
+  try {
+    return { graphiti: null, lightrag: null, ...JSON.parse(localStorage.getItem(MEMORY_OF_KEY)) };
+  } catch {
+    return { graphiti: null, lightrag: null };
+  }
+};
+
+// Bench builds are saved under this prefix (backend bench/runner.py) — frozen
+// benchmark corpora, read-only for non-admin accounts (the backend enforces it;
+// the page explains it and hides the write controls).
+const isBenchSave = (name) => (name || "").replace(" · changed", "").startsWith("bench-");
+
 // A standalone tab (?view=graph) showing the REAL memory — Graphiti's entities and
 // temporal facts — in 3D. Drop a PDF: each page is extracted by the LLM and the graph
 // grows live (streamed per page). The graph persists in FalkorDB, so it's here next time.
@@ -138,7 +155,7 @@ export default function GraphMemoryPage() {
   const [saveName, setSaveName] = useState("");
   // Which save each engine's LIVE memory currently mirrors (client-side breadcrumb):
   // set on restore, suffixed on change, cleared on reset. null = plain live memory.
-  const [memoryOf, setMemoryOf] = useState({ graphiti: null, lightrag: null });
+  const [memoryOf, setMemoryOf] = useState(loadMemoryOf);
   const [beliefsOpen, setBeliefsOpen] = useState(false);
   const [beliefContext, setBeliefContext] = useState(""); // "" = live memory, else a save name
   const [beliefText, setBeliefText] = useState("");
@@ -150,6 +167,15 @@ export default function GraphMemoryPage() {
   const particlesOnRef = useRef(true);
   const compactRef = useRef(false);
   const engineRef = useRef(engineFromUrl());
+
+  // Benchmark-content state: when the live memory mirrors a bench-… save, badge it,
+  // and for non-admins hide every write path (the backend refuses them anyway).
+  const isAdmin = !!getSession()?.isAdmin;
+  useEffect(() => {
+    localStorage.setItem(MEMORY_OF_KEY, JSON.stringify(memoryOf));
+  }, [memoryOf]);
+  const benchContent = isBenchSave(memoryOf[engine]);
+  const readOnly = benchContent && !isAdmin;
 
   const viewModeRef = useRef("concepts");
   const renderedNodesRef = useRef([]); // the node objects currently on screen (concepts or topics)
@@ -892,6 +918,10 @@ export default function GraphMemoryPage() {
   }
 
   async function handleFiles(files) {
+    if (readOnly) {
+      setError("Benchmark dataset content is read-only — restore another save or reset first.");
+      return;
+    }
     const pdfs = [...files].filter((f) => f.name.toLowerCase().endsWith(".pdf"));
     if (!pdfs.length) {
       setError("Only PDF files are supported here.");
@@ -936,7 +966,7 @@ export default function GraphMemoryPage() {
   }
 
   async function handleAddText() {
-    if (!text.trim()) return;
+    if (!text.trim() || readOnly) return;
     setError("");
     setBusy(true);
     setStatus("Extracting entities & relationships… (the strong model takes ~20–40s)");
@@ -1297,6 +1327,27 @@ export default function GraphMemoryPage() {
           >
             {memoryOf[engine] ? `⧉ ${memoryOf[engine]}` : "● Live"}
           </span>
+          {benchContent && (
+            <span
+              title={
+                "This memory was restored from a benchmark build — frozen test-dataset " +
+                "content used by the bench" +
+                (isAdmin ? "." : ". It is read-only for non-admin accounts.")
+              }
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                padding: "3px 10px",
+                borderRadius: 999,
+                border: "1px solid rgba(255,209,102,0.45)",
+                background: "rgba(255,209,102,0.12)",
+                color: "#ffd166",
+                whiteSpace: "nowrap",
+              }}
+            >
+              ⚑ Benchmark test dataset{readOnly ? " · read-only" : ""}
+            </span>
+          )}
         </div>
 
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14, pointerEvents: "auto" }}>
@@ -1320,6 +1371,7 @@ export default function GraphMemoryPage() {
             onRestore={handleRestore}
             onDelete={handleDeleteSave}
             engineTag={ENGINES[engine].tag}
+            isAdmin={isAdmin}
           />
           <BeliefsPanel
             busy={busy}
@@ -1339,8 +1391,12 @@ export default function GraphMemoryPage() {
           {engine === "graphiti" && (
             <button
               onClick={handleDream}
-              disabled={busy || !stats?.node_count}
-              title="Self-maintain the memory: merge duplicate entities, archive stale facts, refresh community summaries — each step checked and rolled back if it loses knowledge."
+              disabled={busy || !stats?.node_count || readOnly}
+              title={
+                readOnly
+                  ? "Benchmark dataset content is read-only for non-admin accounts."
+                  : "Self-maintain the memory: merge duplicate entities, archive stale facts, refresh community summaries — each step checked and rolled back if it loses knowledge."
+              }
               style={{
                 ...ghostBtn,
                 background: "rgba(150,110,255,0.14)",
@@ -1587,12 +1643,12 @@ export default function GraphMemoryPage() {
           </button>
         )}
 
-        <label style={uploadBtn}>
+        <label style={{ ...uploadBtn, opacity: readOnly ? 0.45 : 1, cursor: readOnly ? "default" : uploadBtn.cursor }}>
           <input
             type="file"
             accept="application/pdf,.pdf"
             multiple
-            disabled={busy}
+            disabled={busy || readOnly}
             style={{ display: "none" }}
             onChange={(e) => {
               if (e.target.files?.length) handleFiles(e.target.files);
@@ -1602,8 +1658,10 @@ export default function GraphMemoryPage() {
           ⬆ Upload PDF(s)
         </label>
 
-        <div style={{ fontSize: 11, color: "#6b7693", textAlign: "center", margin: "8px 0" }}>
-          or drop a PDF anywhere · or paste text
+        <div style={{ fontSize: 11, color: readOnly ? "#c9a24d" : "#6b7693", textAlign: "center", margin: "8px 0" }}>
+          {readOnly
+            ? "Benchmark test dataset — read-only. Restore another save or reset to work here."
+            : "or drop a PDF anywhere · or paste text"}
         </div>
 
         <textarea
@@ -1611,13 +1669,13 @@ export default function GraphMemoryPage() {
           onChange={(e) => setText(e.target.value)}
           placeholder="Paste a paragraph to extract into the graph…"
           rows={3}
-          disabled={busy}
-          style={textareaStyle}
+          disabled={busy || readOnly}
+          style={{ ...textareaStyle, opacity: readOnly ? 0.45 : 1 }}
         />
         <button
           onClick={handleAddText}
-          disabled={busy || !text.trim()}
-          style={{ ...primaryBtn, opacity: busy || !text.trim() ? 0.5 : 1, marginTop: 8 }}
+          disabled={busy || !text.trim() || readOnly}
+          style={{ ...primaryBtn, opacity: busy || !text.trim() || readOnly ? 0.5 : 1, marginTop: 8 }}
         >
           Extract into graph
         </button>

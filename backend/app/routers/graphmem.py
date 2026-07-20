@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -21,6 +21,8 @@ from app.graph import GraphSnapshot, evolution
 from app.graph.manager import graph_manager
 from app.lightrag.manager import lightrag_manager
 from app.retrieval import ingest_markdown, ingest_parsed_doc
+from app.routers.admin import block_bench_writes
+from app.routers.auth import require_user
 
 router = APIRouter(prefix="/graphmem")
 
@@ -82,10 +84,11 @@ async def get_graph(domain: str = DOMAIN_DEFAULT) -> dict:
 
 
 @router.post("/ingest")
-async def ingest(body: IngestText) -> dict:
+async def ingest(body: IngestText, user: dict = Depends(require_user)) -> dict:
     if not body.text.strip():
         raise HTTPException(status_code=400, detail="Nothing to add — the text is empty.")
     domain = body.domain or DOMAIN_DEFAULT
+    block_bench_writes(user, domain)
     source = body.source or "pasted text"
     mem = await _mgr.get(domain, body.model or "")
     async with _mgr.lock(domain):
@@ -104,7 +107,9 @@ async def upload(
     file: UploadFile = File(...),
     model: str | None = Form(None),
     domain: str = Form(DOMAIN_DEFAULT),
+    user: dict = Depends(require_user),
 ) -> StreamingResponse:
+    block_bench_writes(user, domain)
     name = file.filename or "document.pdf"
     is_pdf = name.lower().endswith(".pdf") or file.content_type == "application/pdf"
     if not is_pdf:
@@ -162,10 +167,11 @@ class DreamBody(BaseModel):
 
 
 @router.post("/dream")
-async def dream(body: DreamBody) -> StreamingResponse:
+async def dream(body: DreamBody, user: dict = Depends(require_user)) -> StreamingResponse:
     """One gated self-maintenance cycle (dedupe → forget → consolidate), streamed as
     NDJSON so the page can narrate each pass and redraw the graph as it changes."""
     domain = body.domain or DOMAIN_DEFAULT
+    block_bench_writes(user, domain)
     await _mgr.get(domain, body.model or "")
 
     async def stream():
@@ -180,7 +186,8 @@ async def dream(body: DreamBody) -> StreamingResponse:
 
 
 @router.post("/reset")
-async def reset(domain: str = DOMAIN_DEFAULT) -> dict:
+async def reset(domain: str = DOMAIN_DEFAULT, user: dict = Depends(require_user)) -> dict:
+    block_bench_writes(user, domain)
     mem = await _mgr.get(domain)
     await mem.reset()
     return _payload(await mem.snapshot())
@@ -202,11 +209,13 @@ async def list_saves(domain: str = DOMAIN_DEFAULT, engine: str = "") -> dict:
 
 
 @router.post("/save")
-async def save_graph(body: SaveBody) -> dict:
+async def save_graph(body: SaveBody, user: dict = Depends(require_user)) -> dict:
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Give the save a name.")
     domain = body.domain or DOMAIN_DEFAULT
+    # Non-admins can neither claim the bench- namespace nor write into a bench save.
+    block_bench_writes(user, domain, name)
     try:
         if body.engine == "lightrag":
             async with lightrag_manager.lock(domain):
@@ -225,11 +234,13 @@ async def save_graph(body: SaveBody) -> dict:
 
 
 @router.post("/restore")
-async def restore_graph(body: SaveBody) -> dict:
+async def restore_graph(body: SaveBody, user: dict = Depends(require_user)) -> dict:
     """Overwrite ONE engine's live memory with its save. Returns the fresh Graphiti
     view for graphiti restores; LightRAG restores return an ack and the page refetches
     from /lightragmem (this router doesn't render that engine)."""
     domain = body.domain or DOMAIN_DEFAULT
+    # Restoring FROM a bench save is fine (viewing); restoring INTO one is a write.
+    block_bench_writes(user, domain)
     name = body.name.strip()
     try:
         if body.engine == "lightrag":
@@ -249,9 +260,10 @@ async def restore_graph(body: SaveBody) -> dict:
 
 
 @router.post("/delete-save")
-async def delete_save(body: SaveBody) -> dict:
+async def delete_save(body: SaveBody, user: dict = Depends(require_user)) -> dict:
     domain = body.domain or DOMAIN_DEFAULT
     name = body.name.strip()
+    block_bench_writes(user, domain, name)
     if body.engine == "lightrag":
         # Chat may have opened this save's LightRAG store — evict it before the files go.
         await lightrag_manager.drop(saves.save_key(domain, name))

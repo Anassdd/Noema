@@ -10,6 +10,7 @@ export const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000"
 const TOKEN_KEY = "noema_token";
 const USER_KEY = "noema_user";
 const GUEST_KEY = "noema_guest";
+const ADMIN_KEY = "noema_admin";
 
 export function getSession() {
   const token = localStorage.getItem(TOKEN_KEY);
@@ -18,19 +19,22 @@ export function getSession() {
     token,
     username: localStorage.getItem(USER_KEY) ?? "",
     isGuest: localStorage.getItem(GUEST_KEY) === "1",
+    isAdmin: localStorage.getItem(ADMIN_KEY) === "1",
   };
 }
 
-export function setSession({ token, username, is_guest }) {
+export function setSession({ token, username, is_guest, is_admin }) {
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(USER_KEY, username);
   localStorage.setItem(GUEST_KEY, is_guest ? "1" : "0");
+  localStorage.setItem(ADMIN_KEY, is_admin ? "1" : "0");
 }
 
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(GUEST_KEY);
+  localStorage.removeItem(ADMIN_KEY);
 }
 
 // fetch with the session token attached. On 401 (expired/revoked session) the

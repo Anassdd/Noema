@@ -29,7 +29,12 @@ def require_user(authorization: str = Header(default="")) -> dict:
 
 
 def _session_payload(username: str, token: str, is_guest: bool) -> dict:
-    return {"token": token, "username": username, "is_guest": is_guest}
+    return {
+        "token": token,
+        "username": username,
+        "is_guest": is_guest,
+        "is_admin": not is_guest and auth_store.is_admin(username),
+    }
 
 
 @router.post("/register")

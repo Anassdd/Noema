@@ -47,6 +47,8 @@ export default function SettingsModal({
   onApplyTheme,
   memoryCount,
   onClearMemory,
+  isAdmin,
+  onOpenAdmin,
   onClose,
 }) {
   const [pendingTheme, setPendingTheme] = useState(themeFamily);
@@ -148,6 +150,24 @@ export default function SettingsModal({
             }
           />
         </div>
+
+        {isAdmin && (
+          <div className="px-5 pb-1" style={{ borderTop: "1px solid var(--border-soft)" }}>
+            <SettingRow
+              title="Administration"
+              desc="Manage accounts: rename, reset passwords, admin rights, delete."
+              control={
+                <button
+                  onClick={onOpenAdmin}
+                  className="whitespace-nowrap rounded-lg border px-3 py-1.5 text-[12.5px] font-medium transition hover:bg-[var(--row-hover)]"
+                  style={{ borderColor: "var(--accent-border)", color: "var(--accent)" }}
+                >
+                  Manage ↗
+                </button>
+              }
+            />
+          </div>
+        )}
 
         <div className="px-5 pb-5 pt-4">
           <button

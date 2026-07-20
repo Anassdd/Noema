@@ -69,6 +69,16 @@ class Settings:
     # historical location; set (e.g. "backend/var") = all state defaults move under
     # it. Individual overrides below still win. Adopt via scripts/migrate_state.py.
     state_dir: str = ""
+    # Usernames treated as admins regardless of their stored flag (comma-separated,
+    # case-insensitive). The escape hatch for accounts created before the admin flag
+    # existed, and for locking yourself out. Normal admin rights live on the records.
+    admin_users: str = ""
+    # Default admin account, guaranteed to exist at every startup — so any
+    # deployment is manageable out of the box: admin/admin until the password is
+    # changed in-app (an existing account is promoted, never re-passworded, so
+    # the change sticks). Set ADMIN_PASSWORD= (empty) to disable seeding.
+    admin_username: str = "admin"
+    admin_password: str = "admin"
     # Retrieval: where the embedded vector store persists (empty -> backend/.chroma).
     vector_dir: str = ""
     # LightRAG: where its file-based stores persist (empty -> backend/data/lightrag).
@@ -122,6 +132,9 @@ def load_settings() -> Settings:
     # Parser selection + DI creds — orthogonal to the LLM provider, shared by all.
     _common = dict(
         state_dir=os.getenv("NOEMA_STATE_DIR", "").strip(),
+        admin_users=os.getenv("ADMIN_USERS", ""),
+        admin_username=os.getenv("ADMIN_USERNAME", "admin").strip(),
+        admin_password=os.getenv("ADMIN_PASSWORD", "admin"),
         parser=os.getenv("PARSER", "vision").strip().lower(),
         docintel_endpoint=os.getenv("DOCINTEL_ENDPOINT", ""),
         docintel_key=os.getenv("DOCINTEL_KEY", ""),

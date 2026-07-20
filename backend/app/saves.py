@@ -18,10 +18,24 @@ from __future__ import annotations
 import shutil
 
 SAVE_PREFIX = "__save__"
+# Bench builds land in saves named "bench-…" (bench/runner.py) — expensive frozen
+# benchmark corpora, guarded against non-admin modification (routers/admin.py).
+BENCH_SAVE_PREFIX = "bench-"
 
 
 def save_key(domain: str, name: str) -> str:
     return f"{SAVE_PREFIX}{domain}__{name}"
+
+
+def is_bench_artifact(domain_id: str = "", name: str = "") -> bool:
+    """True when a save name or a full '__save__<domain>__<name>' domain id points
+    at bench-built content."""
+    if name.startswith(BENCH_SAVE_PREFIX):
+        return True
+    if not domain_id.startswith(SAVE_PREFIX):
+        return False
+    rest = domain_id[len(SAVE_PREFIX):]
+    return "__" in rest and rest.split("__", 1)[1].startswith(BENCH_SAVE_PREFIX)
 
 
 def save_prefix(domain: str) -> str:

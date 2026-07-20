@@ -101,6 +101,13 @@ FALKOR_PORT=6379
 # FALKOR_USER=            # only if your FalkorDB requires auth
 # FALKOR_PASSWORD=
 
+# --- Admin account (optional overrides) ---
+# admin/admin is seeded automatically on first boot — sign in and CHANGE THE
+# PASSWORD from Settings -> Manage (a later change is never reset). Override
+# the defaults here if you want different first-boot credentials:
+# ADMIN_USERNAME=admin
+# ADMIN_PASSWORD=<pick one>
+
 # --- Optional ---
 # PARSER=vision            # or docintel (+ DOCINTEL_ENDPOINT / DOCINTEL_KEY)
 # GRAPH_MAX_COROUTINES=8   # cap Graphiti's parallel LLM calls — corporate gateways

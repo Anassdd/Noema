@@ -12,12 +12,14 @@ from __future__ import annotations
 import asyncio
 import json
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app import parsing
 from app.lightrag.manager import lightrag_manager
+from app.routers.admin import block_bench_writes
+from app.routers.auth import require_user
 
 router = APIRouter(prefix="/lightragmem")
 
@@ -48,10 +50,11 @@ async def get_graph(domain: str = DOMAIN_DEFAULT) -> dict:
 
 
 @router.post("/ingest")
-async def ingest(body: IngestText) -> dict:
+async def ingest(body: IngestText, user: dict = Depends(require_user)) -> dict:
     if not body.text.strip():
         raise HTTPException(status_code=400, detail="Nothing to add — the text is empty.")
     domain = body.domain or DOMAIN_DEFAULT
+    block_bench_writes(user, domain)
     mem = await _mgr.get(domain, body.model or "")
     async with _mgr.lock(domain):
         await mem.add_texts([body.text], [body.source or "pasted text"])
@@ -63,7 +66,9 @@ async def upload(
     file: UploadFile = File(...),
     model: str | None = Form(None),
     domain: str = Form(DOMAIN_DEFAULT),
+    user: dict = Depends(require_user),
 ) -> StreamingResponse:
+    block_bench_writes(user, domain)
     name = file.filename or "document.pdf"
     is_pdf = name.lower().endswith(".pdf") or file.content_type == "application/pdf"
     if not is_pdf:
@@ -104,7 +109,8 @@ async def upload(
 
 
 @router.post("/reset")
-async def reset(domain: str = DOMAIN_DEFAULT) -> dict:
+async def reset(domain: str = DOMAIN_DEFAULT, user: dict = Depends(require_user)) -> dict:
+    block_bench_writes(user, domain)
     mem = await _mgr.get(domain)
     async with _mgr.lock(domain):
         await mem.wipe()

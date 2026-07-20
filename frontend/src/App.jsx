@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import Sidebar from "./components/Sidebar.jsx";
 import ChatWindow from "./components/ChatWindow.jsx";
@@ -15,7 +15,7 @@ import {
   GraphIcon,
   BenchIcon,
 } from "./components/icons.jsx";
-import { logout } from "./api/auth.js";
+import { logout, refreshIdentity } from "./api/auth.js";
 import { getSession } from "./api/client.js";
 import { useConversations } from "./hooks/useConversations.js";
 import { useMemory } from "./hooks/useMemory.js";
@@ -51,8 +51,8 @@ function HeaderButton({ icon, label, active, count, onClick }) {
 }
 
 // Who is signed in + the way out. Signing out reloads onto the login gate.
-function UserChip() {
-  const session = getSession();
+// Admin accounts get the accent (transparent blue) treatment.
+function UserChip({ session }) {
   if (!session) return null;
   const signOut = async () => {
     await logout();
@@ -61,13 +61,25 @@ function UserChip() {
   return (
     <div
       className="flex h-8 items-center gap-2 rounded-[9px] border px-2.5 text-[12px]"
-      style={{ borderColor: "var(--border)", color: "var(--text-soft)" }}
+      style={
+        session.isAdmin
+          ? {
+              borderColor: "var(--accent-border)",
+              background: "var(--accent-soft)",
+              color: "var(--accent)",
+            }
+          : { borderColor: "var(--border)", color: "var(--text-soft)" }
+      }
     >
-      <span className="max-w-[120px] truncate" title={session.username}>
+      <span
+        className="max-w-[150px] truncate"
+        title={session.isAdmin ? `${session.username} — admin` : session.username}
+      >
         {session.username}
         {session.isGuest && (
           <span style={{ color: "var(--text-faint)" }}> · guest</span>
         )}
+        {session.isAdmin && <span style={{ opacity: 0.75 }}> · admin</span>}
       </span>
       <button
         onClick={signOut}
@@ -95,6 +107,13 @@ export default function App() {
   const [selectedMemory, setSelectedMemory] = useState(null);
   // Which store the expert retrieves from: "hybrid" (default) | "rag" | "graph" | "lightrag".
   const [retrievalMode, setRetrievalMode] = useState("hybrid");
+
+  // Who is signed in, re-checked once against the backend so admin rights granted
+  // (or a rename done) from another session show up without signing out.
+  const [identity, setIdentity] = useState(getSession);
+  useEffect(() => {
+    refreshIdentity().then((session) => session && setIdentity(session));
+  }, []);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -145,13 +164,15 @@ export default function App() {
               window.open(`${window.location.origin}/?view=graph`, "_blank", "noopener")
             }
           />
-          <HeaderButton
-            icon={<BenchIcon size={17} sw={1.7} />}
-            label="Bench — compare memory methods"
-            onClick={() =>
-              window.open(`${window.location.origin}/?view=bench`, "_blank", "noopener")
-            }
-          />
+          {identity?.isAdmin && (
+            <HeaderButton
+              icon={<BenchIcon size={17} sw={1.7} />}
+              label="Bench — compare memory methods (admin)"
+              onClick={() =>
+                window.open(`${window.location.origin}/?view=bench`, "_blank", "noopener")
+              }
+            />
+          )}
           <div
             className="font-serif truncate text-[17px]"
             style={{ fontWeight: "var(--title-weight)", color: "var(--text)" }}
@@ -160,7 +181,7 @@ export default function App() {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <UserChip />
+            <UserChip session={identity} />
             <ModelSelector
               models={models}
               value={selectedModel}
@@ -253,6 +274,10 @@ export default function App() {
           onApplyTheme={settings.setThemeFamily}
           memoryCount={memory.memories.length}
           onClearMemory={memory.clearMemories}
+          isAdmin={!!identity?.isAdmin}
+          onOpenAdmin={() =>
+            window.open(`${window.location.origin}/?view=admin`, "_blank", "noopener")
+          }
           onClose={() => setSettingsOpen(false)}
         />
       )}

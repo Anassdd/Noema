@@ -10,13 +10,19 @@ from __future__ import annotations
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import (auth, bench, beliefs, chat, conversations, documents,
-                         graphmem, lightragmem, memory, system, textgraph)
+from app import auth_store
+from app.routers import (admin, auth, bench, beliefs, chat, conversations,
+                         documents, graphmem, lightragmem, memory, system,
+                         textgraph)
+from app.routers.admin import require_admin
 from app.routers.auth import require_user
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Noema")
+    # A fresh deployment must be manageable: seed/promote the .env-configured
+    # admin account before the first request can arrive.
+    auth_store.ensure_default_admin()
 
     # Allow the Vite dev frontend to call this API during local development.
     app.add_middleware(
@@ -39,9 +45,12 @@ def create_app() -> FastAPI:
         graphmem.router,
         lightragmem.router,
         beliefs.router,
-        bench.router,
+        admin.router,  # its endpoints add the admin check on top (require_admin)
     ):
         app.include_router(router, dependencies=[Depends(require_user)])
+
+    # The bench spends real money (builds + runs) — admin accounts only, for now.
+    app.include_router(bench.router, dependencies=[Depends(require_admin)])
 
     return app
 

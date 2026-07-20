@@ -28,6 +28,18 @@ class Credentials(BaseModel):
     password: str
 
 
+class AdminRename(BaseModel):
+    username: str
+
+
+class AdminPassword(BaseModel):
+    password: str
+
+
+class AdminFlag(BaseModel):
+    is_admin: bool
+
+
 class ConversationSave(BaseModel):
     title: str = ""
     character: str = ""

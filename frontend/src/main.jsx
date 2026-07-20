@@ -9,12 +9,14 @@ import "./index.css";
 
 applySavedTheme();
 
-// One app, three surfaces opened in separate browser tabs: the chat (default),
-// the graph-memory page (?view=graph) and the bench (?view=bench). The extra pages
-// are lazy-loaded — the chat bundle stays light and only pays for them when opened.
-// All of them sit behind the auth gate: no session, no app.
+// One app, four surfaces opened in separate browser tabs: the chat (default),
+// the graph-memory page (?view=graph), the bench (?view=bench) and the admin page
+// (?view=admin). The extra pages are lazy-loaded — the chat bundle stays light and
+// only pays for them when opened. All of them sit behind the auth gate: no session,
+// no app. Bench and admin additionally require an admin account (backend-enforced).
 const GraphMemoryPage = lazy(() => import("./graph/GraphMemoryPage.jsx"));
 const BenchPage = lazy(() => import("./bench/BenchPage.jsx"));
+const AdminPage = lazy(() => import("./admin/AdminPage.jsx"));
 const view = new URLSearchParams(window.location.search).get("view");
 const dark = <div style={{ background: "#070912", position: "fixed", inset: 0 }} />;
 
@@ -32,6 +34,13 @@ function Root() {
     return (
       <Suspense fallback={dark}>
         <BenchPage />
+      </Suspense>
+    );
+  }
+  if (view === "admin") {
+    return (
+      <Suspense fallback={dark}>
+        <AdminPage />
       </Suspense>
     );
   }

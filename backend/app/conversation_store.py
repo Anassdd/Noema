@@ -176,6 +176,13 @@ def clear(username: str, is_guest: bool) -> None:
         conn.commit()
 
 
+def reassign_owner(old: str, new: str) -> None:
+    """Point every conversation owned by `old` at `new` (account rename)."""
+    with closing(_connect()) as conn:
+        conn.execute("UPDATE conversations SET owner = ? WHERE owner = ?", (new, old))
+        conn.commit()
+
+
 def delete_all_owned_by(username: str) -> None:
     """Guest cleanup: drop a departed guest's conversations."""
     with closing(_connect()) as conn:

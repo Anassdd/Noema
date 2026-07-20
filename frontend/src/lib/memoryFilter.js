@@ -20,10 +20,51 @@ const SIGNALS = [
   /\bremember\b/,
   /\bfrom now on\b/,
   /\bplease (note|remember|keep in mind)\b/,
+  // Corrections / retractions (drive update + delete operations)
+  /\bactually\b/,
+  /\bnot anymore\b/,
+  /\bno longer\b/,
+  /\bthat'?s (wrong|not right|outdated)\b/,
+  /\bforget (that|what i said)\b/,
+  /\bi (moved|changed|switched|stopped|started)\b/,
+  // Asserted opinions (routed to the belief notes, not the fact list)
+  /\bi (think|believe|disagree|agree|doubt)\b/,
+  /\bin my (opinion|view|experience)\b/,
+  /\bmy (view|take|opinion) (is|on)\b/,
+  // ---- French (the company speaks it — parity with every group above) ----
+  /\bje suis\b/,
+  /\bj'ai\b/,
+  /\bje m'appelle\b/,
+  /\bappelle[jz]?-moi\b/,
+  /\bje (prefere|préfère|aime|adore|deteste|déteste|veux|travaille|habite|vis|etudie|étudie|parle|utilise|possede|possède|joue|conduis)\b/,
+  /\bm(on|a) (nom|prenom|prénom|poste|role|rôle|titre|equipe|équipe|manager|societe|société|entreprise|objectif|budget|email|telephone|téléphone|anniversaire|adresse|preference|préférence)\b/,
+  /\b(retiens|souviens-toi|note bien|garde en tete|garde en tête)\b/,
+  /\b(a|à) partir de maintenant\b/,
+  /\bdesormais\b/,
+  /\bdésormais\b/,
+  // Corrections françaises
+  /\ben fait\b/,
+  /\bplus maintenant\b/,
+  /\bce n'est plus\b/,
+  /\bc'est (faux|errone|erroné|depasse|dépassé)\b/,
+  /\boublie (ca|ça|ce que j'ai dit)\b/,
+  /\bj'ai (demenage|déménagé|change|changé|arrete|arrêté|commence|commencé)\b/,
+  // Opinions françaises
+  /\bje (pense|crois|trouve|estime|doute)\b/,
+  /\b(a|à) mon avis\b/,
+  /\bselon moi\b/,
+  /\bd'apres moi\b/,
+  /\bd'après moi\b/,
 ];
 
+// French text arrives with typographic apostrophes (’) and, from fast typing,
+// often without accents — normalize both so one signal list matches all spellings.
+function normalize(text) {
+  return text.toLowerCase().replace(/[’‘]/g, "'");
+}
+
 export function looksMemorable(text) {
-  const t = text.toLowerCase();
+  const t = normalize(text);
   return SIGNALS.some((re) => re.test(t));
 }
 
@@ -46,9 +87,24 @@ const REPLY_SIGNALS = [
   /\bnoted\b/,
   /\bi'?ll remember\b/,
   /\bgood to know\b/,
+  // ---- French acknowledgements ----
+  /\b(vous etes|vous êtes|tu es)\b/,
+  /\b(vous habitez|tu habites)\b/,
+  /\b(vous travaillez|tu travailles)\b/,
+  /\b(vous preferez|vous préférez|tu preferes|tu préfères)\b/,
+  /\b(vous vous appelez|tu t'appelles)\b/,
+  /\benchante\b/,
+  /\benchanté\b/,
+  /\bc'est note\b/,
+  /\bc'est noté\b/,
+  /\bbien note\b/,
+  /\bbien noté\b/,
+  /\bje m'en souviendrai\b/,
+  /\bje retiens\b/,
+  /\bbon (a|à) savoir\b/,
 ];
 
 export function replyLooksMemorable(answer) {
-  const t = answer.toLowerCase();
+  const t = answer.toLowerCase().replace(/[’‘]/g, "'");
   return REPLY_SIGNALS.some((re) => re.test(t));
 }

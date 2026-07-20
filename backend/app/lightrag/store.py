@@ -58,6 +58,9 @@ class LightRAGMemory:
             # burn the strong extraction model on it.
             role_llm_configs={"keyword": {"func": cheap}, "query": {"func": cheap}},
             embedding_func=build_embedding_func(),
+            # LightRAG's prompts default to English output; the corpus is largely
+            # French — keep entities/relations in the source language instead.
+            addon_params={"language": "the same language as the source text"},
         )
 
     async def build(self) -> "LightRAGMemory":

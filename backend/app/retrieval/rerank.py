@@ -57,7 +57,9 @@ def _llm_rerank(query: str, chunks: list[ScoredChunk]) -> list[ScoredChunk]:
         "Output ONLY the passage numbers from most to least relevant, comma-separated "
         "(e.g. 3,0,1). Most relevant first."
     )
-    res = llm_client.chat([{"role": "user", "content": prompt}], temperature=0.0)
+    # A full 30-item ranking is ~100 tokens — the cap only bounds a runaway reply.
+    res = llm_client.chat([{"role": "user", "content": prompt}], temperature=0.0,
+                          max_tokens=200)
     order = [int(x) for x in re.findall(r"\d+", res.text or "")]
     return _apply_order(chunks, order)
 

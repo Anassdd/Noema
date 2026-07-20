@@ -36,7 +36,8 @@ DEFAULT_EXTRACTION_INSTRUCTIONS = (
     "products, brands, foods, works, and everyday concepts (even common nouns like 'pizza') "
     "— and the relationships, preferences, opinions, comparisons and attributes that connect "
     "them. Always include the person or subject who holds an opinion or preference as an "
-    "entity, linked to the things they prefer or reject."
+    "entity, linked to the things they prefer or reject. Write entity names and facts in "
+    "the language of the source text — never translate them."
 )
 
 # Corpus ingestion (PDF pages, bench documents) extracts with this instead: expository
@@ -53,8 +54,10 @@ DOCUMENT_EXTRACTION_INSTRUCTIONS = (
     "pronouns and abbreviations to their referents. Capture the relationships the text "
     "asserts — definitions, requirements and obligations, applicability and scope, "
     "causal and quantitative links, comparisons, part-whole and supersession — as "
-    "specific directional facts. Do not extract conversational filler, generic everyday "
-    "nouns, or document-structure words (section, table, figure, page)."
+    "specific directional facts. Write entity names and facts in the language of the "
+    "source text — never translate them (a French document yields French facts). Do not "
+    "extract conversational filler, generic everyday nouns, or document-structure words "
+    "(section, table, figure, page)."
 )
 
 

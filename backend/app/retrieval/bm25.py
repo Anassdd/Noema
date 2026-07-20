@@ -9,13 +9,22 @@ from __future__ import annotations
 
 import math
 import re
+import unicodedata
 from collections import Counter
 
 _TOKEN = re.compile(r"\w+", re.UNICODE)
 
 
+def _fold(text: str) -> str:
+    """Lowercase + strip diacritics. Half the corpus is French: users routinely type
+    'reglementation' for 'réglementation' — folding both the index and the query side
+    makes the lexical half accent-insensitive (the dense half already is)."""
+    decomposed = unicodedata.normalize("NFD", (text or "").lower())
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+
+
 def _tokenize(text: str) -> list[str]:
-    return _TOKEN.findall((text or "").lower())
+    return _TOKEN.findall(_fold(text))
 
 
 class BM25:

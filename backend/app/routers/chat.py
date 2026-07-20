@@ -88,7 +88,8 @@ def title(req: ChatRequest) -> dict[str, str]:
         [
             {
                 "role": "system",
-                "content": "Give a 3-5 word title for this conversation. "
+                "content": "Give a 3-5 word title for this conversation, in the "
+                "conversation's own language. "
                 "Reply with the title only — no quotes, no punctuation at the end.",
             },
             {"role": "user", "content": transcript},

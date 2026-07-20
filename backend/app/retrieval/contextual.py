@@ -30,12 +30,17 @@ from app.chunking.tokens import count_tokens
 from app.config import settings
 
 # Anthropic's prompt, with the document FIRST so the prefix is cacheable across chunks.
+# Anthropic's situating instruction, plus one deviation: the blurb must be written
+# in the DOCUMENT'S language. The blurb is embedded and BM25-indexed together with
+# the chunk — an English blurb on a French document would never match the French
+# terms a French user searches with (the corpus is largely French).
 PROMPT_TEMPLATE = (
     "<document>\n{document}\n</document>\n\n"
     "Here is the chunk we want to situate within the whole document:\n"
     "<chunk>\n{chunk}\n</chunk>\n\n"
     "Please give a short succinct context to situate this chunk within the overall "
     "document for the purposes of improving search retrieval of the chunk. "
+    "Write the context in the same language as the document. "
     "Answer only with the succinct context and nothing else."
 )
 
@@ -48,6 +53,7 @@ EXCERPT_TEMPLATE = (
     "<chunk>\n{chunk}\n</chunk>\n\n"
     "Please give a short succinct context to situate this chunk within the overall "
     "document for the purposes of improving search retrieval of the chunk. "
+    "Write the context in the same language as the document. "
     "Answer only with the succinct context and nothing else."
 )
 

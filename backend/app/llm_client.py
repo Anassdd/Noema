@@ -242,6 +242,7 @@ def judge_chat(
     *,
     temperature: float = 0.0,
     max_tokens: int | None = None,
+    model: str | None = None,
 ) -> ChatResult:
     """A buffered chat call on the JUDGE endpoint (used only to score bench answers).
 
@@ -249,6 +250,8 @@ def judge_chat(
     OpenAI-compatible endpoint — e.g. Gemini's — so the judge is a different model
     family than the generator (kills self-preference bias). Unset -> falls back to
     the main provider and chat model, so the bench works before any judge key exists.
+    `model` overrides the judged-with model for one run (bench per-run picker) on
+    whichever endpoint applies.
     """
     global _judge_client
     configured = bool(settings.judge_model and settings.judge_base_url
@@ -258,14 +261,14 @@ def judge_chat(
         # WITHOUT a base_url means "different model, same provider"; a base_url
         # without its key means the key isn't pasted yet — don't call a foreign
         # endpoint that will reject us, fall back to the chat model instead.
-        model = (settings.judge_model
-                 if settings.judge_model and not settings.judge_base_url
-                 else settings.chat_model)
-        return _chat_buffered(messages, model, temperature, max_tokens)
+        fallback = (settings.judge_model
+                    if settings.judge_model and not settings.judge_base_url
+                    else settings.chat_model)
+        return _chat_buffered(messages, model or fallback, temperature, max_tokens)
     if _judge_client is None:
         _judge_client = OpenAI(base_url=settings.judge_base_url,
                                api_key=settings.judge_api_key)
-    kwargs = _common_kwargs(settings.judge_model, messages, temperature, max_tokens)
+    kwargs = _common_kwargs(model or settings.judge_model, messages, temperature, max_tokens)
     # Cap the judge's thinking (a reasoning judge multiplies bench wall time on
     # two-field verdicts). Only sent when configured; dropped by _create on rejection.
     if settings.judge_reasoning:

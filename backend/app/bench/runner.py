@@ -28,16 +28,29 @@ from app.graph.manager import graph_manager
 from app.retrieval import ingest_markdown
 
 EPISODE_TOKENS = 700
-# v2 = document-tuned extraction instructions; graphs built before/after must never
-# share a build_skip (or a results table), hence the version lives in the fingerprint.
-_EP_VERSION = "ep700-v2"
+# v2 = document-tuned extraction instructions; v3 = language parity (blurbs written in
+# the document's language, graph facts kept in the source language). Builds made
+# before/after must never share a build_skip (or a results table), hence the version
+# lives in the fingerprint.
+_EP_VERSION = "ep700-v3"
+# The LightRAG leg has its own version (and fingerprint): LightRAG-only changes must
+# rebuild ONLY that leg, never invalidate paid Graphiti builds. v2 = source-language
+# extraction (addon_params language).
+_LR_VERSION = "lr700-v2"
+# Pieces folded per LightRAG ainsert — it extracts them concurrently inside one call
+# (same rationale as the /lightragmem router's batching).
+_LR_BATCH = 4
 
-# config name -> (use_vector, use_graph); closed_book skips retrieval entirely.
+# config name -> (use_vector, use_graph, use_lightrag); closed_book skips retrieval.
+# lightrag_hybrid mirrors the product's supplement-fusion contract with LightRAG as
+# the supplement store: the vector top-k reaches the context IDENTICAL to rag-alone.
 CONFIGS = {
-    "closed_book": (False, False),
-    "rag": (True, False),
-    "graph": (False, True),
-    "hybrid": (True, True),
+    "closed_book": (False, False, False),
+    "rag": (True, False, False),
+    "graph": (False, True, False),
+    "hybrid": (True, True, False),
+    "lightrag": (False, False, True),
+    "lightrag_hybrid": (True, False, True),
 }
 
 # After this many CONSECUTIVE questions fail with an infrastructure error (even after
@@ -70,9 +83,40 @@ async def _with_retry(make_awaitable, *, tries: int = _ANSWER_TRIES):
             await asyncio.sleep(min(45.0, 5.0 * (2 ** i)))
 
 
-def _fingerprint(corpus_hash: str, cap: int, extract_model: str) -> str:
+def _fingerprint(corpus_hash: str, cap: int, extract_model: str,
+                 context_model: str | None = None) -> str:
     raw = f"{corpus_hash}|{cap}|{extract_model}|{settings.embed_model}|{_EP_VERSION}"
+    # An overridden contextualizer changes what the RAG leg produces -> a new
+    # fingerprint. Appended ONLY when set, so every existing build keeps its skip.
+    if context_model:
+        raw += f"|ctx:{context_model}"
     return hashlib.sha256(raw.encode()).hexdigest()[:10]
+
+
+def _lightrag_fingerprint(corpus_hash: str, cap: int, extract_model: str) -> str:
+    raw = f"{corpus_hash}|{cap}|{extract_model}|{settings.embed_model}|{_LR_VERSION}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:10]
+
+
+def _evidence_window_map(docs: list[dict], gold: list[dict]) -> dict[str, set[int]]:
+    """qid -> the gold evidence's build-window numbers ('pages') in its source doc.
+    Model-free and computed once per run; only questions carrying BOTH evidence and a
+    doc_id in the corpus are mapped. Feeds the evidence-source metric — the signal
+    that is fair to fact stores (graph/LightRAG), whose verbatim recall is 0 by
+    construction."""
+    texts = {d["id"]: d["text"] for d in docs}
+    windows_by_doc: dict[str, list[str]] = {}
+    out: dict[str, set[int]] = {}
+    for q in gold:
+        doc_id = q.get("doc_id", "")
+        if not q.get("evidence") or doc_id not in texts:
+            continue
+        if doc_id not in windows_by_doc:
+            windows_by_doc[doc_id] = split_windows(texts[doc_id], EPISODE_TOKENS)
+        wins = scoring.evidence_windows(windows_by_doc[doc_id], q["evidence"])
+        if wins:
+            out[q["id"]] = wins
+    return out
 
 
 def _resolve_extract_model(explicit: str | None) -> str:
@@ -92,7 +136,8 @@ def _usage_add(total: dict, usage) -> None:
 
 async def _build(dataset: str, docs: list[dict], domain: str, extract_model: str,
                  events: list, skip_episodes: set[str] | None = None,
-                 skip_docs: set[str] | None = None) -> AsyncIterator[dict]:
+                 skip_docs: set[str] | None = None,
+                 context_model: str | None = None) -> AsyncIterator[dict]:
     """Ingest the corpus into `domain` (RAG first — cheap, then the graph — slow),
     yielding progress. `skip_episodes` / `skip_docs` = graph episodes and RAG docs
     that survived an interrupted build; they are not re-ingested (resume)."""
@@ -105,7 +150,8 @@ async def _build(dataset: str, docs: list[dict], domain: str, extract_model: str
             yield {"phase": "rag_doc", "doc": doc["id"], "i": i + 1, "total": len(docs),
                    "chunks": 0, "skipped": True}
             continue
-        info = await asyncio.to_thread(ingest_markdown, doc["text"], doc["id"], domain_id=domain)
+        info = await asyncio.to_thread(ingest_markdown, doc["text"], doc["id"],
+                                       domain_id=domain, context_model=context_model)
         _usage_add(tokens["rag"], {"prompt_tokens": info.get("context_tokens", 0),
                                    "cached_tokens": info.get("cached_tokens", 0),
                                    "completion_tokens": 0})
@@ -135,8 +181,73 @@ async def _build(dataset: str, docs: list[dict], domain: str, extract_model: str
                    "graph_health": await mem.graph_health()})
 
 
+async def _ensure_lightrag_build(dataset: str, manifest: dict, docs: list[dict],
+                                 domain: str, extract_model: str,
+                                 prepared: dict, save_name: str) -> AsyncIterator[dict]:
+    """Ingest the corpus into the save's LightRAG workspace (runs only when a lightrag
+    config was requested). Same save name as the Graphiti build — the two engines'
+    checkpoints pair up — but its OWN fingerprint (_LR_VERSION), so LightRAG-only
+    changes rebuild only this leg and never invalidate a paid graph build. Resume is
+    per document: ingested doc ids are recorded in the manifest after each one."""
+    from app.lightrag.manager import lightrag_manager
+
+    lrfp = _lightrag_fingerprint(prepared["corpus_hash"], prepared["cap_tokens"], extract_model)
+    builds = manifest.setdefault("lightrag_builds", [])
+    entry = next((b for b in builds if b.get("fingerprint") == lrfp), None)
+    if entry and entry.get("done"):
+        yield {"phase": "lightrag_build_skip", "save_name": save_name,
+               "built_at": entry.get("built_at")}
+        return
+
+    if entry is None:
+        stale = [b for b in builds if b.get("save_name") == save_name]
+        if stale:
+            # Same save name, different LightRAG fingerprint (a _LR_VERSION bump):
+            # the workspace holds an old-recipe build — wipe it, never mix recipes.
+            mem = await lightrag_manager.get(domain)
+            async with lightrag_manager.lock(domain):
+                await mem.wipe()
+                await lightrag_manager.drop(domain)
+            builds[:] = [b for b in builds if b.get("save_name") != save_name]
+            yield {"phase": "lightrag_build_reset",
+                   "detail": "LightRAG recipe changed — rebuilding this engine's leg"}
+        entry = {"fingerprint": lrfp, "save_name": save_name, "domain": domain,
+                 "models": {"extract": extract_model, "embed": settings.embed_model},
+                 "ingested_docs": [], "done": False}
+        builds.append(entry)
+        store.save_manifest(dataset, manifest)
+
+    skip = set(entry["ingested_docs"])
+    yield {"phase": "lightrag_build_start", "save_name": save_name, "docs": len(docs),
+           "resumed_docs": len(skip)}
+    t0 = time.perf_counter()
+    mem = await lightrag_manager.get(domain, extract_model)
+    async with lightrag_manager.lock(domain):
+        for i, doc in enumerate(docs):
+            if doc["id"] in skip:
+                yield {"phase": "lightrag_doc", "doc": doc["id"], "i": i + 1,
+                       "total": len(docs), "skipped": True}
+                continue
+            pieces = split_windows(doc["text"], EPISODE_TOKENS)
+            names = [f"{doc['id']} · p{n + 1}" for n in range(len(pieces))]
+            for start in range(0, len(pieces), _LR_BATCH):
+                await mem.add_texts(pieces[start:start + _LR_BATCH],
+                                    names[start:start + _LR_BATCH])
+            entry["ingested_docs"].append(doc["id"])
+            store.save_manifest(dataset, manifest)
+            yield {"phase": "lightrag_doc", "doc": doc["id"], "i": i + 1,
+                   "total": len(docs), "pieces": len(pieces)}
+    entry["done"] = True
+    entry["built_at"] = time.strftime("%Y-%m-%d %H:%M")
+    entry["build_seconds"] = round(time.perf_counter() - t0)
+    store.save_manifest(dataset, manifest)
+    yield {"phase": "lightrag_build_done", "save_name": save_name,
+           "build_seconds": entry["build_seconds"]}
+
+
 async def _answer(config: str, question: dict, domain: str, model: str | None,
-                  doc_titles: dict[str, str] | None = None, scope: str = "auto") -> dict:
+                  doc_titles: dict[str, str] | None = None, scope: str = "auto",
+                  ev_windows: set[int] | None = None) -> dict:
     """One question through one config; never raises — errors become a scored record.
 
     Questions from per-document gold (QASPER: "what dataset do THEY use?") presuppose
@@ -149,7 +260,8 @@ async def _answer(config: str, question: dict, domain: str, model: str | None,
     paper in context, its intended condition) and searches the whole corpus when it doesn't
     (a corpus-wide dataset). `scope="corpus"` forces whole-corpus search — only to demonstrate
     the cross-document ambiguity that per-document questions suffer without scoping."""
-    use_vector, use_graph = CONFIGS[config]
+    use_vector, use_graph, use_lightrag = CONFIGS[config]
+    retrieves = use_vector or use_graph or use_lightrag
     q = question["question"]
     title = (doc_titles or {}).get(question.get("doc_id", ""))
     if title:
@@ -164,10 +276,10 @@ async def _answer(config: str, question: dict, domain: str, model: str | None,
 
     async def _generate():
         chunks = []
-        if use_vector or use_graph:
+        if retrieves:
             chunks, _meta = await pipeline.retrieve(
                 q, domain_id=domain, k=8, use_graph=use_graph, use_vector=use_vector,
-                doc_id=scope_doc)
+                use_lightrag=use_lightrag, doc_id=scope_doc)
             res = await asyncio.to_thread(pipeline.grounded_answer, q, chunks, model=model)
         else:
             res = await asyncio.to_thread(pipeline.closed_book_answer, q, model=model)
@@ -181,12 +293,23 @@ async def _answer(config: str, question: dict, domain: str, model: str | None,
         rec["answer_model"] = getattr(res, "model", None)  # resolved snapshot, for provenance
         # evidence is checked against the FULL retrieved texts, then the archive keeps
         # only snippets — at 1000 questions full texts would make the run file huge.
-        if (use_vector or use_graph) and question.get("evidence"):
+        if retrieves and question.get("evidence"):
             texts = [c.text for c in chunks]
             rec["evidence_hit"] = scoring.evidence_hit(question["evidence"], texts)
             rec["evidence_overlap"] = scoring.evidence_overlap(question["evidence"], texts)
+            # Source-level evidence: did any retrieved item's provenance point at the
+            # window the evidence lives in? Only fact stores carry window-level
+            # provenance (episode / file_path '· pN'), so this is computed where at
+            # least one runs — it is THEIR meaningful evidence-recall.
+            if ev_windows and (use_graph or use_lightrag):
+                rec["evidence_source_hit"] = any(
+                    c.doc_id == question.get("doc_id")
+                    and any(p in ev_windows for p in c.pages)
+                    for c in chunks)
         rec["retrieved"] = [
-            {"origin": "graph" if c.chunk_id.startswith("graph:") else "vector",
+            {"origin": ("graph" if c.chunk_id.startswith("graph:")
+                        else "lightrag" if c.chunk_id.startswith("lightrag:")
+                        else "vector"),
              "doc_id": c.doc_id, "pages": c.pages, "text": (c.text or "")[:300]}
             for c in chunks
         ]
@@ -206,22 +329,26 @@ async def _answer(config: str, question: dict, domain: str, model: str | None,
     return rec
 
 
-async def _judge_record(rec: dict, gold_by_id: dict[str, dict]) -> dict:
+async def _judge_record(rec: dict, gold_by_id: dict[str, dict],
+                        judge_model: str | None = None) -> dict:
     """One verdict for one answered record — judged on the SAME question form the run
     asked (the document-anchored one when it was used)."""
     q = gold_by_id.get(rec["qid"], {})
     golds = [q.get("answer", "")] + [a for a in q.get("alt_answers", []) if a]
     asked = rec.get("asked") or q.get("question", "")
     verdict = await asyncio.to_thread(scoring.judge, asked, golds[0],
-                                      rec.get("answer", ""), tuple(golds[1:]))
+                                      rec.get("answer", ""), tuple(golds[1:]),
+                                      judge_model)
     rec["judge"] = {k: verdict.get(k) for k in ("correct", "score", "note", "judge_model")}
     _usage_add(rec.setdefault("judge_usage", {}), verdict.get("usage"))
     return rec
 
 
-async def rejudge_run(dataset: str, run_id: str) -> AsyncIterator[dict]:
+async def rejudge_run(dataset: str, run_id: str,
+                      judge_model: str | None = None) -> AsyncIterator[dict]:
     """Re-score a stored run's answers with the CURRENT judge + gold (incl. alternative
-    answers) — no generation re-paid; produces a new report from the same records."""
+    answers) — no generation re-paid; produces a new report from the same records.
+    `judge_model` overrides the judging model for this pass (per-run picker)."""
     old = store.load_run(dataset, run_id)
     if not old or not old.get("records"):
         yield {"phase": "error", "detail": "No stored records for that run."}
@@ -247,7 +374,8 @@ async def rejudge_run(dataset: str, run_id: str) -> AsyncIterator[dict]:
         rec["em"] = any(scoring.exact_match(rec.get("answer", ""), g) for g in golds)
         rec["f1"] = round(max(scoring.token_f1(rec.get("answer", ""), g) for g in golds), 4)
         verdict = await asyncio.to_thread(
-            scoring.judge, judged_q, golds[0], rec.get("answer", ""), tuple(golds[1:]))
+            scoring.judge, judged_q, golds[0], rec.get("answer", ""), tuple(golds[1:]),
+            judge_model)
         rec["judge"] = {k: verdict.get(k) for k in ("correct", "score", "note", "judge_model")}
         rec["judge_usage"] = {}
         _usage_add(rec["judge_usage"], verdict.get("usage"))
@@ -273,6 +401,8 @@ async def rejudge_run(dataset: str, run_id: str) -> AsyncIterator[dict]:
 async def run_bench(dataset: str, configs: list[str], *,
                     extract_model: str | None = None,
                     answer_model: str | None = None,
+                    judge_model: str | None = None,
+                    context_model: str | None = None,
                     scope: str = "auto") -> AsyncIterator[dict]:
     """The whole cycle as an event stream: (build once) -> answer -> score -> report.
 
@@ -293,7 +423,7 @@ async def run_bench(dataset: str, configs: list[str], *,
         return
 
     extract = _resolve_extract_model(extract_model)
-    fp = _fingerprint(prepared["corpus_hash"], prepared["cap_tokens"], extract)
+    fp = _fingerprint(prepared["corpus_hash"], prepared["cap_tokens"], extract, context_model)
     save_name = f"bench-{dataset}-{prepared['cap_tokens'] // 1000}k-{fp[:6]}"
     domain = saves.save_key("default", save_name)
     run_id = store.new_run_id()
@@ -346,12 +476,14 @@ async def run_bench(dataset: str, configs: list[str], *,
         stats: list[dict] = []
         async with graph_manager.lock(domain):
             async for ev in _build(dataset, docs, domain, extract, stats,
-                                   skip_episodes=skip_episodes, skip_docs=skip_docs):
+                                   skip_episodes=skip_episodes, skip_docs=skip_docs,
+                                   context_model=context_model):
                 yield ev
         build = {
             "fingerprint": fp, "save_name": save_name, "domain": domain,
             "cap_tokens": prepared["cap_tokens"], "corpus_hash": prepared["corpus_hash"],
-            "models": {"extract": extract, "embed": settings.embed_model},
+            "models": {"extract": extract, "embed": settings.embed_model,
+                       **({"context": context_model} if context_model else {})},
             "built_at": time.strftime("%Y-%m-%d %H:%M"),
             "build_seconds": round(time.perf_counter() - t0),
             **(stats[0] if stats else {}),
@@ -361,8 +493,14 @@ async def run_bench(dataset: str, configs: list[str], *,
         yield {"phase": "build_done", **{k: build.get(k) for k in
                ("save_name", "nodes", "edges", "chunks", "build_seconds")}}
 
+    if any(CONFIGS[c][2] for c in configs):
+        async for ev in _ensure_lightrag_build(dataset, manifest, docs, domain,
+                                               extract, prepared, save_name):
+            yield ev
+
     doc_titles = {d["id"]: d["title"] for d in docs if d.get("title")}
     ans_model = answer_model or settings.chat_model
+    ev_windows = _evidence_window_map(docs, gold)
 
     # Resume key: stable across re-launches of the SAME run (build + configs + answer
     # model + scope + exact gold), so a crash/disconnect resumes instead of re-paying.
@@ -398,7 +536,8 @@ async def run_bench(dataset: str, configs: list[str], *,
                 yield {"phase": "answered", "config": config, "i": i + 1, "total": len(gold),
                        "qid": q["id"], "resumed": True}
                 continue
-            rec = await _answer(config, q, domain, answer_model, doc_titles, scope=scope)
+            rec = await _answer(config, q, domain, answer_model, doc_titles, scope=scope,
+                                ev_windows=ev_windows.get(q["id"]))
             await asyncio.to_thread(store.append_record, dataset, resume_key, rec)
             by_key[key] = rec
             ev = {"phase": "answered", "config": config, "i": i + 1, "total": len(gold),
@@ -435,7 +574,7 @@ async def run_bench(dataset: str, configs: list[str], *,
 
         async def _judged(rec: dict) -> dict:
             async with sem:
-                return await _judge_record(rec, gold_by_id)
+                return await _judge_record(rec, gold_by_id, judge_model)
 
         tasks = [asyncio.ensure_future(_judged(r)) for r in pending]
         for i, fut in enumerate(asyncio.as_completed(tasks)):

@@ -15,19 +15,22 @@ import {
   listRuns,
   prepareDataset,
   putGold,
-  reportMdUrl,
+  downloadReportMd,
   runStream,
   stopJob,
 } from "../api/bench.js";
 import { getSession } from "../api/client.js";
+import { fetchModels } from "../api/models.js";
 import { ghostBtn, primaryBtn, selectStyle, spinner } from "../graph/styles.js";
 
-const CONFIGS = ["closed_book", "rag", "graph", "hybrid"];
+const CONFIGS = ["closed_book", "rag", "graph", "hybrid", "lightrag", "lightrag_hybrid"];
 const CONFIG_LABELS = {
   closed_book: "Closed-book",
   rag: "Contextual RAG",
   graph: "Graph",
   hybrid: "Hybrid (product)",
+  lightrag: "LightRAG",
+  lightrag_hybrid: "LightRAG hybrid",
 };
 const TYPE_COLORS = { factoid: "#5cc8ff", synthesis: "#9b8cff", global: "#8fd6c2", null: "#e8a3b8" };
 
@@ -82,7 +85,7 @@ function HeadlineTable({ rows }) {
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr>
-            {["config", "n", "judge acc", "lift", "EM", "F1", "evidence", "latency", "tok/q"].map((h) => (
+            {["config", "n", "judge acc", "lift", "EM", "F1", "evidence", "ev source", "latency", "tok/q"].map((h) => (
               <th key={h} style={th}>{h}</th>
             ))}
           </tr>
@@ -104,6 +107,9 @@ function HeadlineTable({ rows }) {
               <td style={td}>{pct(r.em)}</td>
               <td style={td}>{r.f1 ?? "—"}</td>
               <td style={td}>{pct(r.evidence_recall)}</td>
+              <td style={td} title="Evidence source recall — how often a retrieved fact's provenance window is where the gold evidence lives (the fair evidence signal for fact stores)">
+                {pct(r.evidence_source_recall)}
+              </td>
               <td style={td}>{r.latency_ms_avg} ms</td>
               <td style={td}>{r.tokens_per_q}</td>
             </tr>
@@ -132,9 +138,15 @@ function ReportView({ report, dataset, onRejudge, busy }) {
           title="Re-score this run's stored answers with the current judge and gold (incl. alternative answers) — costs judging only, never re-runs generation.">
           {busy === "rejudge" ? <span style={spinner} /> : "⚖ Re-judge"}
         </button>
-        <a href={reportMdUrl(dataset, report.run_id)} target="_blank" rel="noreferrer" style={{ ...ghostBtn, textDecoration: "none" }}>
+        <button
+          style={ghostBtn}
+          title="Download this run's report.md"
+          onClick={() =>
+            downloadReportMd(dataset, report.run_id).catch((e) => alert(e.message))
+          }
+        >
           ⬇ report.md
-        </a>
+        </button>
       </div>
       {report.verdict && (
         <div style={{ fontSize: 13, color: "#e7ecf7", padding: "10px 14px", marginBottom: 12, background: "rgba(92,200,255,0.08)", border: "1px solid rgba(92,200,255,0.25)", borderRadius: 10 }}>
@@ -162,13 +174,22 @@ function ReportView({ report, dataset, onRejudge, busy }) {
         </div>
       )}
 
-      {fusion && (
-        <div style={{ marginTop: 14, fontSize: 12.5, color: "#cdd5ea" }}>
-          <div style={{ ...label, marginBottom: 6 }}>Fusion (hybrid)</div>
-          graph share of context {pct(fusion.graph_share_of_context)} · accuracy with graph{" "}
-          {pct(fusion.accuracy_when_graph_present)} vs without {pct(fusion.accuracy_when_graph_absent)} (
-          {fusion.questions_with_graph_context} questions)
-        </div>
+      {[["Fusion (hybrid vs rag)", fusion], ["Fusion (LightRAG hybrid vs rag)", report.fusion_lightrag]].map(
+        ([title, f]) =>
+          f && (
+            <div key={title} style={{ marginTop: 14, fontSize: 12.5, color: "#cdd5ea" }}>
+              <div style={{ ...label, marginBottom: 6 }}>{title}</div>
+              supplement share of context {pct(f.graph_share_of_context)}
+              {f.paired_questions != null && (
+                <>
+                  {" "}· paired on {f.paired_questions} questions: fixed{" "}
+                  <b style={{ color: "#8fd6c2" }}>{f.hybrid_gained_over_rag}</b> / broke{" "}
+                  <b style={{ color: "#e8a3b8" }}>{f.hybrid_lost_vs_rag}</b>
+                  {f.mcnemar_p != null && ` · McNemar p=${f.mcnemar_p}`}
+                </>
+              )}
+            </div>
+          ),
       )}
 
       {(report.failure_gallery || []).length > 0 && (
@@ -230,6 +251,11 @@ function Bench() {
   const [goldDirty, setGoldDirty] = useState(false);
   const [configs, setConfigs] = useState(["closed_book", "rag", "graph", "hybrid"]);
   const [scope, setScope] = useState("auto"); // "auto" = follow the dataset (scope to each question's source doc when it has one)
+  // Per-run model picks, one per role; "" = the role's default. Extractor and
+  // contextualizer land in the build fingerprint (a new pick = a new build).
+  const [models, setModels] = useState({ extract: "", context: "", answer: "", judge: "" });
+  const [modelList, setModelList] = useState([]);
+  const [defaultModel, setDefaultModel] = useState("");
   const [busy, setBusy] = useState("");
   const [log, setLog] = useState([]);
   const [report, setReport] = useState(null);
@@ -253,6 +279,11 @@ function Bench() {
     }
   };
   useEffect(() => { refresh(false).catch(() => setDatasets([])); }, []);
+  useEffect(() => {
+    fetchModels()
+      .then((r) => { setModelList(r.models); setDefaultModel(r.default); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!selected) return;
@@ -289,8 +320,8 @@ function Bench() {
   // Refresh the cost ballpark whenever anything that feeds it changes.
   useEffect(() => {
     if (!selected) return;
-    getEstimate(selected, configs).then(setEst).catch(() => setEst(null));
-  }, [selected, configs, gold, datasets]);
+    getEstimate(selected, configs, models).then(setEst).catch(() => setEst(null));
+  }, [selected, configs, gold, datasets, models]);
 
   const pushLog = (line) => setLog((l) => [...l.slice(-400), line]);
 
@@ -305,6 +336,11 @@ function Bench() {
     if (ev.phase === "rag_doc") pushLog(ev.skipped ? `vector base · doc ${ev.i}/${ev.total} — already done ✓` : `vector base · doc ${ev.i}/${ev.total} (${ev.chunks} chunks)`);
     if (ev.phase === "graph_episode") pushLog(`graph · doc ${ev.doc_i}/${ev.docs} · episode ${ev.episode}/${ev.episodes}`);
     if (ev.phase === "build_done") pushLog(`✓ built: ${ev.nodes} nodes · ${ev.edges} edges · ${ev.chunks} chunks · saved as a graph-page save (${ev.save_name}) · ${ev.build_seconds}s`);
+    if (ev.phase === "lightrag_build_skip") pushLog(`LightRAG build already exists (${ev.save_name}) ✓`);
+    if (ev.phase === "lightrag_build_reset") pushLog(`↻ ${ev.detail}`);
+    if (ev.phase === "lightrag_build_start") pushLog(`building the LightRAG leg… (${ev.resumed_docs}/${ev.docs} docs already done)`);
+    if (ev.phase === "lightrag_doc") pushLog(ev.skipped ? `LightRAG · doc ${ev.i}/${ev.total} — already done ✓` : `LightRAG · doc ${ev.i}/${ev.total} (${ev.pieces} pieces)`);
+    if (ev.phase === "lightrag_build_done") pushLog(`✓ LightRAG leg built (${ev.save_name}) · ${ev.build_seconds}s`);
     if (ev.phase === "config_start") pushLog(`— ${CONFIG_LABELS[ev.config] || ev.config} —`);
     if (ev.phase === "answered") pushLog(ev.resumed ? `${ev.config} · q${ev.i}/${ev.total} — already answered ✓` : ev.error ? `${ev.config} · q${ev.i}/${ev.total} ✗ infra error (excluded, will retry on resume)` : `${ev.config} · q${ev.i}/${ev.total} answered (F1 ${ev.f1})`);
     if (ev.phase === "judge_start") pushLog(`— judging ${ev.verdicts} answers (${ev.concurrency} in parallel) —`);
@@ -402,7 +438,12 @@ function Bench() {
     const controller = new AbortController();
     abortRef.current = controller;
     try {
-      await runStream({ dataset: selected, configs, scope, signal: controller.signal }, handleRunEvent);
+      await runStream({
+        dataset: selected, configs, scope,
+        extractModel: models.extract, answerModel: models.answer,
+        judgeModel: models.judge, contextModel: models.context,
+        signal: controller.signal,
+      }, handleRunEvent);
       const r = await listRuns(selected);
       setRuns(r.runs);
       await refresh();
@@ -653,6 +694,31 @@ function Bench() {
                 title="Run"
                 right={ds.builds.length > 0 && <Chip text={`${ds.builds.length} existing build${ds.builds.length > 1 ? "s" : ""} — matching one is reused, never repaid`} color="#9b8cff" />}
               >
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
+                  {[
+                    ["extract", "graph creator (extractor)", `default — ${defaultModel || "chat model"}`,
+                     "Builds the knowledge graph (and the LightRAG leg). Part of the build fingerprint: a different pick = a NEW build (paid)."],
+                    ["context", "contextualizer", `default — ${defaultModel || "chat model"}`,
+                     "Writes the situating blurb per chunk (RAG build). Part of the build fingerprint: a different pick = a NEW build (paid)."],
+                    ["answer", "answerer", `default — ${defaultModel || "chat model"}`,
+                     "Generates every config's answers — identical across configs by design."],
+                    ["judge", "judge", "default — JUDGE_MODEL / self",
+                     "Scores answers against the gold. Uses the JUDGE_* endpoint when configured, else the main provider."],
+                  ].map(([key, title, dflt, hint]) => (
+                    <label key={key} title={hint} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                      <span style={label}>{title}</span>
+                      <select
+                        value={models[key]}
+                        onChange={(e) => setModels((m) => ({ ...m, [key]: e.target.value }))}
+                        disabled={busy !== ""}
+                        style={{ ...selectStyle, width: 190 }}
+                      >
+                        <option value="">{dflt}</option>
+                        {modelList.map((m) => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                    </label>
+                  ))}
+                </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
                   {CONFIGS.map((c) => {
                     const on = configs.includes(c);
@@ -702,13 +768,13 @@ function Bench() {
                 {est?.ready && (
                   <div style={{ fontSize: 12, color: "#e8c98a", background: "rgba(232,201,138,0.07)", border: "1px solid rgba(232,201,138,0.22)", borderRadius: 9, padding: "8px 12px", marginBottom: 12 }}>
                     {est.build_exists ? (
-                      <>build <b>{est.save_name}</b> already exists — nothing to rebuild. Estimated queries: <b>~${est.queries_usd}</b></>
+                      <>build <b>{est.save_name}</b> already exists{est.build_breakdown?.lightrag_extraction_usd != null ? <> — only the LightRAG leg to build: <b>~${est.build_breakdown.lightrag_extraction_usd}</b></> : <> — nothing to rebuild</>}. Estimated queries: <b>~${est.queries_usd}</b></>
                     ) : est.build_partial ? (
                       <>paused build: <b>RAG {est.rag_done}/{est.rag_total} docs{est.rag_done === est.rag_total ? " ✓ (done)" : ""}</b> · <b>graph {est.resumable_episodes}/{est.expected_episodes} episodes</b> — Continue finishes the rest for <b>~${est.build_usd}</b> (~{est.build_minutes} min) + queries <b>~${est.queries_usd}</b></>
                     ) : (
                       <>estimated cost: build <b>~${est.build_usd}</b> (one-time, ~{est.build_minutes} min, extractor <code>{est.extract_model}</code>) + queries <b>~${est.queries_usd}</b> = <b>~${est.total_usd}</b>
                         {est.build_breakdown?.contextualization_usd != null && (
-                          <span style={{ color: "#7a87a6" }}> · build = ${est.build_breakdown.contextualization_usd} contextualize + ${est.build_breakdown.graph_extraction_usd} extract</span>
+                          <span style={{ color: "#7a87a6" }}> · build = ${est.build_breakdown.contextualization_usd} contextualize + ${est.build_breakdown.graph_extraction_usd} extract{est.build_breakdown.lightrag_extraction_usd != null && ` + $${est.build_breakdown.lightrag_extraction_usd} LightRAG`}</span>
                         )}</>
                     )}
                     {est.judge_free ? ` · judging free (Gemini tier)${est.judge_minutes ? `, ~${est.judge_minutes} min throttled` : ""}` : " · judging included at chat-model rates"}
@@ -742,7 +808,7 @@ function Bench() {
                     onRejudge={async () => {
                       setBusy("rejudge");
                       try {
-                        await rejudgeStream(selected, report.run_id, (ev) => {
+                        await rejudgeStream(selected, report.run_id, models.judge, (ev) => {
                           if (ev.phase === "scored") pushLog(`re-judging · ${ev.i}/${ev.total} ${ev.judge_correct === true ? "✓" : ev.judge_correct === false ? "✗" : "·"}`);
                           if (ev.phase === "report") setReport(ev.report);
                           if (ev.phase === "error") pushLog(`✗ ${ev.detail}`);

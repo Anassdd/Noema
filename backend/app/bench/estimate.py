@@ -39,8 +39,10 @@ def _price(model: str) -> tuple[float, float]:
     return next((p for k, p in PRICES.items() if model.startswith(k)), _FALLBACK)
 
 
-def estimate(dataset: str, configs: list[str], extract_model: str | None = None) -> dict:
-    from app.bench.runner import CONFIGS, _fingerprint, _resolve_extract_model
+def estimate(dataset: str, configs: list[str], extract_model: str | None = None,
+             context_model: str | None = None, answer_model: str | None = None) -> dict:
+    from app.bench.runner import (CONFIGS, _fingerprint, _lightrag_fingerprint,
+                                  _resolve_extract_model)
 
     manifest = store.load_manifest(dataset)
     prepared = manifest.get("prepared")
@@ -49,7 +51,7 @@ def estimate(dataset: str, configs: list[str], extract_model: str | None = None)
     n_q = sum(1 for q in store.load_gold(dataset) if q.get("status") == "approved")
 
     extract = _resolve_extract_model(extract_model)
-    fp = _fingerprint(prepared["corpus_hash"], prepared["cap_tokens"], extract)
+    fp = _fingerprint(prepared["corpus_hash"], prepared["cap_tokens"], extract, context_model)
     save_name = f"bench-{dataset}-{prepared['cap_tokens'] // 1000}k-{fp[:6]}"
     build_exists = (store.find_build(manifest, fp) is not None
                     and save_name in saves.list_saves("default"))
@@ -83,7 +85,10 @@ def estimate(dataset: str, configs: list[str], extract_model: str | None = None)
 
     t = prepared["tokens"] / 1e6
     ein, eout = _price(extract)
-    cin, cout = _price(settings.chat_model)
+    # Contextualizer + answerer follow their per-run picks; the chat model remains
+    # the default for both (and for the self-judge fallback pricing).
+    cin, cout = _price(context_model or settings.chat_model)
+    ain, aout = _price(answer_model or settings.chat_model)
     build = 0.0
     build_breakdown = {}
     if not build_exists:
@@ -110,14 +115,29 @@ def estimate(dataset: str, configs: list[str], extract_model: str | None = None)
                            "embeddings_usd": round(embeddings, 3)}
 
     configs = [c for c in configs if c in CONFIGS] or list(CONFIGS)
+
+    # LightRAG leg — only when a lightrag config runs and its own fingerprint has no
+    # finished build. One entity/relation extraction pass over the corpus (~2.5× in,
+    # ~0.6× out) + its own embeddings; uncalibrated (±2×) like graph extraction.
+    if any(CONFIGS[c][2] for c in configs):
+        lrfp = _lightrag_fingerprint(prepared["corpus_hash"], prepared["cap_tokens"], extract)
+        lr_done = any(b.get("fingerprint") == lrfp and b.get("done")
+                      for b in manifest.get("lightrag_builds", []))
+        if not lr_done:
+            lr_build = (2.5 * t * ein + 0.6 * t * eout
+                        + 1.2 * t * EMBED_PRICES.get(settings.embed_model, 0.13))
+            build += lr_build
+            build_breakdown["lightrag_extraction_usd"] = round(lr_build, 2)
+
     # Query costs calibrated to the measured qasper-train run (rag ≈ 2.4k tok/q, not 8k).
-    per_q_retrieval = (2600 * cin + 300 * cout) / 1e6
-    per_q_closed = (300 * cin + 250 * cout) / 1e6
+    per_q_retrieval = (2600 * ain + 300 * aout) / 1e6
+    per_q_closed = (300 * ain + 250 * aout) / 1e6
     answers = sum(n_q * (per_q_closed if c == "closed_book" else per_q_retrieval)
                   for c in configs)
     judge_free = bool(settings.judge_base_url and settings.judge_model
                       and settings.judge_api_key)
-    judging = 0.0 if judge_free else n_q * len(configs) * (400 * cin + 60 * cout) / 1e6
+    jin, jout = _price(settings.chat_model)  # the self-judge fallback runs on the chat model
+    judging = 0.0 if judge_free else n_q * len(configs) * (400 * jin + 60 * jout) / 1e6
 
     # Judge wall-clock: paced only when JUDGE_RPM is explicitly set (free tiers);
     # otherwise verdicts run JUDGE_CONCURRENCY-wide at ~2s each in the judge phase.
@@ -126,7 +146,8 @@ def estimate(dataset: str, configs: list[str], extract_model: str | None = None)
     verdicts = n_q * len(configs)
     judge_minutes = round(verdicts / rpm) if rpm > 0 else round(verdicts * 2 / 60 / concurrency)
 
-    unpriced = sorted({m for m in (extract, settings.chat_model)
+    unpriced = sorted({m for m in (extract, context_model or settings.chat_model,
+                                   answer_model or settings.chat_model)
                        if not any(m.startswith(k) for k in PRICES)})
 
     return {

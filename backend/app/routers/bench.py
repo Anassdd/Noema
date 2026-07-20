@@ -140,8 +140,10 @@ def put_gold(body: GoldBody) -> dict:
 class RunBody(BaseModel):
     dataset: str
     configs: list[str] = list(runner.CONFIGS)
-    extract_model: str | None = None
-    answer_model: str | None = None
+    extract_model: str | None = None  # graph (and LightRAG) builder
+    answer_model: str | None = None   # the generator every config shares
+    judge_model: str | None = None    # verdict model (on the judge endpoint if set)
+    context_model: str | None = None  # chunk contextualizer (RAG build blurbs)
     scope: str = "auto"  # "auto" = follow the dataset (scope to each question's doc_id when it has one); "corpus" = force whole-corpus
 
 
@@ -152,6 +154,7 @@ async def run(body: RunBody) -> StreamingResponse:
     job = jobs.start(body.dataset, "run", runner.run_bench(
         body.dataset, body.configs,
         extract_model=body.extract_model, answer_model=body.answer_model,
+        judge_model=body.judge_model, context_model=body.context_model,
         scope=body.scope,
     ))
 
@@ -199,23 +202,28 @@ async def job_stop(job_id: str) -> dict:
 
 
 @router.get("/estimate")
-def estimate(dataset: str, configs: str = "") -> dict:
+def estimate(dataset: str, configs: str = "", extract_model: str = "",
+             context_model: str = "", answer_model: str = "") -> dict:
     """Cost ballpark for a run BEFORE it starts (±2× until calibrated). `configs`
-    is comma-separated; empty = all four."""
+    is comma-separated; empty = every config. Model overrides mirror the run's
+    pickers so the gate prices what will actually launch."""
     wanted = [c for c in configs.split(",") if c] or list(runner.CONFIGS)
-    return bench_estimate.estimate(dataset, wanted)
+    return bench_estimate.estimate(dataset, wanted, extract_model or None,
+                                   context_model or None, answer_model or None)
 
 
 class RejudgeBody(BaseModel):
     dataset: str
     run_id: str
+    judge_model: str | None = None
 
 
 @router.post("/rejudge")
 async def rejudge(body: RejudgeBody) -> StreamingResponse:
     """Re-score a stored run with the current judge/gold — no generation re-paid.
     Also a detached job, so a closed tab doesn't abandon paid verdicts mid-pass."""
-    job = jobs.start(body.dataset, "rejudge", runner.rejudge_run(body.dataset, body.run_id))
+    job = jobs.start(body.dataset, "rejudge",
+                     runner.rejudge_run(body.dataset, body.run_id, body.judge_model))
 
     async def stream():
         if job is None:

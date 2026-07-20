@@ -17,7 +17,10 @@ import time
 # v3 (additive): bootstrap 95% CIs on judge accuracy, McNemar + delta CI on the paired
 # hybrid-vs-rag flips, priced run cost, judge_prompt_version + graph_search_recipe
 # provenance. Older reports remain mergeable — the new fields just read as absent.
-SCHEMA_VERSION = 3
+# v4 (additive): evidence_source_recall (window-provenance evidence — the fair signal
+# for fact stores, whose verbatim recall is 0 by construction); lightrag +
+# lightrag_hybrid configs; fusion_lightrag paired block. Still merge-compatible.
+SCHEMA_VERSION = 4
 
 
 def _mean(xs) -> float | None:
@@ -88,32 +91,37 @@ def _row(config: str, recs: list[dict]) -> dict:
         "evidence_overlap": _mean([r.get("evidence_overlap") for r in answered
                                    if r.get("evidence_overlap") is not None])
                             if any(r.get("evidence_overlap") is not None for r in answered) else None,
+        "evidence_source_recall": _rate([r.get("evidence_source_hit") for r in answered
+                                         if "evidence_source_hit" in r])
+                                  if any("evidence_source_hit" in r for r in answered) else None,
         "latency_ms_avg": round(_mean([r.get("latency_ms") for r in answered]) or 0),
         "tokens_per_q": round((gen_prompt + gen_out) / len(answered)) if answered else 0,
     }
 
 
-def _fusion(by_config: dict[str, list[dict]]) -> dict | None:
-    """Did fusing the graph into the vector base actually help, measured HONESTLY?
+def _fusion(by_config: dict[str, list[dict]], hybrid_config: str = "hybrid") -> dict | None:
+    """Did fusing a supplement store into the vector base actually help, measured HONESTLY?
 
     The old diagnostic ('accuracy when the graph contributed') was tautological: hybrid
     interleaves the two rankings, so the graph is present in almost every question and the
     'absent' bucket is empty. The real question is paired: on the questions BOTH rag and
-    hybrid answered, how often did adding the graph FLIP a rag-correct answer to wrong (it
-    displaced evidence) versus rescue a rag-wrong one? That is the number that says whether
-    the product's fusion earns its place."""
-    hy = [r for r in by_config.get("hybrid", []) if not r.get("error")]
+    the hybrid answered, how often did adding the supplements FLIP a rag-correct answer to
+    wrong (they displaced evidence) versus rescue a rag-wrong one? That is the number that
+    says whether the fusion earns its place. Works for any hybrid-shaped config —
+    "hybrid" (graph supplements) and "lightrag_hybrid" (LightRAG supplements)."""
+    hy = [r for r in by_config.get(hybrid_config, []) if not r.get("error")]
     if not hy:
         return None
     shares = []
     for r in hy:
         retrieved = r.get("retrieved", [])
         if retrieved:
-            shares.append(sum(1 for c in retrieved if c["origin"] == "graph") / len(retrieved))
+            shares.append(sum(1 for c in retrieved if c["origin"] != "vector") / len(retrieved))
     out = {
+        "config": hybrid_config,
         "graph_share_of_context": _mean(shares),
-        "note": ("share of final context items that came from the graph — judge fusion by "
-                 "the paired win/loss below, not by this share."),
+        "note": ("share of final context items that came from the supplement store — judge "
+                 "fusion by the paired win/loss below, not by this share."),
     }
     rag = {r["qid"]: r for r in by_config.get("rag", []) if not r.get("error")}
     hyq = {r["qid"]: r for r in hy}
@@ -221,7 +229,8 @@ def assemble(*, run_id: str, dataset: str, prepared: dict, build: dict,
         "judge_prompt_version": judge_prompt_version,
     }
 
-    fusion = _fusion(by_config)
+    fusion = _fusion(by_config, "hybrid")
+    fusion_lightrag = _fusion(by_config, "lightrag_hybrid")
     return {
         "schema": SCHEMA_VERSION,
         "run_id": run_id,
@@ -242,15 +251,17 @@ def assemble(*, run_id: str, dataset: str, prepared: dict, build: dict,
         "usage_totals": usage_totals,
         "run_cost_usd": _run_cost(usage_totals, answer_model, judge_models),
         "headline": headline,
-        "verdict": _verdict(headline, fusion, provenance),
+        "verdict": _verdict(headline, fusion, provenance, fusion_lightrag),
         "slices": slices,
         "fusion": fusion,
+        "fusion_lightrag": fusion_lightrag,
         "failure_gallery": gallery,
         "records": records,
     }
 
 
-def _verdict(headline: list[dict], fusion: dict | None, provenance: dict | None = None) -> str:
+def _verdict(headline: list[dict], fusion: dict | None, provenance: dict | None = None,
+             fusion_lightrag: dict | None = None) -> str:
     """The sentences a reader gets before any table — warnings FIRST, so an outage or a
     half-dead judge can never hide behind a confident-looking accuracy number."""
     warnings = []
@@ -288,14 +299,15 @@ def _verdict(headline: list[dict], fusion: dict | None, provenance: dict | None 
     if floor is not None:
         parts.append(f"closed-book floor {floor['judge_accuracy']:.0%} — "
                      f"{'clean corpus, lifts are real' if floor['judge_accuracy'] <= 0.2 else 'the model partly knows this corpus; read lifts, not raw scores'}")
-    if fusion and fusion.get("hybrid_lost_vs_rag") is not None:
-        sentence = (f"fusion vs rag (paired): fixed {fusion['hybrid_gained_over_rag']}, "
-                    f"broke {fusion['hybrid_lost_vs_rag']} of {fusion['paired_questions']}")
-        p = fusion.get("mcnemar_p")
-        if p is not None:
-            sentence += (f" (p={p:.3f} — the direction is statistically real)" if p < 0.05
-                         else f" (p={p:.2f} — could be chance at this sample size; don't over-read)")
-        parts.append(sentence)
+    for f, label in ((fusion, "fusion vs rag"), (fusion_lightrag, "lightrag fusion vs rag")):
+        if f and f.get("hybrid_lost_vs_rag") is not None:
+            sentence = (f"{label} (paired): fixed {f['hybrid_gained_over_rag']}, "
+                        f"broke {f['hybrid_lost_vs_rag']} of {f['paired_questions']}")
+            p = f.get("mcnemar_p")
+            if p is not None:
+                sentence += (f" (p={p:.3f} — the direction is statistically real)" if p < 0.05
+                             else f" (p={p:.2f} — could be chance at this sample size; don't over-read)")
+            parts.append(sentence)
     return " ".join(warnings + [". ".join(parts) + "."])
 
 
@@ -310,6 +322,11 @@ _CONFIG_EXPLAIN = {
     "graph": "temporal knowledge graph only (entities + facts, Graphiti)",
     "hybrid": "both stores — the full contextual top-k plus novelty-gated graph facts "
               "appended (supplement fusion; the product configuration)",
+    "lightrag": "LightRAG only — the self-contained second engine (dual-level keyword "
+                "graph + its own vectors over its own chunks)",
+    "lightrag_hybrid": "the full contextual top-k plus novelty-gated LightRAG items "
+                       "appended (same supplement-fusion contract, LightRAG as the "
+                       "supplement store)",
 }
 
 
@@ -379,8 +396,8 @@ def render_markdown(report: dict) -> str:
         "",
         "## 4. Results",
         "",
-        "| config | answered | judged | judge acc | 95% CI | lift vs closed-book | EM | F1 | evidence recall | evidence overlap | latency avg | tok/q |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| config | answered | judged | judge acc | 95% CI | lift vs closed-book | EM | F1 | evidence recall | evidence overlap | evidence source | latency avg | tok/q |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for r in report["headline"]:
         answered = f"{r.get('answered', r['n'])}/{r['n']}"
@@ -392,6 +409,7 @@ def render_markdown(report: dict) -> str:
             f"{_pct(r['lift_over_closed_book']) if r['lift_over_closed_book'] is not None else '—'} | "
             f"{_pct(r['em'])} | {r['f1'] if r['f1'] is not None else '—'} | "
             f"{_pct(r['evidence_recall'])} | {_pct(r['evidence_overlap'])} | "
+            f"{_pct(r.get('evidence_source_recall'))} | "
             f"{r['latency_ms_avg']} ms | {r['tokens_per_q']} |")
 
     lines += [
@@ -404,10 +422,13 @@ def render_markdown(report: dict) -> str:
         "this sample size; "
         "**lift** = points above the closed-book floor (what retrieval actually earned); "
         "**evidence recall** = how often the gold evidence *paragraph* was retrieved verbatim "
-        "(a passage-retrieval metric — the graph reads 0 by construction, since it stores "
+        "(a passage-retrieval metric — fact stores read 0 by construction, since they keep "
         "distilled facts, not verbatim text); **evidence overlap** = the wording-independent "
         "companion — how much of the evidence's content (entities, terms) the retrieval "
-        "surfaced, which is the fair evidence signal for the graph.*",
+        "surfaced; **evidence source** = the fact stores' own recall: how often a retrieved "
+        "item's provenance (the '<doc> · p<N>' window its fact was extracted from) points at "
+        "the window the gold evidence lives in — 'did the graph learn its facts from the "
+        "right place', computed only for configs with a fact store.*",
         "",
         "### By question type",
         "",
@@ -417,10 +438,15 @@ def render_markdown(report: dict) -> str:
         lines.append(f"**{label}** — " + " · ".join(
             f"{r['config']}: {_pct(r['judge_accuracy'])}" for r in rows))
 
-    fusion = report.get("fusion")
-    if fusion:
-        lines += ["", "### Fusion diagnostics (hybrid vs rag)", "",
-                  f"- graph share of retrieved context: {_pct(fusion['graph_share_of_context'])} "
+    for key, pair_label, store_label in (
+        ("fusion", "hybrid vs rag", "graph"),
+        ("fusion_lightrag", "lightrag_hybrid vs rag", "LightRAG"),
+    ):
+        fusion = report.get(key)
+        if not fusion:
+            continue
+        lines += ["", f"### Fusion diagnostics ({pair_label})", "",
+                  f"- {store_label} share of retrieved context: {_pct(fusion['graph_share_of_context'])} "
                   "*(judge fusion by the paired win/loss below, not by this share)*"]
         if fusion.get("paired_questions"):
             lines.append(
@@ -428,7 +454,7 @@ def render_markdown(report: dict) -> str:
                 f"**fixed {fusion['hybrid_gained_over_rag']}** rag-wrong answers and "
                 f"**broke {fusion['hybrid_lost_vs_rag']}** rag-correct ones — "
                 + ("fusion earns its place here" if fusion['hybrid_gained_over_rag'] > fusion['hybrid_lost_vs_rag']
-                   else "fusion is net-negative on this corpus; the graph is displacing evidence chunks"))
+                   else f"fusion is net-negative on this corpus; the {store_label} items are displacing evidence chunks"))
             if fusion.get("mcnemar_p") is not None:
                 delta = fusion.get("hybrid_delta_ci95")
                 lines.append(

@@ -93,6 +93,31 @@ def test_typed_profiles_and_ladder():
     print("typed profiles + escalation ladder ok")
 
 
+def test_lightrag_hybrid_same_contract():
+    """lightrag_hybrid (bench config) rides the SAME supplement contract: the vector
+    top-k reaches the context identical to rag-alone, LightRAG items only append
+    through the novelty gate. Standalone lightrag stays untouched by fusion."""
+    pool = [chunk(f"c{i}", f"vector passage {i} about topic-{i}") for i in range(20)]
+    lritems = [chunk(f"lightrag:l{i}", f"keyword-{i} — links — concept-{i}", score=0.9)
+               for i in range(10)]
+    _wire(pool, [chunk("graph:should-not-appear", "graph fact")])
+
+    async def fake_lightrag(query, **kw):
+        return lritems
+    pipeline.lightrag_chunks = fake_lightrag
+
+    final, meta = asyncio.run(pipeline.retrieve(
+        "q", k=8, use_vector=True, use_graph=False, use_lightrag=True))
+    assert final[:8] == pool[:8], "lightrag_hybrid must keep the vector top-k IDENTICAL"
+    assert all(c.chunk_id.startswith("lightrag:") for c in final[8:]), "supplements append only"
+    assert meta["lightrag"] == len(final) - 8 and meta["graph"] == 0
+
+    final_lr, meta_lr = asyncio.run(pipeline.retrieve(
+        "q", k=8, use_vector=False, use_graph=False, use_lightrag=True))
+    assert final_lr == lritems[:8] and meta_lr["lightrag"] == len(lritems), "standalone unchanged"
+    print(f"lightrag hybrid contract ok (8 chunks + {meta['lightrag']} lightrag items)")
+
+
 def test_max_facts_budget():
     pool = [chunk(f"c{i}", f"vector passage {i} about topic-{i}") for i in range(20)]
     facts = [chunk(f"graph:g{i}", f"entity-{i} — relates — notion-{i}", score=0.9)
@@ -110,5 +135,6 @@ if __name__ == "__main__":
     test_novelty_gate()
     test_hybrid_backbone_and_supplement()
     test_typed_profiles_and_ladder()
+    test_lightrag_hybrid_same_contract()
     test_max_facts_budget()
     print("all fusion tests passed")

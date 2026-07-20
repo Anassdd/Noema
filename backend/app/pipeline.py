@@ -92,37 +92,45 @@ def _provenance(file_path: str) -> tuple[str, list[int]]:
 
 
 async def lightrag_chunks(query: str, *, domain_id: str = "default",
-                          limit: int = 10) -> list[ScoredChunk]:
+                          limit: int = 10, doc_id: str | None = None) -> list[ScoredChunk]:
     """Retrieve from the LightRAG store and adapt to the shared retrieval contract.
     LightRAG returns relationship facts AND text chunks, both ranked; the chunks are
     the citable evidence, so they fill most of the budget and a few top facts ride
-    along for the graph-level signal."""
+    along for the graph-level signal.
+
+    LightRAG has no native document filter, so scoping to one `doc_id` (per-document
+    benchmarks) over-retrieves and keeps only items whose file_path provenance parses
+    back to that document — same trick as graph_chunks."""
     from app.lightrag.manager import lightrag_manager
 
     mem = await lightrag_manager.get(domain_id)
-    found = await mem.search(query, limit=limit)
+    found = await mem.search(query, limit=limit * 4 if doc_id else limit)
+    relations, chunks = found["relations"], found["chunks"]
+    if doc_id:
+        relations = [r for r in relations if _provenance(r["file_path"])[0] == doc_id]
+        chunks = [c for c in chunks if _provenance(c["file_path"])[0] == doc_id]
     out: list[ScoredChunk] = []
-    for r in found["relations"][: max(1, limit // 3)]:
-        doc_id, pages = _provenance(r["file_path"])
+    for r in relations[: max(1, limit // 3)]:
+        r_doc, pages = _provenance(r["file_path"])
         out.append(ScoredChunk(
             chunk_id=f"lightrag:rel:{r['source']}->{r['target']}",
             text=r["text"] or f"{r['source']} — {r['keywords']} — {r['target']}",
             context=f"{r['source']} → {r['target']}",
-            doc_id=doc_id,
+            doc_id=r_doc,
             pages=pages,
             section=r["keywords"],
             domain_id=domain_id,
             scores={"lightrag": 1.0},
         ))
-    for c in found["chunks"]:
+    for c in chunks:
         if len(out) >= limit:
             break
-        doc_id, pages = _provenance(c["file_path"])
+        c_doc, pages = _provenance(c["file_path"])
         out.append(ScoredChunk(
             chunk_id=f"lightrag:{c['id']}",
             text=c["text"],
             context="",
-            doc_id=doc_id,
+            doc_id=c_doc,
             pages=pages,
             section="",
             domain_id=domain_id,
@@ -241,23 +249,28 @@ async def retrieve(
     0.74, evidence recall 0.89→0.83 — fact-adjacent ≠ question-relevant). The graph earns
     its keep as added facts, not as a chunk-ranking signal.
 
-    `use_lightrag` swaps in the LightRAG strategy as the retriever instead — it is a
-    self-contained method (own graph + own vectors), so it isn't fused with the others.
+    `use_lightrag` alone swaps in the LightRAG strategy as the retriever — a
+    self-contained method (own graph + own vectors). Combined with `use_vector` it
+    becomes the supplement store under the SAME fusion contract as the graph: the
+    vector top-k stays identical to rag-alone, LightRAG items only append through
+    the novelty gate (the bench's lightrag_hybrid config).
 
     `rerank_mode` None = the configured default (RETRIEVAL_RERANK, "llm" unless overridden):
     one cheap listwise call re-reads the fused candidate pool against the question before
     the top-k cut. `max_facts` caps the graph supplement (None = k, the 8+8 default).
 
-    `doc_id` scopes both retrievers to one source document — for per-document benchmarks
+    `doc_id` scopes every retriever to one source document — for per-document benchmarks
     (e.g. QASPER) whose questions presuppose their paper."""
-    if use_lightrag:
-        lchunks = await lightrag_chunks(query, domain_id=domain_id, limit=max(k, 8))
+    if use_lightrag and not use_vector:
+        lchunks = await lightrag_chunks(query, domain_id=domain_id, limit=max(k, 8),
+                                        doc_id=doc_id)
         final = lchunks[:k]
         return final, {"vector": 0, "graph": 0, "lightrag": len(lchunks), "fused": len(final)}
 
     rerank = rerank_mode if rerank_mode is not None else settings.retrieval_rerank
     vchunks: list[ScoredChunk] = []
-    gchunks: list[ScoredChunk] = []
+    supplements: list[ScoredChunk] = []
+    supp_key = "graph" if use_graph else "lightrag"
     if use_vector:
         vtrace = await asyncio.to_thread(
             search_trace, query, k=max(k, 8), domain_id=domain_id, rerank_mode=rerank,
@@ -265,19 +278,24 @@ async def retrieve(
         )
         vchunks = vtrace.final
     if use_graph:
-        gchunks = await graph_chunks(query, domain_id=domain_id, limit=graph_limit, doc_id=doc_id)
+        supplements = await graph_chunks(query, domain_id=domain_id, limit=graph_limit,
+                                         doc_id=doc_id)
+    elif use_lightrag:
+        supplements = await lightrag_chunks(query, domain_id=domain_id, limit=graph_limit,
+                                            doc_id=doc_id)
 
-    meta = {"vector": len(vchunks), "graph": 0}
-    if vchunks and gchunks:
-        facts = _novel_facts(vchunks[:k], gchunks, budget=max_facts if max_facts is not None else k)
+    meta = {"vector": len(vchunks), "graph": 0, "lightrag": 0}
+    if vchunks and supplements:
+        facts = _novel_facts(vchunks[:k], supplements,
+                             budget=max_facts if max_facts is not None else k)
         final = vchunks[:k] + facts
-        meta["graph"] = len(facts)
-        meta["graph_candidates"] = len(gchunks)
+        meta[supp_key] = len(facts)
+        meta[f"{supp_key}_candidates"] = len(supplements)
     elif vchunks:
         final = vchunks[:k]
     else:
-        final = gchunks[:k]
-        meta["graph"] = len(final)
+        final = supplements[:k]
+        meta[supp_key] = len(final)
     meta["fused"] = len(final)
     return final, meta
 
@@ -383,10 +401,13 @@ def _recent_context(messages: list[dict], *, max_turns: int = 6, clip: int = 400
 
 
 def _judge_sync(system: str, user: str) -> dict:
-    """One cheap buffered LLM judgement, parsed leniently from its JSON reply."""
+    """One cheap buffered LLM judgement, parsed leniently from its JSON reply.
+    The cap is generous on purpose: max_tokens only bounds the worst case, it never
+    adds cost — and the route reply embeds the rewritten query, which a tight cap
+    would truncate into a parse failure (silently degrading to the raw query)."""
     res = llm_client.chat(
         [{"role": "system", "content": system}, {"role": "user", "content": user}],
-        temperature=0.0, max_tokens=200,
+        temperature=0.0, max_tokens=400,
     )
     txt = (res.text or "").strip()
     try:
@@ -488,8 +509,14 @@ async def answer_stream(
     # user picks, not by the snapshot's internal store name.
     belief_text = await asyncio.to_thread(beliefs.read_beliefs, domain_id, memory, user)
     if memory:
-        from app.saves import save_key
-        domain_id = save_key(domain_id, memory)  # retrieve from the saved snapshot's stores
+        from app import auth_store
+        from app.saves import resolve_stored, save_key
+
+        # The selector shows display names; a user's personal save wins over a
+        # shared one of the same name (saves.resolve_stored).
+        stored = await asyncio.to_thread(
+            resolve_stored, domain_id, memory, auth_store.user_uid(user))
+        domain_id = save_key(domain_id, stored)  # retrieve from the snapshot's stores
     query = _last_user(messages)
 
     yield {"type": "status", "stage": "routing", "detail": "Reading the question in context…"}
@@ -524,7 +551,7 @@ async def answer_stream(
            "detail": f"This needs the knowledge base · {qtype} question"}
 
     final_chunks: list[ScoredChunk] = []
-    answer_text, usage, grounded, covered = "", None, True, True
+    answer_text, usage, grounded = "", None, True
 
     stores = {"hybrid": "vector base + graph", "rag": "vector base only",
               "graph": "graph only", "lightrag": "LightRAG memory"}
@@ -549,21 +576,21 @@ async def answer_stream(
         yield {"type": "status", "stage": "retrieved", "detail": found}
 
         if not chunks:
-            covered = False
             if attempt < max_tries:
                 yield {"type": "status", "stage": "redoing", "detail": "Nothing found — widening the search…"}
                 continue
             break
 
-        yield {"type": "status", "stage": "grading", "detail": "Checking the sources cover the question…"}
-        js = await asyncio.to_thread(_judge_sync, _SUFF_SYS, f"Question: {search_query}\n\nSources:\n{_sources_block(chunks)}")
-        enough = bool(js.get("enough", True))
-        if not enough and attempt < max_tries:
-            covered = False
-            yield {"type": "status", "stage": "insufficient",
-                   "detail": js.get("reason") or "Sources look thin — retrieving more…"}
-            continue
-        covered = enough
+        # Sufficiency (CRAG) gate — only while its verdict can still DO something.
+        # On the ladder's last rung "insufficient" can't escalate anything, so the
+        # call would re-read every source purely to be ignored: skipped.
+        if attempt < max_tries:
+            yield {"type": "status", "stage": "grading", "detail": "Checking the sources cover the question…"}
+            js = await asyncio.to_thread(_judge_sync, _SUFF_SYS, f"Question: {search_query}\n\nSources:\n{_sources_block(chunks)}")
+            if not bool(js.get("enough", True)):
+                yield {"type": "status", "stage": "insufficient",
+                       "detail": js.get("reason") or "Sources look thin — retrieving more…"}
+                continue
 
         yield {"type": "status", "stage": "answering", "detail": "Composing a grounded answer…"}
         res = await asyncio.to_thread(_generate_sync, messages, chunks, model, belief_text)

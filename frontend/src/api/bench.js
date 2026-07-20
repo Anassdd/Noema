@@ -44,7 +44,10 @@ export async function goldverifyStream(dataset, onEvent) {
 // Streams the whole run: build (or build_skip) → answers → judging → report.
 // The run is a DETACHED server job — `signal` only drops this tail (the run keeps
 // going; getActiveJob + attachJobStream reattach to it). Use stopJob to actually pause.
-export async function runStream({ dataset, configs, extractModel, answerModel, scope, signal }, onEvent) {
+export async function runStream(
+  { dataset, configs, extractModel, answerModel, judgeModel, contextModel, scope, signal },
+  onEvent,
+) {
   const res = await authFetch(`${API_BASE}/bench/run`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -53,6 +56,8 @@ export async function runStream({ dataset, configs, extractModel, answerModel, s
       configs,
       extract_model: extractModel || null,
       answer_model: answerModel || null,
+      judge_model: judgeModel || null,
+      context_model: contextModel || null,
       scope: scope || "auto",
     }),
     signal,
@@ -71,12 +76,13 @@ export async function downloadStream(url, onEvent) {
   await readNdjsonStream(res, onEvent);
 }
 
-// Re-scores a stored run's answers with the current judge + gold (no generation cost).
-export async function rejudgeStream(dataset, runId, onEvent) {
+// Re-scores a stored run's answers with the current judge + gold (no generation
+// cost). `judgeModel` overrides the verdict model for this pass.
+export async function rejudgeStream(dataset, runId, judgeModel, onEvent) {
   const res = await authFetch(`${API_BASE}/bench/rejudge`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ dataset, run_id: runId }),
+    body: JSON.stringify({ dataset, run_id: runId, judge_model: judgeModel || null }),
   });
   await readNdjsonStream(res, onEvent);
 }
@@ -106,9 +112,12 @@ export const deleteDataset = (name) =>
     body: JSON.stringify({ name }),
   }).then(asJson);
 
-export const getEstimate = (dataset, configs) =>
+export const getEstimate = (dataset, configs, models = {}) =>
   authFetch(
-    `${API_BASE}/bench/estimate?dataset=${encodeURIComponent(dataset)}&configs=${configs.join(",")}`,
+    `${API_BASE}/bench/estimate?dataset=${encodeURIComponent(dataset)}&configs=${configs.join(",")}` +
+      `&extract_model=${encodeURIComponent(models.extract || "")}` +
+      `&context_model=${encodeURIComponent(models.context || "")}` +
+      `&answer_model=${encodeURIComponent(models.answer || "")}`,
   ).then(asJson);
 
 export const listRuns = (dataset) =>
@@ -119,5 +128,28 @@ export const getReport = (dataset, runId) =>
     `${API_BASE}/bench/report?dataset=${encodeURIComponent(dataset)}&run_id=${encodeURIComponent(runId)}`,
   ).then(asJson);
 
-export const reportMdUrl = (dataset, runId) =>
-  `${API_BASE}/bench/report.md?dataset=${encodeURIComponent(dataset)}&run_id=${encodeURIComponent(runId)}`;
+// Fetches report.md through the authenticated API and saves it as a file. A bare
+// <a href> link cannot carry the session header, so it bounces off the auth gate
+// ("Not signed in") — the download has to go through authFetch and a blob.
+export async function downloadReportMd(dataset, runId) {
+  const res = await authFetch(
+    `${API_BASE}/bench/report.md?dataset=${encodeURIComponent(dataset)}&run_id=${encodeURIComponent(runId)}`,
+  );
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`;
+    try {
+      detail = (await res.json()).detail ?? detail;
+    } catch {
+      /* keep generic */
+    }
+    throw new Error(detail);
+  }
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${dataset}-${runId}-report.md`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}

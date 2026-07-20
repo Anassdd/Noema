@@ -96,6 +96,18 @@ def evidence_hit(evidence: str, retrieved_texts: list[str]) -> bool:
     return found >= max(1, len(shingles) // 3)
 
 
+def evidence_windows(windows: list[str], evidence: str) -> set[int]:
+    """1-based indexes of the build windows that contain the gold evidence.
+
+    The graph's episodes and LightRAG's pieces are ingested as exactly these windows,
+    named '<doc> · p<N>' — so a retrieved fact whose provenance points at one of them
+    was distilled FROM the evidence's location. That is the evidence signal that is
+    actually meaningful for fact stores: verbatim recall reads 0 for them by
+    construction (they keep paraphrases, not the annotator's sentence). Uses the same
+    tolerant matching as `evidence_hit`, window by window."""
+    return {i + 1 for i, piece in enumerate(windows) if evidence_hit(evidence, [piece])}
+
+
 # Bump JUDGE_PROMPT_VERSION whenever _JUDGE_SYS changes: it is stamped into run
 # provenance, so verdicts graded under different rubrics can never mix silently
 # (rejudge any old run to bring it onto the current rubric — generation is not re-paid).
@@ -182,9 +194,12 @@ def _is_rate_error(exc: Exception) -> bool:
 
 
 def judge(question: str, gold_answer: str, candidate: str,
-          alternatives: tuple[str, ...] = ()) -> dict:
+          alternatives: tuple[str, ...] = (), model: str | None = None) -> dict:
     """Gold-anchored judgement, tolerant of annotator variants. Paced + retried on
-    rate limits, falls back to the main provider, and only then goes unscored."""
+    rate limits, falls back to the main provider, and only then goes unscored.
+    `model` overrides the judge model for this verdict (per-run picker); the
+    last-resort fallback stays on the default chat model — an override that only
+    exists on the judge endpoint must not break the rescue path."""
     if not (candidate or "").strip():
         # An empty candidate is an infrastructure failure (a burned generation), not a
         # wrong answer — never spend a judge call turning it into a scored 'incorrect'.
@@ -200,7 +215,7 @@ def judge(question: str, gold_answer: str, candidate: str,
     for attempt in range(4):
         _throttle()
         try:
-            res = llm_client.judge_chat(messages, max_tokens=1500)
+            res = llm_client.judge_chat(messages, max_tokens=1500, model=model)
         except Exception as exc:  # noqa: BLE001
             if _is_rate_error(exc) and attempt < 3:
                 time.sleep(min(30, 6 * (attempt + 1)))

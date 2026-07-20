@@ -105,11 +105,47 @@ def test_assemble_stats_cost_provenance():
 
     prov = rep["provenance"]
     assert prov["judge_prompt_version"] == "v2" and prov["graph_search_recipe"] == "rrf"
-    assert rep["schema"] == 3
+    assert rep["schema"] == 4
 
     md = report.render_markdown(rep)
     assert "95% CI" in md and "McNemar" in md and "run total" in md
     print("  assemble: CIs, McNemar, priced cost, provenance stamps, markdown render ✓")
+
+
+def test_evidence_source_and_lightrag_fusion():
+    windows = ["alpha beta gamma delta", "the model uses BERT embeddings for retrieval",
+               "unrelated tail text here"]
+    assert scoring.evidence_windows(windows, "uses BERT embeddings for retrieval") == {2}
+    assert scoring.evidence_windows(windows, "totally absent phrase qqq") == set()
+
+    gold = [{"id": f"q{i}", "question": f"Q{i}?", "answer": "A", "type": "factoid"}
+            for i in range(6)]
+    records = []
+    for i in range(6):
+        records.append(_rec("rag", f"q{i}", i < 3))                       # rag: 3/6
+        hy = _rec("lightrag_hybrid", f"q{i}", i < 4)                      # gains 1, loses 0
+        hy["evidence_source_hit"] = i % 2 == 0                            # 3/6 sourced right
+        hy["retrieved"] = [{"origin": "vector"}, {"origin": "lightrag"}]
+        records.append(hy)
+    prepared = {"gold_source": "human", "tokens": 10_000, "docs": 2,
+                "cap_tokens": 10_000, "corpus_hash": "abc123"}
+    rep = report.assemble(
+        run_id="t2", dataset="d", prepared=prepared,
+        build={"models": {"extract": "gpt-5.4-mini", "embed": "text-embedding-3-large"}},
+        configs=["rag", "lightrag_hybrid"], gold=gold, records=records,
+        answer_model="gpt-5.4-mini", scope="auto")
+
+    rows = {r["config"]: r for r in rep["headline"]}
+    assert rows["lightrag_hybrid"]["evidence_source_recall"] == 0.5
+    assert rows["rag"]["evidence_source_recall"] is None, "no fact store -> no source metric"
+    lf = rep["fusion_lightrag"]
+    assert lf["paired_questions"] == 6 and lf["hybrid_gained_over_rag"] == 1
+    assert lf["graph_share_of_context"] == 0.5, "supplement share must count non-vector origins"
+    assert rep["fusion"] is None, "no hybrid config ran -> no graph fusion block"
+
+    md = report.render_markdown(rep)
+    assert "lightrag_hybrid vs rag" in md and "evidence source" in md
+    print("  evidence source recall + lightrag fusion block aggregate and render ✓")
 
 
 def test_unpriced_judge_reads_none():

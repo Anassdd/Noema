@@ -120,10 +120,11 @@ def _evidence_window_map(docs: list[dict], gold: list[dict]) -> dict[str, set[in
 
 
 def _resolve_extract_model(explicit: str | None) -> str:
-    """Bench default = the CHAT model (mini tier), per the bench spec: extraction is
-    the dominant cost, current minis extract well, and the A2 spot-check vs the strong
-    model is the quality gate. The product's own ingestion keeps the strong default."""
-    return explicit or settings.chat_model
+    """Bench default = the STRONG model (same as the product's own ingestion):
+    extraction quality caps every graph-side config, so this is the one build role
+    worth the strong tier. Note the default is part of the build fingerprint —
+    older mini-extractor builds simply won't build_skip against it."""
+    return explicit or settings.parse_model
 
 
 def _usage_add(total: dict, usage) -> None:
@@ -394,6 +395,8 @@ async def rejudge_run(dataset: str, run_id: str,
                       # but stamp the CURRENT judge rubric (that's what just graded them)
                       graph_search_recipe=(old.get("provenance") or {}).get("graph_search_recipe"),
                       judge_prompt_version=scoring.JUDGE_PROMPT_VERSION)
+    if old.get("resume_key"):  # same answers -> the reuse identity carries over
+        report["resume_key"] = old["resume_key"]
     markdown = render_markdown(report)
     await asyncio.to_thread(store.save_run, dataset, new_id, report, markdown)
     yield {"phase": "report", "run_id": new_id, "report": {**report, "records": []}}
@@ -514,11 +517,26 @@ async def run_bench(dataset: str, configs: list[str], *,
     resume_key = hashlib.sha1(
         f"{fp}|{sorted(configs)}|{ans_model}|{scope}|{gold_sig}".encode()).hexdigest()[:16]
 
+    # Answer reuse across runs: if a FINISHED run had the exact same answer identity
+    # (same build, configs, answer model, scope, gold), only the judge can have
+    # changed — seed its answers so this run re-pays verdicts, never generation.
+    # Verdicts and their usage are stripped: they belong to the old judge.
+    by_key: dict[tuple[str, str], dict] = {}
+    prior = await asyncio.to_thread(store.find_run_records, dataset, resume_key)
+    if prior:
+        for r in prior:
+            if r.get("ok"):
+                by_key[(r.get("config"), r.get("qid"))] = {
+                    k: v for k, v in r.items() if k not in ("judge", "judge_usage")}
+        if by_key:
+            yield {"phase": "answers_reused", "answered": len(by_key),
+                   "detail": (f"answer settings identical to a finished run — "
+                              f"{len(by_key)} answers reused, only judging is paid")}
+
     # Load anything a prior attempt already answered. Dedup per (config, qid), preferring
     # a real answer over a stale error record and a JUDGED record over its unjudged
     # earlier append; only OK answers count as "done" — an errored question is retried
     # on resume, never silently left scored-wrong.
-    by_key: dict[tuple[str, str], dict] = {}
     for r in await asyncio.to_thread(store.load_records, dataset, resume_key):
         k = (r.get("config"), r.get("qid"))
         cur = by_key.get(k)
@@ -593,6 +611,7 @@ async def run_bench(dataset: str, configs: list[str], *,
                       answer_model=ans_model, scope=scope,
                       graph_search_recipe=graph_config.search_recipe,
                       judge_prompt_version=scoring.JUDGE_PROMPT_VERSION)
+    report["resume_key"] = resume_key  # lets a judge-only re-run find these answers
     markdown = render_markdown(report)
     await asyncio.to_thread(store.save_run, dataset, run_id, report, markdown)
     await asyncio.to_thread(store.clear_inflight, dataset, resume_key)

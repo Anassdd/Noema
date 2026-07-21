@@ -379,6 +379,8 @@ function Bench() {
     if (ev.phase === "lightrag_build_start") pushLog(`building the LightRAG leg… (${ev.resumed_docs}/${ev.docs} docs already done)`);
     if (ev.phase === "lightrag_doc") pushLog(ev.skipped ? `LightRAG · doc ${ev.i}/${ev.total} — already done ✓` : `LightRAG · doc ${ev.i}/${ev.total} (${ev.pieces} pieces)`);
     if (ev.phase === "lightrag_build_done") pushLog(`✓ LightRAG leg built (${ev.save_name}) · ${ev.build_seconds}s`);
+    if (ev.phase === "answers_reused") pushLog(`♻ ${ev.detail}`);
+    if (ev.phase === "query_resume") pushLog(`↻ ${ev.detail}`);
     if (ev.phase === "config_start") pushLog(`— ${CONFIG_LABELS[ev.config] || ev.config} —`);
     if (ev.phase === "answered") pushLog(ev.resumed ? `${ev.config} · q${ev.i}/${ev.total} — already answered ✓` : ev.error ? `${ev.config} · q${ev.i}/${ev.total} ✗ infra error (excluded, will retry on resume)` : `${ev.config} · q${ev.i}/${ev.total} answered (F1 ${ev.f1})`);
     if (ev.phase === "judge_start") pushLog(`— judging ${ev.verdicts} answers (${ev.concurrency} in parallel) —`);
@@ -768,14 +770,14 @@ function Bench() {
               >
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
                   {[
-                    ["extract", "graph creator (extractor)", `default — ${defaultModel || "chat model"}`,
-                     "Builds the knowledge graph (and the LightRAG leg). Part of the build fingerprint: a different pick = a NEW build (paid)."],
+                    ["extract", "graph creator (extractor)", "default — strong model (gpt-5.4)",
+                     "Builds the knowledge graph (and the LightRAG leg). Defaults to the STRONG model — extraction quality caps every graph config. Part of the build fingerprint: a different pick = a NEW build (paid)."],
                     ["context", "contextualizer", `default — ${defaultModel || "chat model"}`,
                      "Writes the situating blurb per chunk (RAG build). Part of the build fingerprint: a different pick = a NEW build (paid)."],
                     ["answer", "answerer", `default — ${defaultModel || "chat model"}`,
                      "Generates every config's answers — identical across configs by design."],
                     ["judge", "judge", "default — JUDGE_MODEL / self",
-                     "Scores answers against the gold. Uses the JUDGE_* endpoint when configured, else the main provider."],
+                     "Scores answers against the gold. Uses the JUDGE_* endpoint when configured, else the main provider. Changing ONLY the judge re-uses a finished run's answers — verdicts are the only cost."],
                   ].map(([key, title, dflt, hint]) => (
                     <label key={key} title={hint} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                       <span style={label}>{title}</span>

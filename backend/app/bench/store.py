@@ -96,6 +96,21 @@ def load_run(dataset: str, run_id: str) -> dict | None:
     return _read_json(work_dir(dataset) / "runs" / f"{run_id}.json", None)
 
 
+def find_run_records(dataset: str, resume_key: str) -> list[dict] | None:
+    """The newest finished run whose answer identity (build + configs + answer model +
+    scope + gold) matches `resume_key` — its records let a re-run with only the JUDGE
+    changed reuse every paid answer and re-pay verdicts only. Runs from before the
+    key was stamped into reports simply never match."""
+    runs = work_dir(dataset) / "runs"
+    if not runs.exists():
+        return None
+    for f in sorted(runs.glob("*.json"), reverse=True):
+        run = _read_json(f, None)
+        if run and run.get("resume_key") == resume_key and run.get("records"):
+            return run["records"]
+    return None
+
+
 def delete_run(dataset: str, run_id: str) -> bool:
     """Remove one run's report (json + md) from the workdir. The archive copy in
     bench_archive/ is deliberately NOT touched — it is the keep-everything safety

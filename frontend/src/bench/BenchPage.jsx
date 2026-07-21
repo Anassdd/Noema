@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   attachJobStream,
   deleteDataset,
+  deleteRun,
   downloadStream,
   rejudgeStream,
   getActiveJob,
@@ -120,7 +121,7 @@ function HeadlineTable({ rows }) {
   );
 }
 
-function ReportView({ report, dataset, onRejudge, busy }) {
+function ReportView({ report, dataset, onRejudge, onDelete, busy }) {
   const fusion = report.fusion;
   const health = report.graph_health;
   const u = report.usage_totals;
@@ -146,6 +147,14 @@ function ReportView({ report, dataset, onRejudge, busy }) {
           }
         >
           ⬇ report.md
+        </button>
+        <button
+          style={{ ...ghostBtn, color: "var(--danger)", borderColor: "color-mix(in srgb, var(--danger) 35%, transparent)" }}
+          title="Delete this run's report from the workdir. The copy in bench_archive/ on this machine is kept."
+          onClick={onDelete}
+          disabled={busy !== ""}
+        >
+          🗑 Delete
         </button>
       </div>
       {report.verdict && (
@@ -538,7 +547,8 @@ function Bench() {
 
   return (
     <div style={page}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.45;transform:scale(0.75)}}`}</style>
       {/* header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 26px", borderBottom: "1px solid var(--border-soft)", position: "sticky", top: 0, background: "var(--panel-bg)", backdropFilter: "blur(12px)", zIndex: 10 }}>
         <span style={{ fontSize: 16, fontWeight: 700, color: "var(--accent)" }}>
@@ -592,6 +602,15 @@ function Bench() {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontWeight: 650, fontSize: 13.5 }}>{d.name}</span>
+                {activeJobs.some((j) => j.dataset === d.name) && (
+                  <span
+                    title="A job is running on this dataset right now — it keeps going server-side even if you close the tab"
+                    style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10, fontWeight: 700, color: "var(--ok)" }}
+                  >
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--ok)", animation: "pulse 1.2s ease-in-out infinite" }} />
+                    running
+                  </span>
+                )}
                 <span style={{ marginLeft: "auto", fontSize: 10.5, color: "var(--text-faint)" }}>{d.size_mb} MB</span>
                 <button
                   title="Delete this dataset (raw file + prepared corpus + gold + reports)"
@@ -858,6 +877,15 @@ function Bench() {
               >
                 {report ? (
                   <ReportView report={report} dataset={selected} busy={busy}
+                    onDelete={async () => {
+                      if (!window.confirm(`Delete run ${report.run_id}? The archive copy on this machine is kept.`)) return;
+                      try {
+                        await deleteRun(selected, report.run_id);
+                        setReport(null);
+                        const r = await listRuns(selected);
+                        setRuns(r.runs);
+                      } catch (e) { pushLog(`✗ ${e.message}`); }
+                    }}
                     onRejudge={async () => {
                       setBusy("rejudge");
                       try {

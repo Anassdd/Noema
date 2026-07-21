@@ -249,6 +249,24 @@ def runs(dataset: str) -> dict:
     return {"runs": store.list_runs(dataset)}
 
 
+class DeleteRunBody(BaseModel):
+    dataset: str
+    run_id: str
+
+
+@router.post("/delete-run")
+def delete_run(body: DeleteRunBody) -> dict:
+    """Remove one run's report from the dataset's workdir. The local archive copy
+    (bench_archive/) is kept — deleting from the UI never destroys the last record."""
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", body.dataset):
+        raise HTTPException(status_code=400, detail="Bad dataset name.")
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", body.run_id):
+        raise HTTPException(status_code=400, detail="Bad run id.")
+    if not store.delete_run(body.dataset, body.run_id):
+        raise HTTPException(status_code=404, detail="No such run.")
+    return {"deleted": body.run_id}
+
+
 @router.get("/report")
 def report(dataset: str, run_id: str, full: bool = False) -> dict:
     """The report; `full=true` includes the raw per-question records (large — at

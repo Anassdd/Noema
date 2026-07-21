@@ -57,6 +57,26 @@
   --warn: #9a6b00;
   --warn-soft: rgba(154, 107, 0, 0.1);
   --warn-border: rgba(154, 107, 0, 0.35);
+}
+
+/* Theme switch cross-fade — theme.js pins this class on <html> for the moment
+   of a dark/light or family change, then removes it so normal interactions
+   (hover, popover motion) stay snappy. */
+html.theme-anim,
+html.theme-anim *,
+html.theme-anim *::before,
+html.theme-anim *::after {
+  transition:
+    background-color 0.4s ease,
+    background 0.4s ease,
+    color 0.4s ease,
+    border-color 0.4s ease,
+    box-shadow 0.4s ease,
+    fill 0.4s ease,
+    stroke 0.4s ease !important;
+}
+
+:root {
 
   /* Code block (light) */
   --code-bg: #ffffff;

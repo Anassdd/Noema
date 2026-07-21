@@ -96,6 +96,20 @@ def load_run(dataset: str, run_id: str) -> dict | None:
     return _read_json(work_dir(dataset) / "runs" / f"{run_id}.json", None)
 
 
+def delete_run(dataset: str, run_id: str) -> bool:
+    """Remove one run's report (json + md) from the workdir. The archive copy in
+    bench_archive/ is deliberately NOT touched — it is the keep-everything safety
+    net, so a UI delete can never destroy the last record of a paid run."""
+    runs = work_dir(dataset) / "runs"
+    found = False
+    for suffix in (".json", ".md"):
+        f = runs / f"{run_id}{suffix}"
+        if f.exists():
+            f.unlink()
+            found = True
+    return found
+
+
 # ---- in-flight query records (crash-safe resume of the ANSWER phase) -----------
 # The query phase can run for hours; persisting records only at the end means a crash
 # or a disconnect at question 900/1000 re-pays everything. Each answered record is

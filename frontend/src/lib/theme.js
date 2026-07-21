@@ -18,8 +18,22 @@ export function savedDarkMode() {
   return window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
 
+let _animTimer = null;
+
+// Cross-fades every surface when the LOOK actually changes (toggling dark mode or
+// switching family). The class is temporary: leaving transitions on permanently
+// would smear hover states and panel animations everywhere.
+function animateChange(root, darkMode, themeFamily) {
+  const current = root.getAttribute("data-theme") || "aurora";
+  if (root.classList.contains("dark") === darkMode && current === themeFamily) return;
+  root.classList.add("theme-anim");
+  clearTimeout(_animTimer);
+  _animTimer = setTimeout(() => root.classList.remove("theme-anim"), 500);
+}
+
 export function applyTheme(darkMode, themeFamily) {
   const root = document.documentElement;
+  animateChange(root, darkMode, themeFamily);
   root.classList.toggle("dark", darkMode);
   if (themeFamily === "aurora") root.removeAttribute("data-theme");
   else root.setAttribute("data-theme", themeFamily);

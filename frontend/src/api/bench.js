@@ -116,6 +116,13 @@ export const deleteDataset = (name) =>
     body: JSON.stringify({ name }),
   }).then(asJson);
 
+export const deleteRun = (dataset, runId) =>
+  authFetch(`${API_BASE}/bench/delete-run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ dataset, run_id: runId }),
+  }).then(asJson);
+
 export const getEstimate = (dataset, configs, models = {}) =>
   authFetch(
     `${API_BASE}/bench/estimate?dataset=${encodeURIComponent(dataset)}&configs=${configs.join(",")}` +

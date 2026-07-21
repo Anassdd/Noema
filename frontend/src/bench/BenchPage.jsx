@@ -22,7 +22,8 @@ import {
 } from "../api/bench.js";
 import { getSession } from "../api/client.js";
 import { fetchModels } from "../api/models.js";
-import { ghostBtn, primaryBtn, selectStyle, spinner } from "../graph/styles.js";
+import { applyTheme, savedDarkMode, savedThemeFamily } from "../lib/theme.js";
+import { ghostBtn, primaryBtn, selectStyle, spinner } from "./styles.js";
 
 const CONFIGS = ["closed_book", "rag", "graph", "hybrid", "lightrag", "lightrag_hybrid"];
 const CONFIG_LABELS = {
@@ -33,35 +34,33 @@ const CONFIG_LABELS = {
   lightrag: "LightRAG",
   lightrag_hybrid: "LightRAG hybrid",
 };
-const TYPE_COLORS = { factoid: "#5cc8ff", synthesis: "#9b8cff", global: "#8fd6c2", null: "#e8a3b8" };
+const TYPE_COLORS = { factoid: "var(--accent)", synthesis: "#8b5cf6", global: "var(--ok)", null: "var(--danger)" };
 
 const page = {
   position: "fixed",
   inset: 0,
   overflowY: "auto",
-  background:
-    "radial-gradient(1000px 500px at 15% -5%, rgba(92,200,255,0.07), transparent 60%)," +
-    "radial-gradient(900px 500px at 90% 0%, rgba(155,140,255,0.07), transparent 55%), #070912",
-  color: "#e7ecf7",
-  fontFamily: "'Inter', system-ui, sans-serif",
+  background: "var(--wallpaper)",
+  color: "var(--text)",
+  fontFamily: "var(--font-sans, 'Inter', system-ui, sans-serif)",
 };
 const card = {
-  background: "rgba(13,18,32,0.92)",
-  border: "1px solid rgba(120,135,175,0.2)",
+  background: "var(--panel-bg)",
+  border: "1px solid var(--border)",
   borderRadius: 14,
   padding: 16,
-  boxShadow: "0 12px 40px rgba(0,0,0,0.45)",
+  boxShadow: "var(--win-shadow)",
 };
-const label = { fontSize: 10.5, letterSpacing: 1.1, textTransform: "uppercase", color: "#7a87a6" };
+const label = { fontSize: 10.5, letterSpacing: 1.1, textTransform: "uppercase", color: "var(--text-faint)" };
 const input = { ...selectStyle, cursor: "text" };
-const th = { textAlign: "left", padding: "6px 10px", color: "#7a87a6", fontSize: 10.5, letterSpacing: 0.8, textTransform: "uppercase", borderBottom: "1px solid rgba(120,135,175,0.18)" };
-const td = { padding: "7px 10px", fontSize: 12.5, borderBottom: "1px solid rgba(120,135,175,0.08)", verticalAlign: "top" };
+const th = { textAlign: "left", padding: "6px 10px", color: "var(--text-faint)", fontSize: 10.5, letterSpacing: 0.8, textTransform: "uppercase", borderBottom: "1px solid var(--border-soft)" };
+const td = { padding: "7px 10px", fontSize: 12.5, borderBottom: "1px solid var(--border-soft)", verticalAlign: "top" };
 
 const pct = (x) => (x == null ? "—" : `${Math.round(x * 100)}%`);
 
-function Chip({ text, color = "#7a87a6" }) {
+function Chip({ text, color = "var(--text-faint)" }) {
   return (
-    <span style={{ fontSize: 10, fontWeight: 600, color, border: `1px solid ${color}44`, background: `${color}18`, borderRadius: 6, padding: "1.5px 7px", whiteSpace: "nowrap" }}>
+    <span style={{ fontSize: 10, fontWeight: 600, color, border: `1px solid color-mix(in srgb, ${color} 35%, transparent)`, background: `color-mix(in srgb, ${color} 12%, transparent)`, borderRadius: 6, padding: "1.5px 7px", whiteSpace: "nowrap" }}>
       {text}
     </span>
   );
@@ -71,7 +70,7 @@ function Section({ n, title, children, right }) {
   return (
     <div style={{ ...card, marginBottom: 14 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-        <span style={{ width: 22, height: 22, borderRadius: 7, display: "grid", placeItems: "center", fontSize: 11.5, fontWeight: 700, color: "#0a0e1a", background: "#5cc8ff" }}>{n}</span>
+        <span style={{ width: 22, height: 22, borderRadius: 7, display: "grid", placeItems: "center", fontSize: 11.5, fontWeight: 700, color: "#ffffff", background: "var(--accent)" }}>{n}</span>
         <span style={{ fontSize: 13.5, fontWeight: 650 }}>{title}</span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>{right}</div>
       </div>
@@ -93,16 +92,16 @@ function HeadlineTable({ rows }) {
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.config} style={r.config === "hybrid" ? { background: "rgba(155,140,255,0.06)" } : undefined}>
+            <tr key={r.config} style={r.config === "hybrid" ? { background: "color-mix(in srgb, #8b5cf6 8%, transparent)" } : undefined}>
               <td style={{ ...td, fontWeight: 650 }}>{CONFIG_LABELS[r.config] || r.config}</td>
               <td style={td}>{r.n}</td>
-              <td style={{ ...td, color: "#bfe4ff", fontWeight: 650 }}>
+              <td style={{ ...td, color: "var(--accent)", fontWeight: 650 }}>
                 {pct(r.judge_accuracy)}
                 {r.judged != null && r.judged < r.n && (
-                  <span style={{ color: "#e8a3b8", fontSize: 10.5 }}> ({r.judged}/{r.n} judged)</span>
+                  <span style={{ color: "var(--danger)", fontSize: 10.5 }}> ({r.judged}/{r.n} judged)</span>
                 )}
               </td>
-              <td style={{ ...td, color: (r.lift_over_closed_book ?? 0) > 0 ? "#8fd6c2" : "#e8a3b8" }}>
+              <td style={{ ...td, color: (r.lift_over_closed_book ?? 0) > 0 ? "var(--ok)" : "var(--danger)" }}>
                 {r.lift_over_closed_book == null ? "—" : `${r.lift_over_closed_book > 0 ? "+" : ""}${Math.round(r.lift_over_closed_book * 100)}`}
               </td>
               <td style={td}>{pct(r.em)}</td>
@@ -129,12 +128,12 @@ function ReportView({ report, dataset, onRejudge, busy }) {
   return (
     <div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10, alignItems: "center" }}>
-        <Chip text={`run ${report.run_id}`} color="#5cc8ff" />
-        <Chip text={`save ${report.build?.save_name}`} color="#9b8cff" />
+        <Chip text={`run ${report.run_id}`} color="var(--accent)" />
+        <Chip text={`save ${report.build?.save_name}`} color="#8b5cf6" />
         <Chip text={`${report.build?.nodes ?? "?"} nodes · ${report.build?.edges ?? "?"} edges · ${report.build?.chunks ?? "?"} chunks`} />
-        {health && <Chip text={`${health.orphans} orphans · ${health.duplicate_name_suspects} dup suspects`} color={health.orphans + health.duplicate_name_suspects > 0 ? "#e8c98a" : "#8fd6c2"} />}
+        {health && <Chip text={`${health.orphans} orphans · ${health.duplicate_name_suspects} dup suspects`} color={health.orphans + health.duplicate_name_suspects > 0 ? "var(--warn)" : "var(--ok)"} />}
         <Chip text={`answers: ${report.answer_model}`} />
-        <button style={{ ...ghostBtn, marginLeft: "auto", color: "#8fd6c2", borderColor: "rgba(143,214,194,0.4)" }}
+        <button style={{ ...ghostBtn, marginLeft: "auto", color: "var(--ok)", borderColor: "color-mix(in srgb, var(--ok) 40%, transparent)" }}
           onClick={onRejudge} disabled={busy !== ""}
           title="Re-score this run's stored answers with the current judge and gold (incl. alternative answers) — costs judging only, never re-runs generation.">
           {busy === "rejudge" ? <span style={spinner} /> : "⚖ Re-judge"}
@@ -150,13 +149,13 @@ function ReportView({ report, dataset, onRejudge, busy }) {
         </button>
       </div>
       {report.verdict && (
-        <div style={{ fontSize: 13, color: "#e7ecf7", padding: "10px 14px", marginBottom: 12, background: "rgba(92,200,255,0.08)", border: "1px solid rgba(92,200,255,0.25)", borderRadius: 10 }}>
+        <div style={{ fontSize: 13, color: "var(--text)", padding: "10px 14px", marginBottom: 12, background: "var(--accent-soft)", border: "1px solid var(--accent-border)", borderRadius: 10 }}>
           {report.verdict}
         </div>
       )}
       <HeadlineTable rows={report.headline || []} />
       {u && (
-        <div style={{ fontSize: 11.5, color: "#7a87a6", marginTop: 8 }}>
+        <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 8 }}>
           tokens — generation {(u.generation?.prompt_tokens ?? 0).toLocaleString()} in / {(u.generation?.completion_tokens ?? 0).toLocaleString()} out
           · judging {(u.judging?.prompt_tokens ?? 0).toLocaleString()} in / {(u.judging?.completion_tokens ?? 0).toLocaleString()} out
           · build cost is separate (see the OpenAI dashboard)
@@ -167,7 +166,7 @@ function ReportView({ report, dataset, onRejudge, busy }) {
         <div style={{ marginTop: 14 }}>
           <div style={{ ...label, marginBottom: 6 }}>By question type</div>
           {Object.entries(report.slices).map(([qtype, rows]) => (
-            <div key={qtype} style={{ fontSize: 12, color: "#cdd5ea", marginBottom: 3 }}>
+            <div key={qtype} style={{ fontSize: 12, color: "var(--text)", marginBottom: 3 }}>
               <Chip text={qtype} color={TYPE_COLORS[qtype]} />{" "}
               {rows.map((r) => `${CONFIG_LABELS[r.config] || r.config} ${pct(r.judge_accuracy)}`).join(" · ")}
             </div>
@@ -178,14 +177,14 @@ function ReportView({ report, dataset, onRejudge, busy }) {
       {[["Fusion (hybrid vs rag)", fusion], ["Fusion (LightRAG hybrid vs rag)", report.fusion_lightrag]].map(
         ([title, f]) =>
           f && (
-            <div key={title} style={{ marginTop: 14, fontSize: 12.5, color: "#cdd5ea" }}>
+            <div key={title} style={{ marginTop: 14, fontSize: 12.5, color: "var(--text)" }}>
               <div style={{ ...label, marginBottom: 6 }}>{title}</div>
               supplement share of context {pct(f.graph_share_of_context)}
               {f.paired_questions != null && (
                 <>
                   {" "}· paired on {f.paired_questions} questions: fixed{" "}
-                  <b style={{ color: "#8fd6c2" }}>{f.hybrid_gained_over_rag}</b> / broke{" "}
-                  <b style={{ color: "#e8a3b8" }}>{f.hybrid_lost_vs_rag}</b>
+                  <b style={{ color: "var(--ok)" }}>{f.hybrid_gained_over_rag}</b> / broke{" "}
+                  <b style={{ color: "var(--danger)" }}>{f.hybrid_lost_vs_rag}</b>
                   {f.mcnemar_p != null && ` · McNemar p=${f.mcnemar_p}`}
                 </>
               )}
@@ -200,13 +199,13 @@ function ReportView({ report, dataset, onRejudge, busy }) {
             {showGallery ? "▾" : "▸"} Failure gallery ({report.failure_gallery.length} — 5 worst per config; all failures stay in the run JSON)
           </button>
           {showGallery && report.failure_gallery.map((f, i) => (
-            <div key={i} style={{ fontSize: 12, padding: "8px 10px", marginBottom: 6, background: "rgba(232,163,184,0.05)", border: "1px solid rgba(232,163,184,0.15)", borderRadius: 9 }}>
-              <div style={{ color: "#e8a3b8", fontWeight: 600, marginBottom: 3 }}>
+            <div key={i} style={{ fontSize: 12, padding: "8px 10px", marginBottom: 6, background: "color-mix(in srgb, var(--danger) 7%, transparent)", border: "1px solid color-mix(in srgb, var(--danger) 18%, transparent)", borderRadius: 9 }}>
+              <div style={{ color: "var(--danger)", fontWeight: 600, marginBottom: 3 }}>
                 {f.qid} · {CONFIG_LABELS[f.config] || f.config} — {f.question}
               </div>
-              <div style={{ color: "#8fd6c2" }}>gold: {f.gold}</div>
-              <div style={{ color: "#cdd5ea" }}>got: {f.answer || `(error: ${f.error})`}</div>
-              {f.note && <div style={{ color: "#7a87a6" }}>judge: {f.note}</div>}
+              <div style={{ color: "var(--ok)" }}>gold: {f.gold}</div>
+              <div style={{ color: "var(--text)" }}>got: {f.answer || `(error: ${f.error})`}</div>
+              {f.note && <div style={{ color: "var(--text-faint)" }}>judge: {f.note}</div>}
             </div>
           ))}
         </div>
@@ -227,7 +226,7 @@ function AdminOnlyNotice() {
     <div style={{ ...page, display: "grid", placeItems: "center" }}>
       <div style={{ ...card, maxWidth: 420, textAlign: "center", padding: 28 }}>
         <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 8 }}>Admin only</div>
-        <div style={{ fontSize: 13, color: "#9aa6c2", lineHeight: 1.6 }}>
+        <div style={{ fontSize: 13, color: "var(--text-soft)", lineHeight: 1.6 }}>
           The bench launches paid builds and runs, so it is limited to admin
           accounts. Ask an admin to grant you access, or sign in with the admin
           account and reopen this tab.
@@ -258,6 +257,11 @@ function Bench() {
   const [modelList, setModelList] = useState([]);
   const [defaultModel, setDefaultModel] = useState("");
   const [activeJobs, setActiveJobs] = useState([]); // every dataset's running job (overnight view)
+  const [dark, setDark] = useState(savedDarkMode);
+  const toggleDark = () => {
+    applyTheme(!dark, savedThemeFamily());
+    setDark(!dark);
+  };
   const [busy, setBusy] = useState("");
   const [log, setLog] = useState([]);
   const [report, setReport] = useState(null);
@@ -536,11 +540,11 @@ function Bench() {
     <div style={page}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       {/* header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 26px", borderBottom: "1px solid rgba(120,135,175,0.14)", position: "sticky", top: 0, background: "rgba(7,9,18,0.85)", backdropFilter: "blur(12px)", zIndex: 10 }}>
-        <span style={{ fontSize: 16, fontWeight: 700, color: "#5cc8ff" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 26px", borderBottom: "1px solid var(--border-soft)", position: "sticky", top: 0, background: "var(--panel-bg)", backdropFilter: "blur(12px)", zIndex: 10 }}>
+        <span style={{ fontSize: 16, fontWeight: 700, color: "var(--accent)" }}>
           ◇ Noema Bench
         </span>
-        <span style={{ fontSize: 11.5, color: "#7a87a6" }}>build once · query per config · fixed report</span>
+        <span style={{ fontSize: 11.5, color: "var(--text-faint)" }}>build once · query per config · fixed report</span>
         {activeJobs.length > 0 && (
           <span style={{ display: "flex", gap: 6, alignItems: "center", marginLeft: 6 }}>
             {activeJobs.map((j) => (
@@ -548,7 +552,7 @@ function Bench() {
                 key={j.job_id}
                 onClick={() => setSelected(j.dataset)}
                 title={`${j.kind} started ${j.started_at} — click to watch (runs keep going server-side while you look elsewhere)`}
-                style={{ ...ghostBtn, padding: "3px 10px", fontSize: 11, color: "#8fd6c2", borderColor: "rgba(143,214,194,0.4)", display: "flex", alignItems: "center", gap: 6 }}
+                style={{ ...ghostBtn, padding: "3px 10px", fontSize: 11, color: "var(--ok)", borderColor: "color-mix(in srgb, var(--ok) 40%, transparent)", display: "flex", alignItems: "center", gap: 6 }}
               >
                 <span style={{ ...spinner, width: 9, height: 9 }} />
                 {j.dataset}
@@ -557,6 +561,9 @@ function Bench() {
           </span>
         )}
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          <button onClick={toggleDark} title="Switch between dark and light mode" style={ghostBtn}>
+            {dark ? "☀ Light" : "☾ Dark"}
+          </button>
           <a href="/?view=graph" target="_blank" rel="noreferrer" style={{ ...ghostBtn, textDecoration: "none" }}>◆ Graph</a>
           <a href="/" target="_blank" rel="noreferrer" style={{ ...ghostBtn, textDecoration: "none" }}>✦ Chat</a>
         </div>
@@ -566,12 +573,12 @@ function Bench() {
         {/* datasets rail */}
         <div style={{ width: 250, flexShrink: 0 }}>
           <div style={{ ...label, margin: "4px 0 8px" }}>Datasets</div>
-          {datasets === null && <div style={{ color: "#7a87a6", fontSize: 12 }}>loading…</div>}
+          {datasets === null && <div style={{ color: "var(--text-faint)", fontSize: 12 }}>loading…</div>}
           {datasets?.length === 0 && (
-            <div style={{ ...card, fontSize: 12, color: "#cdd5ea", lineHeight: 1.6 }}>
+            <div style={{ ...card, fontSize: 12, color: "var(--text)", lineHeight: 1.6 }}>
               No datasets yet. Drop <code>*.jsonl</code> files (one JSON per line with a{" "}
               <code>context</code> field) into
-              <div style={{ color: "#8fd6c2", wordBreak: "break-all", marginTop: 6 }}>{rawDir}</div>
+              <div style={{ color: "var(--ok)", wordBreak: "break-all", marginTop: 6 }}>{rawDir}</div>
             </div>
           )}
           {datasets?.map((d) => (
@@ -580,25 +587,25 @@ function Bench() {
               onClick={() => setSelected(d.name)}
               style={{
                 ...card, padding: 12, marginBottom: 8, cursor: "pointer",
-                border: d.name === selected ? "1px solid rgba(92,200,255,0.5)" : card.border,
+                border: d.name === selected ? "1px solid var(--accent-border)" : card.border,
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontWeight: 650, fontSize: 13.5 }}>{d.name}</span>
-                <span style={{ marginLeft: "auto", fontSize: 10.5, color: "#7a87a6" }}>{d.size_mb} MB</span>
+                <span style={{ marginLeft: "auto", fontSize: 10.5, color: "var(--text-faint)" }}>{d.size_mb} MB</span>
                 <button
                   title="Delete this dataset (raw file + prepared corpus + gold + reports)"
                   onClick={(e) => { e.stopPropagation(); doDeleteDataset(d.name); }}
-                  style={{ background: "none", border: "none", color: "#7a87a6", cursor: "pointer", fontSize: 12, padding: "0 2px" }}
+                  style={{ background: "none", border: "none", color: "var(--text-faint)", cursor: "pointer", fontSize: 12, padding: "0 2px" }}
                 >
                   ✕
                 </button>
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 8 }}>
-                <Chip text={d.prepared ? `${(d.prepared.tokens / 1000).toFixed(0)}k tok · ${d.prepared.docs} docs` : "raw"} color={d.prepared ? "#8fd6c2" : "#7a87a6"} />
-                {(d.human_gold || d.prepared?.gold_source?.startsWith("human")) && <Chip text="human gold" color="#8fd6c2" />}
-                <Chip text={`${d.gold_approved}/${d.gold_total} gold`} color={d.gold_approved ? "#5cc8ff" : "#7a87a6"} />
-                {d.builds.length > 0 && <Chip text={`${d.builds.length} build${d.builds.length > 1 ? "s" : ""}`} color="#9b8cff" />}
+                <Chip text={d.prepared ? `${(d.prepared.tokens / 1000).toFixed(0)}k tok · ${d.prepared.docs} docs` : "raw"} color={d.prepared ? "var(--ok)" : "var(--text-faint)"} />
+                {(d.human_gold || d.prepared?.gold_source?.startsWith("human")) && <Chip text="human gold" color="var(--ok)" />}
+                <Chip text={`${d.gold_approved}/${d.gold_total} gold`} color={d.gold_approved ? "var(--accent)" : "var(--text-faint)"} />
+                {d.builds.length > 0 && <Chip text={`${d.builds.length} build${d.builds.length > 1 ? "s" : ""}`} color="#8b5cf6" />}
               </div>
             </div>
           ))}
@@ -618,11 +625,11 @@ function Bench() {
               disabled={!dlUrl.trim() || busy === "download"}>
               {busy === "download" ? <span style={spinner} /> : "⇩ Download"}
             </button>
-            {dlStatus && <div style={{ fontSize: 11, color: "#8fd6c2", marginTop: 6 }}>{dlStatus}</div>}
+            {dlStatus && <div style={{ fontSize: 11, color: "var(--ok)", marginTop: 6 }}>{dlStatus}</div>}
             {dlChoices.map((f) => (
               <button key={f.url} onClick={() => doDownload(f.url)}
                 style={{ ...ghostBtn, width: "100%", marginTop: 5, textAlign: "left", fontSize: 11.5 }}>
-                {f.name} <span style={{ color: "#7a87a6" }}>· {f.mb} MB</span>
+                {f.name} <span style={{ color: "var(--text-faint)" }}>· {f.mb} MB</span>
               </button>
             ))}
           </div>
@@ -631,16 +638,16 @@ function Bench() {
         {/* workflow column */}
         <div style={{ flex: 1, minWidth: 0 }}>
           {!ds ? (
-            <div style={{ ...card, color: "#7a87a6", fontSize: 13 }}>Select a dataset.</div>
+            <div style={{ ...card, color: "var(--text-faint)", fontSize: 13 }}>Select a dataset.</div>
           ) : (
             <>
               {ds.about && (
-                <div style={{ ...card, fontSize: 12.5, color: "#cdd5ea", lineHeight: 1.6, marginBottom: 12 }}>
+                <div style={{ ...card, fontSize: 12.5, color: "var(--text)", lineHeight: 1.6, marginBottom: 12 }}>
                   <div style={{ ...label, marginBottom: 5 }}>About this dataset</div>
                   {ds.about}
                 </div>
               )}
-              <Section n="1" title="Prepare the corpus" right={ds.prepared && <Chip text={`hash ${ds.prepared.corpus_hash}`} color="#8fd6c2" />}>
+              <Section n="1" title="Prepare the corpus" right={ds.prepared && <Chip text={`hash ${ds.prepared.corpus_hash}`} color="var(--ok)" />}>
                 <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                   <div style={{ width: 170 }}>
                     <div style={{ ...label, marginBottom: 4 }}>Token cap</div>
@@ -651,11 +658,11 @@ function Bench() {
                     {busy === "prepare" ? <span style={spinner} /> : ds.prepared ? "Re-prepare" : "Prepare"}
                   </button>
                   {ds.prepared && (
-                    <span style={{ fontSize: 12, color: "#cdd5ea", marginTop: 14 }}>
+                    <span style={{ fontSize: 12, color: "var(--text)", marginTop: 14 }}>
                       {ds.prepared.docs} docs · {ds.prepared.tokens.toLocaleString()} tokens
-                      <span style={{ color: "#7a87a6" }}> (of {ds.prepared.unique_contexts_in_file} contexts in the file)</span>
+                      <span style={{ color: "var(--text-faint)" }}> (of {ds.prepared.unique_contexts_in_file} contexts in the file)</span>
                       {ds.prepared.questions_kept != null && (
-                        <span style={{ color: "#8fd6c2" }}
+                        <span style={{ color: "var(--ok)" }}
                           title="A question is only kept when EVERY document it needs fits under the cap — no question ever runs without its context in the corpus.">
                           {" "}· {ds.prepared.questions_kept} of {ds.prepared.questions_in_file} questions kept, each with all its documents
                         </span>
@@ -664,7 +671,7 @@ function Bench() {
                   )}
                 </div>
                 {ds.prepared && ds.prepared.cap_tokens !== cap && (
-                  <div style={{ fontSize: 11.5, color: "#e8c98a", marginTop: 8 }}>
+                  <div style={{ fontSize: 11.5, color: "var(--warn)", marginTop: 8 }}>
                     Changing the cap re-prepares the corpus → a NEW build fingerprint (the old build + its save stay).
                   </div>
                 )}
@@ -675,11 +682,11 @@ function Bench() {
                 title={`Gold questions (${approved} approved / ${gold.length})`}
                 right={
                   humanGold ? (
-                    <Chip text="human gold — came with the dataset, pre-approved" color="#8fd6c2" />
+                    <Chip text="human gold — came with the dataset, pre-approved" color="var(--ok)" />
                   ) : (
                     <>
                       {goldDirty && <button style={ghostBtn} onClick={() => saveGoldNow()}>Save edits</button>}
-                      <button style={{ ...ghostBtn, color: "#8fd6c2", borderColor: "rgba(143,214,194,0.4)" }}
+                      <button style={{ ...ghostBtn, color: "var(--ok)", borderColor: "color-mix(in srgb, var(--ok) 40%, transparent)" }}
                         onClick={doVerify} disabled={!gold.some((q) => q.status !== "approved") || busy !== ""}
                         title="Checks every draft: evidence must exist verbatim in the doc, then a judge validates question + answer. Passes get approved; failures stay draft with the reason.">
                         {busy === "verify" ? <span style={spinner} /> : "✓ Auto-verify drafts"}
@@ -693,7 +700,7 @@ function Bench() {
                 }
               >
                 {gold.length === 0 ? (
-                  <div style={{ fontSize: 12.5, color: "#7a87a6" }}>
+                  <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>
                     {humanGold
                       ? "This dataset ships its own human questions — prepare the corpus above and they appear here, pre-approved (no LLM involved)."
                       : "No questions yet — draft some (the LLM proposes, you edit and approve; only approved questions run)."}
@@ -710,21 +717,21 @@ function Bench() {
                               <input value={q.question} onChange={(e) => editGold(i, { question: e.target.value })}
                                 style={{ ...input, marginBottom: 4, fontWeight: 600 }} />
                               <input value={q.answer} onChange={(e) => editGold(i, { answer: e.target.value })}
-                                style={{ ...input, color: "#8fd6c2" }} />
+                                style={{ ...input, color: "var(--ok)" }} />
                               {q.flag && (
-                                <div style={{ fontSize: 11, color: "#e8a3b8", marginTop: 4 }}>⚑ {q.flag}</div>
+                                <div style={{ fontSize: 11, color: "var(--danger)", marginTop: 4 }}>⚑ {q.flag}</div>
                               )}
                             </td>
                             <td style={{ ...td, width: 96 }}>
                               <button
-                                style={{ ...ghostBtn, padding: "3px 9px", color: q.status === "approved" ? "#8fd6c2" : "#cdd5ea", borderColor: q.status === "approved" ? "rgba(143,214,194,0.5)" : ghostBtn.border }}
+                                style={{ ...ghostBtn, padding: "3px 9px", color: q.status === "approved" ? "var(--ok)" : "var(--text)", borderColor: q.status === "approved" ? "color-mix(in srgb, var(--ok) 50%, transparent)" : ghostBtn.border }}
                                 onClick={() => editGold(i, { status: q.status === "approved" ? "draft" : "approved" })}
                               >
                                 {q.status === "approved" ? "✓ approved" : "draft"}
                               </button>
                             </td>
                             <td style={{ ...td, width: 30 }}>
-                              <button style={{ ...ghostBtn, padding: "3px 8px", color: "#e8a3b8" }} title="delete"
+                              <button style={{ ...ghostBtn, padding: "3px 8px", color: "var(--danger)" }} title="delete"
                                 onClick={() => { setGold((g) => g.filter((_, j) => j !== i)); setGoldDirty(true); }}>✕</button>
                             </td>
                           </tr>
@@ -738,7 +745,7 @@ function Bench() {
               <Section
                 n="3"
                 title="Run"
-                right={ds.builds.length > 0 && <Chip text={`${ds.builds.length} existing build${ds.builds.length > 1 ? "s" : ""} — matching one is reused, never repaid`} color="#9b8cff" />}
+                right={ds.builds.length > 0 && <Chip text={`${ds.builds.length} existing build${ds.builds.length > 1 ? "s" : ""} — matching one is reused, never repaid`} color="#8b5cf6" />}
               >
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
                   {[
@@ -770,7 +777,7 @@ function Bench() {
                     const on = configs.includes(c);
                     return (
                       <button key={c}
-                        style={{ ...ghostBtn, color: on ? "#0a0e1a" : "#cdd5ea", fontWeight: 650, background: on ? "#5cc8ff" : ghostBtn.background, border: on ? "1px solid transparent" : ghostBtn.border }}
+                        style={{ ...ghostBtn, color: on ? "#ffffff" : "var(--text)", fontWeight: 650, background: on ? "var(--accent)" : ghostBtn.background, border: on ? "1px solid transparent" : ghostBtn.border }}
                         onClick={() => setConfigs((cs) => (on ? cs.filter((x) => x !== c) : [...cs, c]))}
                         disabled={busy !== ""}
                       >
@@ -780,7 +787,7 @@ function Bench() {
                   })}
                   {busy === "run" ? (
                     <button
-                      style={{ ...primaryBtn, width: 170, marginLeft: "auto", background: "rgba(232,201,138,0.92)" }}
+                      style={{ ...primaryBtn, width: 170, marginLeft: "auto", background: "var(--warn-soft)", border: "1px solid var(--warn-border)", color: "var(--warn)" }}
                       onClick={doStop}
                       title="Pause the server-side run (closing the tab does NOT stop it — it keeps going and the page reattaches on reload). Everything built, answered and judged so far stays; Continue resumes from exactly here.">
                       ⏸ Pause
@@ -793,7 +800,7 @@ function Bench() {
                   )}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
-                  <span style={{ fontSize: 11.5, color: "#7a87a6" }}>Retrieval scope</span>
+                  <span style={{ fontSize: 11.5, color: "var(--text-faint)" }}>Retrieval scope</span>
                   {[
                     ["auto", "Auto — from dataset", "Follows the dataset: a question tied to one source document (like QASPER, every question) retrieves only from that document; a corpus-wide dataset searches everything. This is the correct condition — you shouldn't normally change it."],
                     ["corpus", "Force whole corpus", "Override for demonstration only: search all documents at once. For per-document gold (QASPER) this makes questions ambiguous across papers — the failure mode, on purpose."],
@@ -801,18 +808,18 @@ function Bench() {
                     const on = scope === val;
                     return (
                       <button key={val} title={tip}
-                        style={{ ...ghostBtn, fontSize: 11.5, padding: "5px 11px", color: on ? "#0a0e1a" : "#cdd5ea", fontWeight: 650, background: on ? "#8fd6c2" : ghostBtn.background, border: on ? "1px solid transparent" : ghostBtn.border }}
+                        style={{ ...ghostBtn, fontSize: 11.5, padding: "5px 11px", color: on ? "#ffffff" : "var(--text)", fontWeight: 650, background: on ? "var(--ok)" : ghostBtn.background, border: on ? "1px solid transparent" : ghostBtn.border }}
                         onClick={() => setScope(val)} disabled={busy !== ""}>
                         {label}
                       </button>
                     );
                   })}
-                  <span style={{ fontSize: 11, color: "#5c667f" }}>
+                  <span style={{ fontSize: 11, color: "var(--text-faint)" }}>
                     {scope === "auto" ? "each question scoped to its source document, as the dataset defines" : "override: forcing whole-corpus search (demonstrates cross-document ambiguity)"}
                   </span>
                 </div>
                 {est?.ready && (
-                  <div style={{ fontSize: 12, color: "#e8c98a", background: "rgba(232,201,138,0.07)", border: "1px solid rgba(232,201,138,0.22)", borderRadius: 9, padding: "8px 12px", marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, color: "var(--warn)", background: "var(--warn-soft)", border: "1px solid var(--warn-border)", borderRadius: 9, padding: "8px 12px", marginBottom: 12 }}>
                     {est.build_exists ? (
                       <>build <b>{est.save_name}</b> already exists{est.build_breakdown?.lightrag_extraction_usd != null ? <> — only the LightRAG leg to build: <b>~${est.build_breakdown.lightrag_extraction_usd}</b></> : <> — nothing to rebuild</>}. Estimated queries: <b>~${est.queries_usd}</b></>
                     ) : est.build_partial ? (
@@ -820,18 +827,18 @@ function Bench() {
                     ) : (
                       <>estimated cost: build <b>~${est.build_usd}</b> (one-time, ~{est.build_minutes} min, extractor <code>{est.extract_model}</code>) + queries <b>~${est.queries_usd}</b> = <b>~${est.total_usd}</b>
                         {est.build_breakdown?.contextualization_usd != null && (
-                          <span style={{ color: "#7a87a6" }}> · build = ${est.build_breakdown.contextualization_usd} contextualize + ${est.build_breakdown.graph_extraction_usd} extract{est.build_breakdown.lightrag_extraction_usd != null && ` + $${est.build_breakdown.lightrag_extraction_usd} LightRAG`}</span>
+                          <span style={{ color: "var(--text-faint)" }}> · build = ${est.build_breakdown.contextualization_usd} contextualize + ${est.build_breakdown.graph_extraction_usd} extract{est.build_breakdown.lightrag_extraction_usd != null && ` + $${est.build_breakdown.lightrag_extraction_usd} LightRAG`}</span>
                         )}</>
                     )}
                     {est.judge_free ? ` · judging free (Gemini tier)${est.judge_minutes ? `, ~${est.judge_minutes} min throttled` : ""}` : " · judging included at chat-model rates"}
                     {est.unpriced_models?.length > 0 && (
-                      <span style={{ color: "#e8a3b8" }}> · ⚠ {est.unpriced_models.join(", ")} priced at mini-tier (unknown) — build figure is a floor</span>
+                      <span style={{ color: "var(--danger)" }}> · ⚠ {est.unpriced_models.join(", ")} priced at mini-tier (unknown) — build figure is a floor</span>
                     )}
-                    <span style={{ color: "#7a87a6" }}> · graph-extraction term still ±2× until a real build calibrates it</span>
+                    <span style={{ color: "var(--text-faint)" }}> · graph-extraction term still ±2× until a real build calibrates it</span>
                   </div>
                 )}
                 {log.length > 0 && (
-                  <div ref={logRef} style={{ maxHeight: 190, overflowY: "auto", background: "rgba(7,10,20,0.7)", border: "1px solid rgba(120,135,175,0.15)", borderRadius: 9, padding: "8px 12px", fontFamily: "ui-monospace, monospace", fontSize: 11.5, lineHeight: 1.75, color: "#9fb0d0" }}>
+                  <div ref={logRef} style={{ maxHeight: 190, overflowY: "auto", background: "var(--row-active)", border: "1px solid var(--border-soft)", borderRadius: 9, padding: "8px 12px", fontFamily: "var(--font-mono, ui-monospace, monospace)", fontSize: 11.5, lineHeight: 1.75, color: "var(--text-soft)" }}>
                     {log.map((l, i) => <div key={i}>{l}</div>)}
                   </div>
                 )}
@@ -864,7 +871,7 @@ function Bench() {
                       } finally { setBusy(""); }
                     }} />
                 ) : (
-                  <div style={{ fontSize: 12.5, color: "#7a87a6" }}>
+                  <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>
                     Run the bench (or open a past run) to see the report. The built graph appears in the
                     Graph page's <b>⧉ Saves</b> — restore it there to fly around it or Dream on a copy.
                   </div>

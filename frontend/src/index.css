@@ -54,6 +54,9 @@
 
   --ok: #34c759;
   --danger: #cf222e;
+  --warn: #9a6b00;
+  --warn-soft: rgba(154, 107, 0, 0.1);
+  --warn-border: rgba(154, 107, 0, 0.35);
 
   /* Code block (light) */
   --code-bg: #ffffff;
@@ -101,6 +104,9 @@
 
   --ok: #34c759;
   --danger: #f85149;
+  --warn: #e0b45c;
+  --warn-soft: rgba(224, 180, 92, 0.12);
+  --warn-border: rgba(224, 180, 92, 0.35);
 
   /* Code block (dark) */
   --code-bg: #15171d;

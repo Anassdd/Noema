@@ -15,8 +15,12 @@ from here at module load, so a top-level import back into app.graph would be cir
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
+from pathlib import Path
+
+from app.config import settings, state_path
 
 SAVE_PREFIX = "__save__"
 # Bench builds land in saves named "bench-…" (bench/runner.py) — expensive frozen
@@ -50,6 +54,54 @@ def base_group_id(domain_id: str) -> str:
     if domain_id.startswith(SAVE_PREFIX):
         return domain_id[len(SAVE_PREFIX):].split("__", 1)[0]
     return domain_id
+
+
+# ---- save provenance ----------------------------------------------------------
+# Which models produced a save's content, per engine — so two saves of the same
+# corpus built with different extractors are tellable apart in every selector.
+# Product saves stamp the models CONFIGURED at save time (best effort — the live
+# memory may mix ingestions); bench builds stamp their exact build models.
+_META_FILE = state_path("saves_meta.json",
+                        Path(__file__).resolve().parents[1] / "data" / "saves_meta.json")
+
+
+def _meta_key(domain: str, stored: str, engine: str) -> str:
+    return f"{domain}|{stored}|{engine}"
+
+
+def _read_meta() -> dict:
+    try:
+        return json.loads(_META_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def stamp_meta(domain: str, stored: str, engine: str, models: dict) -> None:
+    """Record a save's creator models. Best effort: provenance must never make a
+    checkpoint fail, so I/O errors are swallowed."""
+    try:
+        meta = _read_meta()
+        meta[_meta_key(domain, stored, engine)] = models
+        _META_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _META_FILE.write_text(json.dumps(meta, indent=1), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def drop_meta(domain: str, stored: str, engine: str) -> None:
+    try:
+        meta = _read_meta()
+        if meta.pop(_meta_key(domain, stored, engine), None) is not None:
+            _META_FILE.write_text(json.dumps(meta, indent=1), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _current_models(engine: str) -> dict:
+    if engine == "lightrag":
+        return {"extract": settings.chat_model, "embed": settings.embed_model}
+    return {"extract": settings.parse_model, "context": settings.chat_model,
+            "embed": settings.embed_model}
 
 
 # ---- operations (sync — async callers wrap in asyncio.to_thread) -------------
@@ -108,9 +160,11 @@ def split_owner(stored: str) -> tuple[str | None, str]:
 
 def visible_saves(domain: str, uid: str) -> list[dict]:
     """What ONE user may see: every shared save plus their own personal ones —
-    each as {name (display), mine, engines:[...]}. Other users' personal saves
-    stay invisible. `engines` is what makes the UI existence-aware: a save that
-    only exists for one engine must not be selectable with the other's retrieval."""
+    each as {name (display), mine, engines:[...], models:{engine: {...}}}. Other
+    users' personal saves stay invisible. `engines` is what makes the UI
+    existence-aware: a save that only exists for one engine must not be selectable
+    with the other's retrieval; `models` says which models created each side."""
+    meta = _read_meta()
     entries: dict[tuple[str | None, str], dict] = {}
     for engine, names in (("graphiti", _graphiti_names(domain)),
                           ("lightrag", _lightrag_names(domain))):
@@ -119,8 +173,12 @@ def visible_saves(domain: str, uid: str) -> list[dict]:
             if owner is not None and owner != uid:
                 continue
             entry = entries.setdefault(
-                (owner, display), {"name": display, "mine": owner is not None, "engines": []})
+                (owner, display),
+                {"name": display, "mine": owner is not None, "engines": [], "models": {}})
             entry["engines"].append(engine)
+            m = meta.get(_meta_key(domain, stored, engine))
+            if m:
+                entry["models"][engine] = m
     return sorted(entries.values(), key=lambda e: (e["mine"], e["name"].lower()))
 
 
@@ -157,6 +215,7 @@ def create_save(domain: str, name: str, engine: str = "graphiti") -> int:
         if not _has_lightrag(domain):
             raise ValueError("empty")
         _copy_lightrag(domain, dest)
+        stamp_meta(domain, name, engine, _current_models(engine))
         return 0
 
     from app.graph.server import falkor_ops
@@ -170,6 +229,7 @@ def create_save(domain: str, name: str, engine: str = "graphiti") -> int:
         db.select_graph(domain).copy(dest)
 
     falkor_ops(_copy)
+    stamp_meta(domain, name, engine, _current_models(engine))
     return VectorStore(domain).copy_into(dest)
 
 
@@ -205,6 +265,7 @@ def delete_save(domain: str, name: str, engine: str = "graphiti") -> None:
     """Delete ONE engine's save; the same name in the other engine survives."""
     src = save_key(domain, name)
 
+    drop_meta(domain, name, engine)
     if engine == "lightrag":
         from app.lightrag import workspace_dir
 

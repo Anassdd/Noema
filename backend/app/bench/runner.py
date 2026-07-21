@@ -242,6 +242,7 @@ async def _ensure_lightrag_build(dataset: str, manifest: dict, docs: list[dict],
     entry["built_at"] = time.strftime("%Y-%m-%d %H:%M")
     entry["build_seconds"] = round(time.perf_counter() - t0)
     store.save_manifest(dataset, manifest)
+    saves.stamp_meta("default", save_name, "lightrag", entry["models"])
     yield {"phase": "lightrag_build_done", "save_name": save_name,
            "build_seconds": entry["build_seconds"]}
 
@@ -496,6 +497,7 @@ async def run_bench(dataset: str, configs: list[str], *,
         }
         manifest.setdefault("builds", []).append(build)
         store.save_manifest(dataset, manifest)
+        saves.stamp_meta("default", save_name, "graphiti", build["models"])
         yield {"phase": "build_done", **{k: build.get(k) for k in
                ("save_name", "nodes", "edges", "chunks", "build_seconds")}}
 

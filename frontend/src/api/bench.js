@@ -116,6 +116,13 @@ export const deleteDataset = (name) =>
     body: JSON.stringify({ name }),
   }).then(asJson);
 
+export const killRun = (dataset) =>
+  authFetch(`${API_BASE}/bench/kill`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ dataset }),
+  }).then(asJson);
+
 export const deleteRun = (dataset, runId) =>
   authFetch(`${API_BASE}/bench/delete-run`, {
     method: "POST",

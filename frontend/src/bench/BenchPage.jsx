@@ -4,6 +4,7 @@ import {
   attachJobStream,
   deleteDataset,
   deleteRun,
+  killRun,
   downloadStream,
   rejudgeStream,
   getActiveJob,
@@ -506,6 +507,15 @@ function Bench() {
     pushLog("⏸ pause requested — everything built, answered and judged so far is saved. Press ▶ Continue to resume.");
   };
 
+  const doKill = async () => {
+    if (!window.confirm(`Kill the ${selected} run and discard its partial answers? The next Run starts from question 1. Builds and finished reports are kept.`)) return;
+    abortRef.current?.abort();
+    try {
+      const r = await killRun(selected);
+      pushLog(`✖ killed — ${r.discarded_partials} partial answer log${r.discarded_partials === 1 ? "" : "s"} discarded. Next Run starts from the beginning.`);
+    } catch (e) { pushLog(`✗ ${e.message}`); }
+  };
+
   const doDownload = async (urlOverride) => {
     const url = (urlOverride || dlUrl).trim();
     if (!url) return;
@@ -766,7 +776,21 @@ function Bench() {
               <Section
                 n="3"
                 title="Run"
-                right={ds.builds.length > 0 && <Chip text={`${ds.builds.length} existing build${ds.builds.length > 1 ? "s" : ""} — matching one is reused, never repaid`} color="#8b5cf6" />}
+                right={ds.builds.length > 0 && (
+                  <span
+                    title="Existing builds and the models that created them — a run whose picks match one reuses it, never repaid"
+                    style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}
+                  >
+                    {ds.builds.slice(-3).map((b) => (
+                      <Chip
+                        key={b.fingerprint}
+                        color="#8b5cf6"
+                        text={`${b.fingerprint?.slice(0, 6)} · ${b.models?.extract || "?"}${b.models?.context ? ` +ctx ${b.models.context}` : ""}`}
+                      />
+                    ))}
+                    {ds.builds.length > 3 && <Chip text={`+${ds.builds.length - 3} more`} color="#8b5cf6" />}
+                  </span>
+                )}
               >
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
                   {[
@@ -807,12 +831,20 @@ function Bench() {
                     );
                   })}
                   {busy === "run" ? (
-                    <button
-                      style={{ ...primaryBtn, width: 170, marginLeft: "auto", background: "var(--warn-soft)", border: "1px solid var(--warn-border)", color: "var(--warn)" }}
-                      onClick={doStop}
-                      title="Pause the server-side run (closing the tab does NOT stop it — it keeps going and the page reattaches on reload). Everything built, answered and judged so far stays; Continue resumes from exactly here.">
-                      ⏸ Pause
-                    </button>
+                    <span style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+                      <button
+                        style={{ ...primaryBtn, width: 130, background: "var(--warn-soft)", border: "1px solid var(--warn-border)", color: "var(--warn)" }}
+                        onClick={doStop}
+                        title="Pause the server-side run (closing the tab does NOT stop it — it keeps going and the page reattaches on reload). Everything built, answered and judged so far stays; Continue resumes from exactly here.">
+                        ⏸ Pause
+                      </button>
+                      <button
+                        style={{ ...primaryBtn, width: 110, background: "color-mix(in srgb, var(--danger) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--danger) 35%, transparent)", color: "var(--danger)" }}
+                        onClick={doKill}
+                        title="Stop AND discard this dataset's partial answers — the next Run starts from question 1. Builds and finished reports are kept (delete a finished report too if you want its answers regenerated).">
+                        ✖ Kill
+                      </button>
+                    </span>
                   ) : (
                     <button style={{ ...primaryBtn, width: 170, marginLeft: "auto" }}
                       onClick={doRun} disabled={busy !== "" || !approved || configs.length === 0}>

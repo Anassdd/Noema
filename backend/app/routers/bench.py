@@ -6,6 +6,7 @@ the graph page's upload/dream streams, so the Bench page narrates progress live.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 
@@ -199,6 +200,28 @@ async def job_stop(job_id: str) -> dict:
         raise HTTPException(status_code=404, detail="No such job.")
     job.stop()
     return {"stopped": True}
+
+
+class KillBody(BaseModel):
+    dataset: str
+
+
+@router.post("/kill")
+async def kill_run(body: KillBody) -> dict:
+    """Stop the dataset's running job (if any) AND discard its partial answers, so
+    the next Run starts from question 1. Builds, finished runs and the archive are
+    never touched — only the in-flight resume state is dropped."""
+    stopped = False
+    job = jobs.active_for(body.dataset)
+    if job is not None:
+        job.stop()
+        try:  # let the cancelled generator finish flushing before clearing its log
+            await asyncio.wait_for(asyncio.shield(job._task), timeout=10)
+        except (asyncio.CancelledError, Exception):  # noqa: BLE001
+            pass
+        stopped = True
+    discarded = store.clear_all_inflight(body.dataset)
+    return {"stopped": stopped, "discarded_partials": discarded}
 
 
 @router.get("/jobs")

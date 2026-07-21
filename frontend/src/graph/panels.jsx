@@ -79,10 +79,23 @@ export function SavesPanel({
           saves.map((s) => {
             const bench = s.name.startsWith("bench-");
             const deletable = bench || !s.mine ? isAdmin : true;
+            const madeBy = (s.engines || [])
+              .map((e) => `${e === "graphiti" ? "graph" : e}${s.models?.[e]?.extract ? ` · ${s.models[e].extract}` : ""}`)
+              .join("  —  ");
             return (
               <div key={`${s.mine ? "m" : "s"}:${s.name}`} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0" }}>
-                <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "#e7ecf7", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {s.name}
+                <span style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+                  <span style={{ display: "block", fontSize: 12.5, color: "#e7ecf7", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {s.name}
+                  </span>
+                  {madeBy && (
+                    <span
+                      title="Which engine(s) this save holds and the extraction model that created each"
+                      style={{ display: "block", fontSize: 9.5, color: "#6b7693", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                    >
+                      {madeBy}
+                    </span>
+                  )}
                 </span>
                 {bench && (
                   <span

@@ -164,6 +164,19 @@ def clear_inflight(dataset: str, resume_key: str) -> None:
     _inflight_path(dataset, resume_key).unlink(missing_ok=True)
 
 
+def clear_all_inflight(dataset: str) -> int:
+    """Discard every partial answer log for a dataset (the KILL path: the next run
+    starts from question 1). Finished runs, builds and the archive are untouched.
+    Returns how many partial logs were dropped."""
+    d = work_dir(dataset) / "runs" / "inflight"
+    if not d.exists():
+        return 0
+    files = list(d.glob("*.jsonl"))
+    for f in files:
+        f.unlink(missing_ok=True)
+    return len(files)
+
+
 def load_run_markdown(dataset: str, run_id: str) -> str | None:
     path = work_dir(dataset) / "runs" / f"{run_id}.md"
     return path.read_text(encoding="utf-8") if path.exists() else None

@@ -25,6 +25,7 @@ export default function MessageInput({
   retrieval,
   onSelectRetrieval,
   expertEnabled,
+  prodMode = false,
 }) {
   const [text, setText] = useState("");
   const [selIdx, setSelIdx] = useState(0);
@@ -286,7 +287,7 @@ export default function MessageInput({
               {estTokens.toLocaleString()} input tok
             </span>
           )}
-          {sessionTokens > 0 && <span>Σ {sessionTokens.toLocaleString()} tok</span>}
+          {!prodMode && sessionTokens > 0 && <span>Σ {sessionTokens.toLocaleString()} tok</span>}
           {model && <span style={{ color: "var(--accent)" }}>{model}</span>}
         </span>
       </div>

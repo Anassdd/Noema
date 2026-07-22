@@ -30,8 +30,8 @@ const THEMES = [
   },
 ];
 
-// Centered modal holding appearance + feature toggles + the clear-memory action.
-// Click the backdrop or the × to close.
+// Settings: a larger two-pane modal — section nav on the left, one section's
+// controls on the right. Click the backdrop or the × to close.
 export default function SettingsModal({
   memoryEnabled,
   onToggleMemory,
@@ -45,6 +45,8 @@ export default function SettingsModal({
   onToggleDarkMode,
   themeFamily,
   onApplyTheme,
+  prodMode,
+  onToggleProdMode,
   memoryCount,
   onClearMemory,
   onEditMemoryFiles,
@@ -52,8 +54,17 @@ export default function SettingsModal({
   onOpenAdmin,
   onClose,
 }) {
+  const [section, setSection] = useState("appearance");
   const [pendingTheme, setPendingTheme] = useState(themeFamily);
-  const dirty = pendingTheme !== themeFamily;
+  const themeDirty = pendingTheme !== themeFamily;
+
+  const sections = [
+    { id: "appearance", label: "Appearance" },
+    { id: "chat", label: "Chat" },
+    { id: "memory", label: "Memory" },
+    { id: "application", label: "Application" },
+    ...(isAdmin ? [{ id: "admin", label: "Administration" }] : []),
+  ];
 
   return (
     <div
@@ -61,7 +72,7 @@ export default function SettingsModal({
       onClick={onClose}
     >
       <div
-        className="animate-pop-in w-full max-w-md overflow-hidden rounded-2xl"
+        className="animate-pop-in flex h-[540px] w-full max-w-3xl overflow-hidden rounded-2xl"
         style={{
           background: "var(--sidebar-bg)",
           border: "1px solid var(--border)",
@@ -70,130 +81,176 @@ export default function SettingsModal({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 pt-5">
-          <h2 className="text-base font-semibold">Settings</h2>
-          <button
-            onClick={onClose}
-            aria-label="Close settings"
-            className="grid h-7 w-7 place-items-center rounded-lg transition hover:bg-[var(--row-hover)]"
-            style={{ color: "var(--text-faint)" }}
-          >
-            <CloseIcon size={16} />
-          </button>
-        </div>
+        <aside
+          className="flex w-52 shrink-0 flex-col gap-1 p-4"
+          style={{ borderRight: "1px solid var(--border-soft)" }}
+        >
+          <div className="px-2 pb-3 pt-1 text-base font-semibold">Settings</div>
+          {sections.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setSection(s.id)}
+              className="rounded-lg px-3 py-2 text-left text-[13.5px] font-medium transition"
+              style={{
+                background: section === s.id ? "var(--row-active)" : "transparent",
+                color: section === s.id ? "var(--text)" : "var(--text-soft)",
+              }}
+            >
+              {s.label}
+            </button>
+          ))}
+        </aside>
 
-        <div className="px-5 py-4">
-          <SectionLabel>Theme</SectionLabel>
-          <div className="grid grid-cols-2 gap-3">
-            {THEMES.map((t) => (
-              <ThemeCard
-                key={t.id}
-                theme={t}
-                selected={pendingTheme === t.id}
-                onSelect={() => setPendingTheme(t.id)}
-              />
-            ))}
+        <div className="flex min-w-0 flex-1 flex-col" style={{ background: "var(--panel-bg)" }}>
+          <div className="flex items-center justify-between px-6 pt-5">
+            <h2 className="text-[15px] font-semibold">
+              {sections.find((s) => s.id === section)?.label}
+            </h2>
+            <button
+              onClick={onClose}
+              aria-label="Close settings"
+              className="grid h-7 w-7 place-items-center rounded-lg transition hover:bg-[var(--row-hover)]"
+              style={{ color: "var(--text-faint)" }}
+            >
+              <CloseIcon size={16} />
+            </button>
           </div>
-          <button
-            onClick={() => dirty && onApplyTheme(pendingTheme)}
-            disabled={!dirty}
-            className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition disabled:cursor-default"
-            style={{
-              background: dirty ? "var(--send-bg)" : "var(--row-active)",
-              color: dirty ? "var(--send-fg)" : "var(--text-faint)",
-            }}
-          >
-            {dirty ? (
-              "Confirm theme"
-            ) : (
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+            {section === "appearance" && (
               <>
-                <CheckIcon size={14} sw={2.4} />
-                Theme applied
+                <SectionLabel>Theme</SectionLabel>
+                <div className="grid grid-cols-2 gap-3">
+                  {THEMES.map((t) => (
+                    <ThemeCard
+                      key={t.id}
+                      theme={t}
+                      selected={pendingTheme === t.id}
+                      onSelect={() => setPendingTheme(t.id)}
+                    />
+                  ))}
+                </div>
+                <button
+                  onClick={() => themeDirty && onApplyTheme(pendingTheme)}
+                  disabled={!themeDirty}
+                  className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition disabled:cursor-default"
+                  style={{
+                    background: themeDirty ? "var(--send-bg)" : "var(--row-active)",
+                    color: themeDirty ? "var(--send-fg)" : "var(--text-faint)",
+                  }}
+                >
+                  {themeDirty ? (
+                    "Confirm theme"
+                  ) : (
+                    <>
+                      <CheckIcon size={14} sw={2.4} />
+                      Theme applied
+                    </>
+                  )}
+                </button>
+                <div className="mt-2">
+                  <SettingRow
+                    title="Dark mode"
+                    desc="Switch the interface to a dark theme."
+                    control={<Toggle on={darkMode} onClick={onToggleDarkMode} label="Toggle dark mode" />}
+                  />
+                </div>
               </>
             )}
-          </button>
-        </div>
 
-        <div className="px-5 pb-1" style={{ borderTop: "1px solid var(--border-soft)" }}>
-          <SettingRow
-            title="Dark mode"
-            desc="Switch the interface to a dark theme."
-            control={<Toggle on={darkMode} onClick={onToggleDarkMode} label="Toggle dark mode" />}
-          />
-          <SettingRow
-            title="Expert mode"
-            desc="Ground answers in your uploaded documents (retrieve → verify → cite). Off = plain chat."
-            control={<Toggle on={expertEnabled} onClick={onToggleExpert} label="Toggle expert mode" />}
-          />
-          <SettingRow
-            title="Memory"
-            desc="Save facts across chats and feed them back into the bot."
-            control={<Toggle on={memoryEnabled} onClick={onToggleMemory} label="Toggle memory" />}
-          />
-          <SettingRow
-            title="Memory files"
-            desc="Profile · Now · History — the hand-editable markdown files behind memory."
-            disabled={!memoryEnabled}
-            control={
-              <button
-                onClick={onEditMemoryFiles}
-                disabled={!memoryEnabled}
-                className="whitespace-nowrap rounded-lg border px-3 py-1.5 text-[12.5px] font-medium transition hover:bg-[var(--row-hover)] disabled:cursor-not-allowed"
-                style={{ borderColor: "var(--accent-border)", color: "var(--accent)" }}
-              >
-                Edit ↗
-              </button>
-            }
-          />
-          <SettingRow
-            title="Auto-capture pre-filter"
-            desc="Only run the memory judge on fact-like messages. Off = judge every turn (more calls)."
-            disabled={!memoryEnabled}
-            control={
-              <Toggle
-                on={prefilterEnabled}
-                onClick={onTogglePrefilter}
-                disabled={!memoryEnabled}
-                label="Toggle memory pre-filter"
+            {section === "chat" && (
+              <>
+                <SettingRow
+                  title="Expert mode"
+                  desc="Ground answers in your uploaded documents (retrieve → verify → cite). Off = plain chat."
+                  control={<Toggle on={expertEnabled} onClick={onToggleExpert} label="Toggle expert mode" />}
+                />
+                <SettingRow
+                  title="Live token estimate"
+                  desc="Show your message's exact token count while typing. Hidden in production mode."
+                  control={
+                    <Toggle on={tokenizerEnabled} onClick={onToggleTokenizer} label="Toggle live token estimate" />
+                  }
+                />
+              </>
+            )}
+
+            {section === "memory" && (
+              <>
+                <SettingRow
+                  title="Memory"
+                  desc="Save facts across chats and feed them back into the bot."
+                  control={<Toggle on={memoryEnabled} onClick={onToggleMemory} label="Toggle memory" />}
+                />
+                <SettingRow
+                  title="Auto-capture pre-filter"
+                  desc="Only run the memory judge on fact-like messages. Off = judge every turn (more calls)."
+                  disabled={!memoryEnabled}
+                  control={
+                    <Toggle
+                      on={prefilterEnabled}
+                      onClick={onTogglePrefilter}
+                      disabled={!memoryEnabled}
+                      label="Toggle memory pre-filter"
+                    />
+                  }
+                />
+                <SettingRow
+                  title="Memory files"
+                  desc="Profile · Now · History · Journal — the hand-editable markdown files behind memory."
+                  disabled={!memoryEnabled}
+                  control={
+                    <button
+                      onClick={onEditMemoryFiles}
+                      disabled={!memoryEnabled}
+                      className="whitespace-nowrap rounded-lg border px-3 py-1.5 text-[12.5px] font-medium transition hover:bg-[var(--row-hover)] disabled:cursor-not-allowed"
+                      style={{ borderColor: "var(--accent-border)", color: "var(--accent)" }}
+                    >
+                      Edit ↗
+                    </button>
+                  }
+                />
+                <SettingRow
+                  title="Clear memory"
+                  desc="Wipe all four memory files. This can't be undone."
+                  control={
+                    <button
+                      onClick={onClearMemory}
+                      disabled={!memoryCount}
+                      className="whitespace-nowrap rounded-lg border px-3 py-1.5 text-[12.5px] font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
+                      style={{ borderColor: "var(--danger)", color: "var(--danger)" }}
+                    >
+                      Clear
+                    </button>
+                  }
+                />
+              </>
+            )}
+
+            {section === "application" && (
+              <SettingRow
+                title="Production mode"
+                desc="Clean end-user app: hides the token metrics (per-answer breakdown, session meter, live estimate). The runtime trace and the model picker stay."
+                control={<Toggle on={prodMode} onClick={onToggleProdMode} label="Toggle production mode" />}
               />
-            }
-          />
-          <SettingRow
-            title="Live token estimate"
-            desc="Show your message's exact token count while typing."
-            control={
-              <Toggle on={tokenizerEnabled} onClick={onToggleTokenizer} label="Toggle live token estimate" />
-            }
-          />
-        </div>
+            )}
 
-        {isAdmin && (
-          <div className="px-5 pb-1" style={{ borderTop: "1px solid var(--border-soft)" }}>
-            <SettingRow
-              title="Administration"
-              desc="Manage accounts: rename, reset passwords, admin rights, delete."
-              control={
-                <button
-                  onClick={onOpenAdmin}
-                  className="whitespace-nowrap rounded-lg border px-3 py-1.5 text-[12.5px] font-medium transition hover:bg-[var(--row-hover)]"
-                  style={{ borderColor: "var(--accent-border)", color: "var(--accent)" }}
-                >
-                  Manage ↗
-                </button>
-              }
-            />
+            {section === "admin" && isAdmin && (
+              <SettingRow
+                title="Administration"
+                desc="Manage accounts: rename, reset passwords, admin rights, delete."
+                control={
+                  <button
+                    onClick={onOpenAdmin}
+                    className="whitespace-nowrap rounded-lg border px-3 py-1.5 text-[12.5px] font-medium transition hover:bg-[var(--row-hover)]"
+                    style={{ borderColor: "var(--accent-border)", color: "var(--accent)" }}
+                  >
+                    Manage ↗
+                  </button>
+                }
+              />
+            )}
           </div>
-        )}
-
-        <div className="px-5 pb-5 pt-4">
-          <button
-            onClick={onClearMemory}
-            disabled={!memoryCount}
-            className="w-full rounded-lg border px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
-            style={{ borderColor: "var(--danger)", color: "var(--danger)" }}
-          >
-            Clear memory
-          </button>
         </div>
       </div>
     </div>
@@ -246,12 +303,15 @@ function SectionLabel({ children }) {
 
 function SettingRow({ title, desc, control, disabled }) {
   return (
-    <div className={`flex items-center justify-between gap-4 py-3 ${disabled ? "opacity-50" : ""}`}>
+    <div
+      className={`flex items-center justify-between gap-4 py-3.5 ${disabled ? "opacity-50" : ""}`}
+      style={{ borderBottom: "1px solid var(--border-soft)" }}
+    >
       <div className="min-w-0">
         <div className="text-sm font-medium" style={{ color: "var(--text)" }}>
           {title}
         </div>
-        <div className="text-xs" style={{ color: "var(--text-soft)" }}>
+        <div className="mt-0.5 text-xs leading-relaxed" style={{ color: "var(--text-soft)" }}>
           {desc}
         </div>
       </div>

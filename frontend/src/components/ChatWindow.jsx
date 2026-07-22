@@ -30,6 +30,7 @@ export default function ChatWindow({
   retrievalMode,
   onSelectRetrieval,
   tokenizerEnabled,
+  prodMode,
   character,
   onSetCharacter,
   documents,
@@ -148,7 +149,12 @@ export default function ChatWindow({
           {isEmpty ? (
             <EmptyState />
           ) : (
-            <MessageList messages={messages} isStreaming={isStreaming} containerRef={scrollRef} />
+            <MessageList
+              messages={messages}
+              isStreaming={isStreaming}
+              containerRef={scrollRef}
+              diagnostics={!prodMode}
+            />
           )}
         </div>
         {showJump && (
@@ -203,7 +209,8 @@ export default function ChatWindow({
           onSend={send}
           onStop={stop}
           isStreaming={isStreaming}
-          showTokenEstimate={tokenizerEnabled}
+          showTokenEstimate={tokenizerEnabled && !prodMode}
+          prodMode={prodMode}
           onAttach={attachPdf}
           isUploading={uploading}
           model={model}

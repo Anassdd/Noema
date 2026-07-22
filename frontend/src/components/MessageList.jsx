@@ -9,7 +9,7 @@ const Markdown = lazy(() => import("./Markdown.jsx"));
 // Renders the conversation: user turns as a right-aligned bubble, assistant
 // turns as a serif "N" avatar + mono label above the answer. Auto-scrolls only
 // while the user is already near the bottom.
-export default function MessageList({ messages, isStreaming, containerRef }) {
+export default function MessageList({ messages, isStreaming, containerRef, diagnostics = true }) {
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -57,7 +57,7 @@ export default function MessageList({ messages, isStreaming, containerRef }) {
         <Row
           key={i}
           message={m}
-          breakdown={breakdown}
+          breakdown={diagnostics ? breakdown : null}
           showCursor={isStreaming && i === messages.length - 1 && m.role === "assistant"}
           isLast={i === messages.length - 1 && m.role === "assistant"}
           onProgress={followReveal}

@@ -15,6 +15,7 @@ import {
   BenchIcon,
 } from "./components/icons.jsx";
 import { logout, refreshIdentity } from "./api/auth.js";
+import { NO_MEMORY } from "./api/chat.js";
 import { getSession } from "./api/client.js";
 import { useConversations } from "./hooks/useConversations.js";
 import { useMemory } from "./hooks/useMemory.js";
@@ -102,8 +103,9 @@ export default function App() {
   const trackUsage = (usage) =>
     setSessionTokens((t) => t + (usage?.total_tokens ?? 0));
 
-  // Which saved memory snapshot the expert answers from (null = live memory).
-  const [selectedMemory, setSelectedMemory] = useState(null);
+  // Which memory context the expert answers from. Default = No memory (plain
+  // chat): retrieval is something the user opts INTO, not out of.
+  const [selectedMemory, setSelectedMemory] = useState(NO_MEMORY);
   // Which store the expert retrieves from: "hybrid" (default) | "rag" | "graph" | "lightrag".
   const [retrievalMode, setRetrievalMode] = useState("hybrid");
 
@@ -227,6 +229,7 @@ export default function App() {
             retrievalMode={retrievalMode}
             onSelectRetrieval={setRetrievalMode}
             tokenizerEnabled={settings.tokenizerEnabled}
+            prodMode={settings.prodMode}
             character={active.character}
             onSetCharacter={conv.setActiveCharacter}
             documents={active.documents}
@@ -262,6 +265,8 @@ export default function App() {
           onToggleDarkMode={settings.toggleDarkMode}
           themeFamily={settings.themeFamily}
           onApplyTheme={settings.setThemeFamily}
+          prodMode={settings.prodMode}
+          onToggleProdMode={settings.toggleProdMode}
           memoryCount={memory.memories.length}
           onClearMemory={memory.clearMemories}
           onEditMemoryFiles={() =>

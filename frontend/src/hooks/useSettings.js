@@ -16,6 +16,15 @@ export function useSettings() {
   const [expertEnabled, setExpertEnabled] = useState(true);
   const [darkMode, setDarkMode] = useState(savedDarkMode);
   const [themeFamily, setThemeFamily] = useState(savedThemeFamily);
+  // Production mode: hide the diagnostic surfaces (runtime trace, token
+  // breakdowns, session meter, model picker) for a clean end-user app.
+  // Persisted — a deployed machine keeps it across reloads.
+  const [prodMode, setProdMode] = useState(
+    () => window.localStorage.getItem("noema-prod") === "1",
+  );
+  useEffect(() => {
+    window.localStorage.setItem("noema-prod", prodMode ? "1" : "0");
+  }, [prodMode]);
 
   // Appearance lives in lib/theme.js (shared with the login gate) and persists
   // across reloads. The temporary theme-transition class cross-fades every
@@ -54,5 +63,7 @@ export function useSettings() {
     toggleDarkMode: () => setDarkMode((on) => !on),
     themeFamily,
     setThemeFamily,
+    prodMode,
+    toggleProdMode: () => setProdMode((on) => !on),
   };
 }

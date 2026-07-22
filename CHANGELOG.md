@@ -4,6 +4,19 @@ What each push adds, newest first. One entry per push (a push may carry several
 commits — they're grouped under its date and headline). Update this file as
 part of every push.
 
+## 2026-07-22 — Production mode + sectioned Settings; No-memory default
+
+- **Production mode** (Settings → Application, persisted): hides the token
+  metrics — per-answer context/prompt/response breakdown, the session meter and
+  the live estimate — for a clean end-user app; the runtime trace and model
+  picker stay. Chat window, message list and composer all follow the flag.
+- **Settings panel reorganized into sections**: Appearance / Chat / Memory /
+  Application / Administration, replacing the flat toggle list.
+- **New conversations start in "No memory"** (plain chat): retrieval is
+  something the user opts INTO, not out of — the memory selector still offers
+  Live memory and every saved snapshot one click away.
+- The in-app /settings guide reflects the new panel layout.
+
 ## 2026-07-22 — /settings command (app help on demand)
 
 - New `/settings <question>` command: the full app guide (header icons,

@@ -89,6 +89,8 @@ and a benchmark that compares memory methods head-to-head on the same corpus.
   no-network wherever possible; run the relevant suites after touching their area.
 - **Git:** never commit `backend/.env` or any key; `.claude/` stays gitignored (only
   this file is tracked); no AI/Co-Authored-By attribution trailers on commits or PRs.
+  Every push updates `CHANGELOG.md` (one dated entry per push — what's new, newest
+  first) in the same push.
   Knowledge stores (`.chroma`, graph saves, bench workdirs) are committed only as
   deliberate "refresh" commits — never fold store churn into feature commits.
 - Free API tiers may only ever receive public benchmark corpora — never internal

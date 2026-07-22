@@ -11,14 +11,16 @@ to git stays a deliberate, manual act.
 from __future__ import annotations
 
 import shutil
+import os
 from pathlib import Path
 
 from app.bench import store
 from app.config import state_path
 
 _REPO = Path(__file__).resolve().parents[3]
-ARCHIVE_DIR = state_path("bench_archive",
-                         _REPO / "tests" / "results" / "bench_archive")
+ARCHIVE_DIR = Path(os.getenv("BENCH_ARCHIVE_DIR", "")
+                   or state_path("bench_archive",
+                                 _REPO / "tests" / "results" / "bench_archive"))
 
 
 def save(dataset: str, run_id: str) -> dict:

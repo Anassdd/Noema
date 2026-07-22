@@ -44,6 +44,11 @@ print(json.dumps({
 def _resolve(extra_env: dict) -> dict:
     env = {**os.environ, **extra_env}
     env.pop("NOEMA_STATE_DIR", None)
+    # This suite tests the NOEMA_STATE_DIR seam in isolation: blank the per-store
+    # overrides a developer .env sets (e.g. the noema-bench-data repo paths) —
+    # their precedence has its own test.
+    for k in ("BENCH_DATA_DIR", "BENCH_WORK_DIR", "BENCH_ARCHIVE_DIR"):
+        env[k] = ""
     env.update({k: v for k, v in extra_env.items()})
     r = subprocess.run([sys.executable, "-c", _PROBE], capture_output=True, text=True,
                        cwd=BACKEND, env=env)

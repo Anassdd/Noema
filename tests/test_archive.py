@@ -16,6 +16,10 @@ from pathlib import Path
 
 _SCRATCH = tempfile.mkdtemp(prefix="noema-archive-test-")
 os.environ["NOEMA_STATE_DIR"] = _SCRATCH  # workdir AND archive both under scratch
+# Blank the bench-data-repo overrides a developer .env may set — this suite must
+# always write under scratch, never into the real noema-bench-data checkout.
+os.environ["BENCH_WORK_DIR"] = ""
+os.environ["BENCH_ARCHIVE_DIR"] = ""
 os.environ.setdefault("OPENAI_API_KEY", "test-key-never-called")
 
 REPO = Path(__file__).resolve().parent.parent

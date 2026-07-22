@@ -187,3 +187,31 @@ Desktop.) No code changes — it's a `.env` switch.
 - **`ConfigError: Missing required environment variable`** → a required `.env` var is blank
   (for `llmaas`: `LLMAAS_BASE_URL`, `LLMAAS_CHAT_MODEL`).
 - **Port already in use (8000/5173/6379)** → stop the other process or change the port.
+
+## 7. Bench data (separate repo)
+
+Datasets, prepared workdirs and run archives live in a **separate private repo**
+— https://github.com/Anassdd/noema-bench-data — so the product repo stays lean
+and data syncs independently of code.
+
+```bat
+cd \wherever\you\keep\code
+git clone https://github.com/Anassdd/noema-bench-data.git
+```
+
+Then in `backend\.env` (absolute Windows paths):
+
+```
+BENCH_DATA_DIR=C:\path\to\noema-bench-data\datasets
+BENCH_WORK_DIR=C:\path\to\noema-bench-data\work
+BENCH_ARCHIVE_DIR=C:\path\to\noema-bench-data\archive
+```
+
+Restart the backend; the bench page then sees every dataset after a rescan.
+
+Sync = git, both directions:
+- new datasets prepared on the Mac → `git pull` here;
+- overnight results produced here → `git add -A && git commit && git push`
+  from the data repo (never touches the product repo).
+`work/*/runs/inflight/` is gitignored (machine-local resume state), so a pull
+can never collide with a run in progress.

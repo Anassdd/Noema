@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app import conversation_store
+from app import conversation_store, memory_store
 from app.routers.auth import require_user
 from app.schemas import ConversationRename, ConversationSave
 
@@ -28,7 +28,10 @@ def list_conversations(user: dict = Depends(require_user)) -> dict:
 
 @router.delete("", status_code=204)
 def clear_conversations(user: dict = Depends(require_user)) -> None:
-    """Delete all of this user's conversations (clear history)."""
+    """Delete all of this user's conversations (clear history). Cascades into
+    the journal: every line these conversations produced goes with them."""
+    for conv in conversation_store.list_summaries(user["username"], user["is_guest"]):
+        memory_store.forget_conversation(user["username"], conv["id"])
     conversation_store.clear(user["username"], user["is_guest"])
 
 
@@ -74,7 +77,10 @@ def rename_conversation(
 def delete_conversation(
     conversation_id: str, user: dict = Depends(require_user)
 ) -> None:
+    """Delete one conversation — and cascade its journal lines with it (the
+    provenance index knows which lines it produced)."""
     if not conversation_store.delete(
         conversation_id, user["username"], user["is_guest"]
     ):
         raise HTTPException(status_code=404, detail="Conversation not found")
+    memory_store.forget_conversation(user["username"], conversation_id)

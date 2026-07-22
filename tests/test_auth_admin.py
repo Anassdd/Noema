@@ -68,15 +68,15 @@ def test_grant_and_revoke():
 
 def test_rename_carries_sessions_and_data():
     _, bob_token = auth_store.login("Bob", "password-b")
-    memory_store.add_memory("likes chess", "Bob")
+    memory_store.add_fact("Bob", "likes chess", "2026-07-22")
     beliefs.write_beliefs("my note", domain="dom", user="Bob")
     conversation_store.upsert("conv-1", "t", "", [], [], "Bob", is_guest=False)
 
     auth_store.rename_user("bob", "Bobby")
 
     assert auth_store.resolve(bob_token)["username"] == "Bobby", "session must follow"
-    assert memory_store.load_memories("Bobby") == ["likes chess"]
-    assert memory_store.load_memories("Bob") == []
+    assert memory_store.live_facts("Bobby") == ["likes chess"]
+    assert memory_store.live_facts("Bob") == []
     assert beliefs.read_beliefs(domain="dom", user="Bobby") == "my note"
     assert [s["id"] for s in conversation_store.list_summaries("Bobby", False)] == ["conv-1"]
     try:
@@ -104,7 +104,7 @@ def test_password_reset_revokes_sessions():
 def test_delete_account_removes_everything():
     auth_store.delete_account("bobby")
     assert "Bobby" not in _admin_map()
-    assert memory_store.load_memories("Bobby") == []
+    assert memory_store.live_facts("Bobby") == []
     assert beliefs.read_beliefs(domain="dom", user="Bobby") == ""
     assert conversation_store.list_summaries("Bobby", True) == []
     try:

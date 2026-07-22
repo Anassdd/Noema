@@ -17,6 +17,8 @@ class ChatRequest(BaseModel):
     memory: str | None = None  # a saved snapshot name to answer from (None = live memory)
     use_memory: bool = True  # ground answers in the RAG/graph memory (off = plain chat)
     retrieval: str | None = None  # "hybrid" (default) | "rag" | "graph" | "lightrag" — which store answers
+    recall: bool = False  # search the personal archive (history+journal) for this turn
+    recall_wide: bool = False  # the message explicitly references the past (lower bar)
 
 
 class MemoryRequest(BaseModel):

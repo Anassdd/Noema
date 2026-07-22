@@ -44,3 +44,16 @@ export function applyTheme(darkMode, themeFamily) {
 export function applySavedTheme() {
   applyTheme(savedDarkMode(), savedThemeFamily());
 }
+
+// Cross-tab sync: the browser fires `storage` in every OTHER tab when one tab
+// writes localStorage — so the chat and the memory/graph pages follow each
+// other's appearance live. Returns the unsubscribe function.
+export function onThemeChange(callback) {
+  const handler = (e) => {
+    if (e.key === DARK_KEY || e.key === FAMILY_KEY) {
+      callback(savedDarkMode(), savedThemeFamily());
+    }
+  };
+  window.addEventListener("storage", handler);
+  return () => window.removeEventListener("storage", handler);
+}

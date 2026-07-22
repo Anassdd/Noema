@@ -108,3 +108,31 @@ export function replyLooksMemorable(answer) {
   const t = answer.toLowerCase().replace(/[’‘]/g, "'");
   return REPLY_SIGNALS.some((re) => re.test(t));
 }
+
+// Gate in front of archive recall: does the message ask about the user's own
+// past or an earlier conversation? Only then is the history/journal archive
+// searched and injected one-off (it costs zero context otherwise).
+const PAST_SIGNALS = [
+  /\bwhen (was|did|have) i\b/,
+  /\b(was|did|have|had) i\b.*\b(ever|before|already|last)\b/,
+  /\bhave i (ever )?been\b/,
+  /\bwhat did (i|we)\b/,
+  /\blast (time|week|month|year)\b/,
+  /\bremember when\b/,
+  /\b(we|you and i) (talked|spoke|discussed|worked on)\b/,
+  /\b(earlier|previous|last) (chat|conversation|discussion|session)\b/,
+  /\bwhat (were|was) (we|i) (doing|working on)\b/,
+  // ---- French ----
+  /\bquand (est-ce que )?j'(ai|etais|étais)\b/,
+  /\b(ou|où) (etais-je|étais-je|j'etais|j'étais)\b/,
+  /\best-ce que j'(ai|etais|étais)\b.*\b(deja|déjà|avant)\b/,
+  /\bde quoi (on a|avons-nous|a-t-on) parl(e|é)\b/,
+  /\bla derni(ere|ère) fois\b/,
+  /\b(conversation|discussion) pr(ecedente|écédente)\b/,
+  /\bsouviens-toi quand\b/,
+];
+
+export function looksPastReferential(text) {
+  const t = normalize(text);
+  return PAST_SIGNALS.some((re) => re.test(t));
+}

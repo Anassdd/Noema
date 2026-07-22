@@ -47,6 +47,7 @@ export default function SettingsModal({
   onApplyTheme,
   memoryCount,
   onClearMemory,
+  onEditMemoryFiles,
   isAdmin,
   onOpenAdmin,
   onClose,
@@ -128,6 +129,21 @@ export default function SettingsModal({
             title="Memory"
             desc="Save facts across chats and feed them back into the bot."
             control={<Toggle on={memoryEnabled} onClick={onToggleMemory} label="Toggle memory" />}
+          />
+          <SettingRow
+            title="Memory files"
+            desc="Profile · Now · History — the hand-editable markdown files behind memory."
+            disabled={!memoryEnabled}
+            control={
+              <button
+                onClick={onEditMemoryFiles}
+                disabled={!memoryEnabled}
+                className="whitespace-nowrap rounded-lg border px-3 py-1.5 text-[12.5px] font-medium transition hover:bg-[var(--row-hover)] disabled:cursor-not-allowed"
+                style={{ borderColor: "var(--accent-border)", color: "var(--accent)" }}
+              >
+                Edit ↗
+              </button>
+            }
           />
           <SettingRow
             title="Auto-capture pre-filter"

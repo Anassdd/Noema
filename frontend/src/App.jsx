@@ -5,7 +5,6 @@ import ChatWindow from "./components/ChatWindow.jsx";
 import SettingsModal from "./components/SettingsModal.jsx";
 import ConfirmDialog from "./components/ConfirmDialog.jsx";
 import ModelSelector from "./components/ModelSelector.jsx";
-import MemoryPanel from "./components/MemoryPanel.jsx";
 import {
   PanelIcon,
   BrainIcon,
@@ -118,7 +117,6 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [docsPanelOpen, setDocsPanelOpen] = useState(false);
-  const [memoryPanelOpen, setMemoryPanelOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [confirmClearAll, setConfirmClearAll] = useState(false);
 
@@ -195,10 +193,10 @@ export default function App() {
             />
             <HeaderButton
               icon={<BrainIcon size={17} sw={1.6} />}
-              label="Manage memory"
-              active={memoryPanelOpen}
-              count={memory.memories.length}
-              onClick={() => setMemoryPanelOpen((o) => !o)}
+              label="Memory"
+              onClick={() =>
+                window.open(`${window.location.origin}/?view=memory`, "_blank", "noopener")
+              }
             />
             <HeaderButton
               icon={<FileIcon size={16} />}
@@ -216,6 +214,8 @@ export default function App() {
             messages={active.messages}
             setMessages={conv.setActiveMessages}
             memories={memory.memories}
+            memoryContext={memory.context}
+            memoryReady={memory.ready}
             onRemember={memory.addMemory}
             onJudgeMemory={memory.judgeMemory}
             onForgetMemory={memory.forgetMemories}
@@ -248,18 +248,6 @@ export default function App() {
         )}
       </main>
 
-      {memoryPanelOpen && (
-        <MemoryPanel
-          memories={memory.memories}
-          memoryEnabled={settings.memoryEnabled}
-          onRemove={memory.removeMemory}
-          onClearAll={memory.clearMemories}
-          onLoadMarkdown={memory.loadMarkdown}
-          onSaveMarkdown={memory.saveMarkdown}
-          onClose={() => setMemoryPanelOpen(false)}
-        />
-      )}
-
       {settingsOpen && (
         <SettingsModal
           memoryEnabled={settings.memoryEnabled}
@@ -276,6 +264,9 @@ export default function App() {
           onApplyTheme={settings.setThemeFamily}
           memoryCount={memory.memories.length}
           onClearMemory={memory.clearMemories}
+          onEditMemoryFiles={() =>
+            window.open(`${window.location.origin}/?view=memory`, "_blank", "noopener")
+          }
           isAdmin={!!identity?.isAdmin}
           onOpenAdmin={() =>
             window.open(`${window.location.origin}/?view=admin`, "_blank", "noopener")

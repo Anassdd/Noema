@@ -20,6 +20,10 @@
 
   --wallpaper: radial-gradient(130% 130% at 16% 88%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 42%),
     linear-gradient(138deg, #2a44d8 0%, #4357ea 30%, #5f67ee 55%, #8a85f2 82%, #a294f3 100%);
+  /* Solid canvas color behind everything — what overscroll/rubber-banding
+     reveals. Matches each wallpaper's midtone so dragging never flashes white. */
+  --canvas: #5f67ee;
+  color-scheme: light;
   --win-border: rgba(255, 255, 255, 0.5);
   --win-shadow: 0 36px 90px rgba(24, 34, 96, 0.4), 0 4px 14px rgba(20, 28, 80, 0.18);
 
@@ -54,9 +58,6 @@
 
   --ok: #34c759;
   --danger: #cf222e;
-  --warn: #9a6b00;
-  --warn-soft: rgba(154, 107, 0, 0.1);
-  --warn-border: rgba(154, 107, 0, 0.35);
 }
 
 /* Theme switch cross-fade — theme.js pins this class on <html> for the moment
@@ -93,6 +94,8 @@ html.theme-anim *::after {
 .dark {
   --wallpaper: radial-gradient(130% 130% at 16% 88%, rgba(120,140,230,0.26) 0%, rgba(120,140,230,0) 46%),
     linear-gradient(138deg, #0f1330 0%, #161d49 34%, #232a62 58%, #312f6a 82%, #3a2f70 100%);
+  --canvas: #161d49;
+  color-scheme: dark;
   --win-border: rgba(255, 255, 255, 0.1);
   --win-shadow: 0 36px 90px rgba(8, 12, 40, 0.55), 0 4px 14px rgba(5, 8, 30, 0.4);
 
@@ -124,9 +127,6 @@ html.theme-anim *::after {
 
   --ok: #34c759;
   --danger: #f85149;
-  --warn: #e0b45c;
-  --warn-soft: rgba(224, 180, 92, 0.12);
-  --warn-border: rgba(224, 180, 92, 0.35);
 
   /* Code block (dark) */
   --code-bg: #15171d;
@@ -157,6 +157,7 @@ html[data-theme="codex"] {
 
 html[data-theme="codex"]:not(.dark) {
   --wallpaper: #ffffff;
+  --canvas: #ffffff;
   --panel-bg: #ffffff;
   --sidebar-bg: #f7f7f8;
   --sidebar-border: #ebebef;
@@ -172,6 +173,7 @@ html[data-theme="codex"]:not(.dark) {
 
 html[data-theme="codex"].dark {
   --wallpaper: #15171d;
+  --canvas: #15171d;
   --panel-bg: #15171d;
   --sidebar-bg: #16181f;
   --sidebar-border: rgba(255, 255, 255, 0.07);
@@ -187,6 +189,12 @@ html,
 body,
 #root {
   height: 100%;
+}
+
+/* The page canvas itself — what shows beyond the app during overscroll and
+   window drags. Without this it falls back to white in every theme. */
+html {
+  background-color: var(--canvas);
 }
 
 body {

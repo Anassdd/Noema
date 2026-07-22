@@ -7,10 +7,12 @@ sources. See app/beliefs.py and pipeline.answer_stream.
 
 from __future__ import annotations
 
+from datetime import date
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from app import beliefs
+from app import beliefs, memory_judge
 from app.pipeline import contextualize_note
 from app.routers.auth import require_user
 
@@ -46,8 +48,22 @@ def save_beliefs(body: BeliefsBody, user: dict = Depends(require_user)) -> dict:
 
 @router.post("/add")
 def add_belief(body: BeliefsBody, user: dict = Depends(require_user)) -> dict:
-    """Append one note (the chat's /note command). Resolves references against the recent chat
-    (claim never altered) when messages are provided, then appends. Returns what was saved."""
+    """Append one dated note (the chat's /note command). Resolves references
+    against the recent chat (claim never altered) when messages are provided,
+    then appends with dedup; an over-cap file gets a consolidation pass —
+    never truncation."""
+    username = user["username"]
     note = contextualize_note(body.text, body.messages) if body.messages else body.text
-    chars = beliefs.append_belief(note, body.domain, body.memory, user["username"])
-    return {"context": beliefs.context_key(body.domain, body.memory), "chars": chars, "note": note}
+    stored = beliefs.append_belief(note, body.domain, body.memory, username,
+                                   today=date.today().isoformat())
+    if len(beliefs.read_beliefs(body.domain, body.memory, username)) > beliefs.MAX_CHARS:
+        merged = memory_judge.consolidate_notes(
+            beliefs.note_lines(body.domain, body.memory, username), beliefs.MAX_CHARS)
+        if merged is not None:
+            beliefs.replace_notes(merged, body.domain, body.memory, username)
+    return {
+        "context": beliefs.context_key(body.domain, body.memory),
+        "chars": len(beliefs.read_beliefs(body.domain, body.memory, username)),
+        "note": note,
+        "duplicate": stored is None,
+    }

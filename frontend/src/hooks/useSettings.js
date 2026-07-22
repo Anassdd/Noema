@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { applyTheme, savedDarkMode, savedThemeFamily } from "../lib/theme.js";
+import { applyTheme, onThemeChange, savedDarkMode, savedThemeFamily } from "../lib/theme.js";
 
 // Session-level feature switches (default on) plus appearance (dark mode +
 // theme family). memoryEnabled is the master switch (off = no capture, no
@@ -30,6 +30,16 @@ export function useSettings() {
     );
     return () => window.clearTimeout(timer);
   }, [darkMode, themeFamily]);
+
+  // Follow appearance changes made in another tab (e.g. the memory page).
+  useEffect(
+    () =>
+      onThemeChange((dark, family) => {
+        setDarkMode(dark);
+        setThemeFamily(family);
+      }),
+    [],
+  );
 
   return {
     memoryEnabled,

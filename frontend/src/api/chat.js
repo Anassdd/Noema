@@ -30,12 +30,15 @@ export const NO_MEMORY = "__none__";
  */
 export async function streamChat(
   messages,
-  { onDelta, onUsage, onStatus, onSources, signal, model, useMemory = false, domain = "default", memory = null, retrieval = null },
+  { onDelta, onUsage, onStatus, onSources, signal, model, useMemory = false, domain = "default", memory = null, retrieval = null, recall = false, recallWide = false },
 ) {
   const res = await authFetch(`${API_BASE}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, model, use_memory: useMemory, domain, memory, retrieval }),
+    body: JSON.stringify({
+      messages, model, use_memory: useMemory, domain, memory, retrieval,
+      recall, recall_wide: recallWide,
+    }),
     signal,
   });
 

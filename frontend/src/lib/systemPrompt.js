@@ -23,10 +23,10 @@ export function documentsFit(documents) {
 }
 
 // Builds the single system message pinned to the front of every chat request:
-// persona (/character) → attached PDFs → saved facts (/remember). Documents go
-// before memory so the cache-friendly prefix stays stable for the whole
-// conversation. Returns null when there's nothing to add.
-export function buildSystemMessage(character, memories, documents) {
+// persona (/character) → attached PDFs → long-term memory (profile + now).
+// Documents go before memory so the cache-friendly prefix stays stable for the
+// whole conversation. Returns null when there's nothing to add.
+export function buildSystemMessage(character, memoryContext, documents) {
   const parts = [];
 
   if (character) {
@@ -56,10 +56,15 @@ export function buildSystemMessage(character, memories, documents) {
     }
   }
 
-  if (memories.length) {
+  if (memoryContext) {
+    const today = new Date().toISOString().slice(0, 10);
     parts.push(
-      "Facts the user explicitly asked you to remember. Use them when relevant:\n" +
-        memories.map((m) => `- ${m}`).join("\n"),
+      "Long-term memory about the user (they are the implicit subject of every " +
+        "note): topic sections about who they are; \"Now\" — their current situation " +
+        "as dated facts (\"→ date\" = until when a fact holds); \"Recent chats\" — what " +
+        "you two discussed lately. Today is " + today + " — weave this into your " +
+        "answers naturally, and treat facts past their end date as over:\n\n" +
+        memoryContext,
     );
   }
 

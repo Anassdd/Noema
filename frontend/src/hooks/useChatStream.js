@@ -2,7 +2,11 @@ import { useCallback, useRef, useState } from "react";
 
 import { NO_MEMORY, streamChat } from "../api/chat.js";
 import { buildSystemMessage } from "../lib/systemPrompt.js";
-import { looksMemorable, replyLooksMemorable } from "../lib/memoryFilter.js";
+import {
+  looksMemorable,
+  looksPastReferential,
+  replyLooksMemorable,
+} from "../lib/memoryFilter.js";
 
 // Runs one chat turn: builds the request (system prompt + real turns), streams
 // the answer into the in-flight assistant message, then fires the
@@ -12,7 +16,8 @@ export function useChatStream({
   messages,
   setMessages,
   character,
-  memories,
+  memoryContext,
+  memoryReady,
   documents,
   memoryEnabled,
   prefilterEnabled,
@@ -24,10 +29,17 @@ export function useChatStream({
   onUsage,
   onAutoTitle,
   onJudgeMemory,
+  onMemoryNote,
 }) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState(null);
   const abortRef = useRef(null);
+  // Frozen at the conversation's first message (Hermes' snapshot pattern): the
+  // memory block sits in the CACHED prompt prefix, so mutating it mid-chat
+  // would re-bill the whole prefix every turn. Costs nothing in freshness —
+  // anything learned mid-conversation is already in the transcript; the file
+  // only needs to be current for the NEXT chat.
+  const frozenMemory = useRef(null);
 
   const sendMessage = useCallback(
     async (text) => {
@@ -40,17 +52,25 @@ export function useChatStream({
       setIsStreaming(true);
 
       // What the model sees: real turns only (notes/help stripped), with the
-      // persona + documents + remembered facts pinned in front. When memory is
-      // off, the saved facts are withheld from the prompt.
+      // persona + documents + long-term memory pinned in front. When memory is
+      // off, the memory block is withheld from the prompt. The freeze waits
+      // for the memory fetch — a fast first message must not lock in an empty
+      // block just because the load hadn't resolved yet.
+      if (frozenMemory.current === null && memoryReady) {
+        frozenMemory.current = memoryContext ?? "";
+      }
+      const liveMemory =
+        frozenMemory.current !== null ? frozenMemory.current : (memoryContext ?? "");
       const sys = buildSystemMessage(
         character,
-        memoryEnabled ? memories : [],
+        memoryEnabled ? liveMemory || null : null,
         documents,
       );
       const turns = shown.filter(
         (m) => m.role === "user" || m.role === "assistant",
       );
       const history = sys ? [sys, ...turns] : turns;
+
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -102,6 +122,10 @@ export function useChatStream({
           domain,
           memory: memory === NO_MEMORY ? null : memory,
           retrieval,
+          // Archive recall happens server-side, in-process — no extra round
+          // trip. The wide flag marks explicitly past-referential phrasing.
+          recall: memoryEnabled,
+          recallWide: looksPastReferential(text),
         });
 
         if (isFirstExchange && answer) {
@@ -123,17 +147,15 @@ export function useChatStream({
               if (!result) return;
               const quote = (fs) => fs.map((f) => `“${f}”`).join(", ");
               const parts = [];
+              if (result.profileUpdated?.length) parts.push(`Profile updated: ${result.profileUpdated.join(", ")}`);
               if (result.added?.length) parts.push(`Remembered ${quote(result.added)}`);
               if (result.updated?.length) parts.push(`Updated to ${quote(result.updated)}`);
               if (result.removed?.length) parts.push(`Forgot ${quote(result.removed)}`);
+              if (result.retired?.length) parts.push(`Archived ${quote(result.retired)}`);
               if (result.beliefsAdded?.length) parts.push(`Noted your view: ${quote(result.beliefsAdded)}`);
+              if (result.beliefsUpdated?.length) parts.push(`Updated your view: ${quote(result.beliefsUpdated)}`);
               if (result.consolidated) parts.push("Memory consolidated");
-              if (parts.length) {
-                setMessages((prev) => [
-                  ...prev,
-                  { role: "note", content: parts.join(" · ") },
-                ]);
-              }
+              if (parts.length) onMemoryNote?.(parts.join(" · "));
             },
           );
         }
@@ -148,7 +170,8 @@ export function useChatStream({
       messages,
       setMessages,
       character,
-      memories,
+      memoryContext,
+      memoryReady,
       documents,
       memoryEnabled,
       prefilterEnabled,
@@ -160,6 +183,7 @@ export function useChatStream({
       onUsage,
       onAutoTitle,
       onJudgeMemory,
+      onMemoryNote,
     ],
   );
 

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Noema — The four memories</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    background: #0a0e1a;
+    color: #e7ecf7;
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+  }
+  h1 { font-size: 30px; font-weight: 700; margin-bottom: 8px; }
+  .sub { color: #8b96b3; font-size: 15px; margin-bottom: 40px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    max-width: 1180px;
+    width: 100%;
+  }
+  .card {
+    background: rgba(13,18,32,0.96);
+    border: 1px solid rgba(120,135,175,0.22);
+    border-radius: 16px;
+    padding: 26px 22px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  }
+  .card h2 { font-size: 18px; margin-bottom: 6px; }
+  .scope { font-size: 12.5px; color: #8b96b3; margin-bottom: 14px; }
+  .desc { font-size: 13.5px; line-height: 1.45; color: #cdd5ea; min-height: 60px; }
+  .types { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag {
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid;
+  }
+  .md     { color: #8fd6c2; border-color: rgba(143,214,194,0.4); background: rgba(143,214,194,0.1); }
+  .vec    { color: #5cc8ff; border-color: rgba(92,200,255,0.4);  background: rgba(92,200,255,0.1); }
+  .graphc { color: #c9a7ff; border-color: rgba(201,167,255,0.4); background: rgba(201,167,255,0.1); }
+</style>
+</head>
+<body>
+  <h1>Noema — the four memories</h1>
+  <div class="sub">what the expert knows, and where each piece lives</div>
+
+  <div class="grid">
+
+    <div class="card">
+      <h2>Personal</h2>
+      <div class="scope">per user · always in context</div>
+      <div class="desc">Facts about <em>you</em>, saved with <code>/remember</code> or auto-judged from chat.</div>
+      <div class="types"><span class="tag md">Markdown</span></div>
+    </div>
+
+    <div class="card">
+      <h2>Chat PDF</h2>
+      <div class="scope">per conversation · ephemeral</div>
+      <div class="desc">A document dropped into one chat — vision-parsed, read whole, then forgotten.</div>
+      <div class="types"><span class="tag md">Markdown</span></div>
+    </div>
+
+    <div class="card">
+      <h2>Notes (beliefs)</h2>
+      <div class="scope">per memory context · always in context</div>
+      <div class="desc">Your own opinions about the corpus. On conflict, the expert presents <em>both</em> sides.</div>
+      <div class="types"><span class="tag md">Markdown</span></div>
+    </div>
+
+    <div class="card">
+      <h2>Expert corpus</h2>
+      <div class="scope">per domain · retrieved on demand</div>
+      <div class="desc">The ingested library — one corpus, two lenses, cited by doc + page.</div>
+      <div class="types">
+        <span class="tag vec">Vectors + BM25</span>
+        <span class="tag graphc">Temporal graph</span>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

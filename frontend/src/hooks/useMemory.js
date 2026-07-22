@@ -1,36 +1,41 @@
 import { useEffect, useState } from "react";
 
 import {
-  fetchMemories,
-  fetchMemoryMarkdown,
+  fetchMemory,
   saveMemory,
-  saveMemoryMarkdown,
+  saveMemoryFile,
   autoMemory,
   clearMemory,
   removeMemoryFact,
 } from "../api/memory.js";
 
-// Cross-conversation memory: the facts saved via /remember, persisted server
-// side. The returned list from each call is the source of truth.
-export function useMemory() {
-  const [memories, setMemories] = useState([]);
+const EMPTY = { memories: [], context: null, files: null, usage: null };
 
+// Cross-conversation memory: the three-file store (profile / now / history)
+// persisted server side. Every API call returns the full state — held here as
+// the single source of truth for the fact list, the injection context and the
+// settings file editor.
+export function useMemory() {
+  const [state, setState] = useState(EMPTY);
+
+  // Mount = session start: the fetch also runs the backend's daily expiry
+  // sweep, so "in Paris until Sept 1" retires itself the day after.
   useEffect(() => {
-    fetchMemories().then(setMemories).catch(console.error);
+    fetchMemory().then(setState).catch(console.error);
   }, []);
 
   const addMemory = async (fact) => {
     try {
-      setMemories(await saveMemory(fact));
+      setState(await saveMemory(fact));
     } catch (err) {
       console.error(err);
     }
   };
 
   const clearMemories = async () => {
-    if (!window.confirm("Clear all saved memory? This can't be undone.")) return;
+    if (!window.confirm("Clear all saved memory (including history)? This can't be undone.")) return;
     try {
-      setMemories(await clearMemory());
+      setState(await clearMemory());
     } catch (err) {
       console.error(err);
     }
@@ -38,7 +43,7 @@ export function useMemory() {
 
   const removeMemory = async (fact) => {
     try {
-      setMemories(await removeMemoryFact(fact));
+      setState(await removeMemoryFact(fact));
     } catch (err) {
       console.error(err);
     }
@@ -50,18 +55,18 @@ export function useMemory() {
     try {
       let updated;
       for (const fact of facts) updated = await removeMemoryFact(fact);
-      if (updated) setMemories(updated);
+      if (updated) setState(updated);
     } catch (err) {
       console.error(err);
     }
   };
 
-  // After a turn, let the backend judge evolve the memory (add/update/delete +
-  // route beliefs). Returns the change set so the chat can confirm it inline.
+  // After a turn, let the backend judge evolve the memory (add/update/retire/
+  // move + route beliefs). Returns the change set so the chat can confirm it.
   const judgeMemory = async (recent, context) => {
     try {
       const result = await autoMemory(recent, context?.domain ?? "default", context?.memory ?? null);
-      setMemories(result.memories);
+      setState(result.state);
       return result;
     } catch (err) {
       console.error(err);
@@ -69,23 +74,25 @@ export function useMemory() {
     }
   };
 
-  // The raw memory file, for the panel's markdown editor. Saving refreshes the
-  // fact list from whatever bullets the edited file contains.
-  const loadMarkdown = () => fetchMemoryMarkdown();
-  const saveMarkdown = async (text) => {
-    const { markdown, memories: updated } = await saveMemoryMarkdown(text);
-    setMemories(updated);
-    return markdown;
+  // One memory file edited in the settings — facts are its "- " bullets,
+  // surrounding prose is kept verbatim. Returns the new state so the editor
+  // can adopt the server-normalized text.
+  const saveFile = async (name, text) => {
+    const next = await saveMemoryFile(name, text);
+    setState(next);
+    return next;
   };
 
   return {
-    memories,
+    ...state,
+    // The first fetch resolved — until then the context is "unknown", not
+    // "empty", and the chat must not freeze an empty block into a conversation.
+    ready: state.files !== null,
     addMemory,
     clearMemories,
     removeMemory,
     forgetMemories,
     judgeMemory,
-    loadMarkdown,
-    saveMarkdown,
+    saveFile,
   };
 }

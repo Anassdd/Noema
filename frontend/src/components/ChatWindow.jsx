@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useChatStream } from "../hooks/useChatStream.js";
 import { useCommands } from "../hooks/useCommands.js";
@@ -9,7 +9,7 @@ import MessageInput from "./MessageInput.jsx";
 import EmptyState from "./EmptyState.jsx";
 import DocumentsPanel from "./DocumentsPanel.jsx";
 import ForgetDialog from "./ForgetDialog.jsx";
-import { FileIcon, ChevronDownIcon } from "./icons.jsx";
+import { BrainIcon, ChevronDownIcon, CloseIcon, FileIcon } from "./icons.jsx";
 
 // Lays out one conversation: transcript + composer. The logic lives in hooks;
 // the surrounding panel is the glass <main>, so this stays transparent.
@@ -17,6 +17,8 @@ export default function ChatWindow({
   messages,
   setMessages,
   memories,
+  memoryContext,
+  memoryReady,
   onRemember,
   onJudgeMemory,
   onForgetMemory,
@@ -55,11 +57,23 @@ export default function ChatWindow({
       expertEnabled,
     });
 
+  // Memory-judge results show as a transient notification above the composer,
+  // not inside the transcript.
+  const [memoryNote, setMemoryNote] = useState("");
+  const noteTimer = useRef(null);
+  const showMemoryNote = (text) => {
+    setMemoryNote(text);
+    clearTimeout(noteTimer.current);
+    noteTimer.current = setTimeout(() => setMemoryNote(""), 6000);
+  };
+  useEffect(() => () => clearTimeout(noteTimer.current), []);
+
   const { isStreaming, error, sendMessage, stop } = useChatStream({
     messages,
     setMessages,
     character,
-    memories,
+    memoryContext,
+    memoryReady,
     documents,
     memoryEnabled,
     prefilterEnabled,
@@ -70,10 +84,18 @@ export default function ChatWindow({
     onUsage,
     onAutoTitle,
     onJudgeMemory,
+    onMemoryNote: showMemoryNote,
   });
 
   const send = (text) => {
     if (isStreaming) return;
+    // Sending always rejoins the conversation's tail, wherever you'd scrolled.
+    setTimeout(() => {
+      scrollRef.current?.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    }, 60);
     if (runCommand(text)) return;
     sendMessage(text);
   };
@@ -141,6 +163,31 @@ export default function ChatWindow({
       </div>
 
       <div className="flex-shrink-0 px-7 pb-4 pt-2.5">
+        {memoryNote && (
+          <div className="mx-auto mb-2 w-full max-w-[720px]">
+            <div
+              className="animate-fade-in flex items-start gap-2 rounded-lg border px-3 py-2 text-[12.5px]"
+              style={{
+                borderColor: "var(--accent-border)",
+                background: "var(--accent-soft)",
+                color: "var(--text-soft)",
+              }}
+            >
+              <span className="mt-0.5 shrink-0" style={{ color: "var(--accent)" }}>
+                <BrainIcon size={14} sw={1.8} />
+              </span>
+              <span className="min-w-0 flex-1">{memoryNote}</span>
+              <button
+                onClick={() => setMemoryNote("")}
+                aria-label="Dismiss"
+                className="shrink-0 rounded p-0.5 transition hover:opacity-70"
+                style={{ color: "var(--text-faint)" }}
+              >
+                <CloseIcon size={13} />
+              </button>
+            </div>
+          </div>
+        )}
         {(error || uploadError) && (
           <div className="mx-auto mb-2 w-full max-w-[720px]">
             <div

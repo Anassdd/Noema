@@ -50,11 +50,11 @@ export const uploadBtn = {
 
 export const primaryBtn = {
   width: "100%",
-  background: "#5cc8ff",
-  border: "none",
-  color: "#0a0e1a",
+  background: "#3f6fe0",
+  border: "1px solid rgba(255,255,255,0.14)",
+  color: "#ffffff",
   fontSize: 13,
-  fontWeight: 700,
+  fontWeight: 650,
   padding: "9px 0",
   borderRadius: 9,
   cursor: "pointer",

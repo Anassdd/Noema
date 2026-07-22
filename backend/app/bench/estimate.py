@@ -26,6 +26,14 @@ _CACHE_DISCOUNT = float(os.getenv("BENCH_CACHE_DISCOUNT", "0.5"))  # cached inpu
 # $ per 1M tokens (input, output) — matched by prefix so snapshots resolve too.
 PRICES = {
     "gpt-5.5": (5.00, 30.00),
+    # GPT-5.6 family (Jul 2026) — gateways may expose either the full id or the
+    # bare tier name, so both spellings are priced.
+    "gpt-5.6-sol": (5.00, 30.00),
+    "gpt-5.6-terra": (2.50, 15.00),
+    "gpt-5.6-luna": (1.00, 6.00),
+    "sol": (5.00, 30.00),
+    "terra": (2.50, 15.00),
+    "luna": (1.00, 6.00),
     "gpt-5.4-mini": (0.75, 4.50),
     "gpt-5.4-nano": (0.20, 1.25),
     "gpt-5.4": (2.50, 15.00),

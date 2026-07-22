@@ -43,8 +43,10 @@ def test_prompts_speak_the_source_language():
     for ins in (graph_store.DEFAULT_EXTRACTION_INSTRUCTIONS,
                 graph_store.DOCUMENT_EXTRACTION_INSTRUCTIONS):
         assert "language of the source text" in ins, "graph facts must not be translated"
-    assert "LANGUAGE THE USER SPEAKS" in memory_judge._SYSTEM, \
-        "memory facts must be written in the user's language"
+    assert "language the user's messages are WRITTEN in" in memory_judge._SYSTEM, \
+        "memory facts must follow the language of the user's words"
+    assert "NEVER by the user's name" in memory_judge._SYSTEM, \
+        "language must come from the words, never inferred from the user's name"
 
     lightrag_src = (BACKEND / "app" / "lightrag" / "store.py").read_text()
     assert "addon_params" in lightrag_src and "same language as the source text" in lightrag_src, \

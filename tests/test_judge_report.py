@@ -111,6 +111,16 @@ def test_assemble_stats_cost_provenance():
     assert "95% CI" in md and "McNemar" in md and "run total" in md
     print("  assemble: CIs, McNemar, priced cost, provenance stamps, markdown render ✓")
 
+    mu = {(m["role"], m["model"]): m for m in rep["model_usage"]}
+    ans = mu[("answering", "gpt-5.4-mini")]
+    assert ans["calls"] == 60 and ans["prompt_tokens"] > 0, ans
+    jud = mu[("judging", "gpt-5.4-mini")]  # keyed by the RESOLVED judge model
+    assert jud["calls"] == 60 and jud["prompt_tokens"] == 60 * 400, jud
+    build_row = mu[("extraction (build)", "gpt-5.4-mini")]
+    assert build_row["prompt_tokens"] is None, "build spend is provenance-only, never token-counted here"
+    assert "Models used" in md and "extraction (build)" in md
+    print("  model usage: per-model token bill in report + markdown ✓")
+
 
 def test_evidence_source_and_lightrag_fusion():
     windows = ["alpha beta gamma delta", "the model uses BERT embeddings for retrieval",

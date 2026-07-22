@@ -27,6 +27,32 @@ def _line(obj: dict) -> bytes:
     return (json.dumps(obj) + "\n").encode("utf-8")
 
 
+def _ndjson(gen) -> StreamingResponse:
+    """A live NDJSON stream that survives corporate middleboxes. Proxies and AV
+    scanners buffer chunked responses until their inspection window fills, which
+    freezes the page's live log (a reload then replays the buffered burst). The
+    counter-measures: no-transform/no-buffering headers, and a ~2KB padding line
+    up front so small inspection buffers flush immediately. The page drops `pad`
+    and `ping` events silently."""
+    pad = _line({"phase": "pad", "pad": " " * 2048})
+
+    if hasattr(gen, "__aiter__"):
+        async def stream():
+            yield pad
+            async for ev in gen:
+                yield _line(ev)
+    else:
+        def stream():
+            yield pad
+            for ev in gen:
+                yield _line(ev)
+
+    return StreamingResponse(stream(), media_type="application/x-ndjson", headers={
+        "Cache-Control": "no-cache, no-transform",
+        "X-Accel-Buffering": "no",
+    })
+
+
 @router.get("/datasets")
 def datasets() -> dict:
     return {"datasets": bench.list_datasets(), "raw_dir": str(store.RAW_DIR)}
@@ -39,11 +65,7 @@ class DownloadBody(BaseModel):
 @router.post("/download")
 def download(body: DownloadBody) -> StreamingResponse:
     """Fetch a dataset file from a URL into the raw dir, streaming progress."""
-    def stream():
-        for ev in fetch.download(body.url):
-            yield _line(ev)
-
-    return StreamingResponse(stream(), media_type="application/x-ndjson")
+    return _ndjson(fetch.download(body.url))
 
 
 class DeleteDatasetBody(BaseModel):
@@ -95,11 +117,7 @@ class GoldGenBody(BaseModel):
 
 @router.post("/goldgen")
 def goldgen_stream(body: GoldGenBody) -> StreamingResponse:
-    async def stream():
-        async for ev in goldgen.generate(body.dataset, max(1, min(body.total, 100))):
-            yield _line(ev)
-
-    return StreamingResponse(stream(), media_type="application/x-ndjson")
+    return _ndjson(goldgen.generate(body.dataset, max(1, min(body.total, 100))))
 
 
 class VerifyBody(BaseModel):
@@ -108,11 +126,7 @@ class VerifyBody(BaseModel):
 
 @router.post("/goldverify")
 def goldverify_stream(body: VerifyBody) -> StreamingResponse:
-    async def stream():
-        async for ev in goldgen.verify(body.dataset):
-            yield _line(ev)
-
-    return StreamingResponse(stream(), media_type="application/x-ndjson")
+    return _ndjson(goldgen.verify(body.dataset))
 
 
 @router.get("/gold")
@@ -159,17 +173,17 @@ async def run(body: RunBody) -> StreamingResponse:
         scope=body.scope,
     ))
 
-    async def stream():
+    async def events():
         if job is None:
-            yield _line({"phase": "error",
-                         "detail": "A run is already in progress for this dataset — reattach "
-                                   "to it (reload the page) or pause it first. Starting a "
-                                   "second run would rebuild the same memory and pay twice."})
+            yield {"phase": "error",
+                   "detail": "A run is already in progress for this dataset — reattach "
+                             "to it (reload the page) or pause it first. Starting a "
+                             "second run would rebuild the same memory and pay twice."}
             return
         async for ev in job.tail():
-            yield _line(ev)
+            yield ev
 
-    return StreamingResponse(stream(), media_type="application/x-ndjson")
+    return _ndjson(events())
 
 
 @router.get("/job")
@@ -186,11 +200,7 @@ async def job_stream(job_id: str, since: int = 0) -> StreamingResponse:
         raise HTTPException(status_code=404, detail="No such job (server restarted?) — "
                                                     "press Run to resume; nothing is re-paid.")
 
-    async def stream():
-        async for ev in job.tail(since):
-            yield _line(ev)
-
-    return StreamingResponse(stream(), media_type="application/x-ndjson")
+    return _ndjson(job.tail(since))
 
 
 @router.post("/job/{job_id}/stop")
@@ -255,16 +265,16 @@ async def rejudge(body: RejudgeBody) -> StreamingResponse:
     job = jobs.start(body.dataset, "rejudge",
                      runner.rejudge_run(body.dataset, body.run_id, body.judge_model))
 
-    async def stream():
+    async def events():
         if job is None:
-            yield _line({"phase": "error",
-                         "detail": "A job is already running for this dataset — wait for it "
-                                   "or pause it first."})
+            yield {"phase": "error",
+                   "detail": "A job is already running for this dataset — wait for it "
+                             "or pause it first."}
             return
         async for ev in job.tail():
-            yield _line(ev)
+            yield ev
 
-    return StreamingResponse(stream(), media_type="application/x-ndjson")
+    return _ndjson(events())
 
 
 @router.get("/runs")

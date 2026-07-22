@@ -310,7 +310,8 @@ _GROUND_SYS = (
     "knowledge; if they don't fully cover the question, answer what you can and say plainly "
     "what's missing. If the user's own notes are provided separately and disagree with the "
     "sources, surface both and attribute each — do not silently pick. Answer in the "
-    "question's language."
+    "language the question is WRITTEN in — judged by its words alone, never inferred "
+    "from names, nationalities or topics; if unclear, answer in English."
 )
 # The user's own beliefs about this memory context (see app/beliefs.py). Injected as a
 # distinct block so the answer keeps them apart from the retrieved corpus and can say
@@ -483,6 +484,33 @@ def _sources_payload(chunks: list[ScoredChunk]) -> list[dict]:
         }
         for i, c in enumerate(chunks)
     ]
+
+
+async def web_answer_stream(messages: list[dict], *,
+                            model: str | None = None) -> AsyncIterator[dict]:
+    """The web retrieval mode: one provider-side web-searched answer (see
+    llm_client.web_chat), streamed in the same event shapes as the expert loop.
+    Deliberately outside the expert pipeline — no corpus, no CRAG/Self-RAG (there
+    are no local sources to grade against), and NEVER reachable from the bench:
+    only the chat route maps retrieval="web" here."""
+    if not settings.web_search:
+        yield {"type": "status", "stage": "error",
+               "detail": "Web search is off on this deployment — set WEB_SEARCH=on "
+                         "in .env (and restart) to try it."}
+        return
+    yield {"type": "status", "stage": "web", "detail": "searching the web…"}
+    try:
+        text, citations, usage = await asyncio.to_thread(
+            llm_client.web_chat, messages, model=model)
+    except RuntimeError as exc:
+        yield {"type": "status", "stage": "error", "detail": str(exc)}
+        return
+    yield {"type": "delta", "text": text}
+    if citations:
+        yield {"type": "sources", "sources": [
+            {"n": i + 1, "citation": c["title"], "text": c["url"], "origin": "web"}
+            for i, c in enumerate(citations)]}
+    yield {"type": "usage", "usage": usage}
 
 
 async def answer_stream(

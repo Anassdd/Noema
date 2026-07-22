@@ -29,15 +29,18 @@ export default function MessageList({ messages, isStreaming, containerRef }) {
   const rows = messages.map((m) => {
     let breakdown = null;
     if (m.role === "assistant" && m.usage) {
-      const history = Math.min(prevContext, m.usage.prompt_tokens);
-      const input = m.usage.prompt_tokens - history;
+      // Defensive zeros: a provider/endpoint that omits a count must cost us a
+      // "0" in the footer, never an undefined that crashes the whole tree.
+      const prompt = m.usage.prompt_tokens ?? 0;
+      const output = m.usage.completion_tokens ?? 0;
+      const history = Math.min(prevContext, prompt);
       breakdown = {
         history,
-        input,
-        output: m.usage.completion_tokens,
-        total: m.usage.total_tokens,
+        input: prompt - history,
+        output,
+        total: m.usage.total_tokens ?? prompt + output,
       };
-      prevContext = m.usage.prompt_tokens + m.usage.completion_tokens;
+      prevContext = prompt + output;
     }
     return { m, breakdown };
   });

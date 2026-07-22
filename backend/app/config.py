@@ -108,9 +108,12 @@ class Settings:
 
     # Judge seam (optional) — a separate OpenAI-compatible endpoint used ONLY for
     # scoring bench answers, so the judge can be a different model family than the
-    # generator (e.g. Gemini's OpenAI-compatible endpoint on dev). All three unset ->
-    # the judge falls back to the main provider + chat model.
-    judge_model: str = ""
+    # generator (e.g. Gemini's OpenAI-compatible endpoint on dev). With only a model
+    # set (the default), verdicts run on the MAIN provider with that model — Sol:
+    # the strongest grader available and a different generation than the mini
+    # answerer; verdicts are tiny so the tier costs little. Set base_url+key to
+    # move judging to a foreign endpoint instead.
+    judge_model: str = "gpt-5.6-sol"
     judge_base_url: str = ""
     judge_api_key: str = ""
     # Thinking cap for the judge. Verdicts are two-field JSONs — a reasoning judge
@@ -118,6 +121,14 @@ class Settings:
     # time for nothing. "none" disables thinking; set JUDGE_REASONING= (empty) to
     # send no cap at all. Dropped automatically if the endpoint rejects it.
     judge_reasoning: str = "none"
+
+    # Provider-side web search (the OpenAI web_search tool via the Responses API).
+    # The searching runs on the PROVIDER's servers — nothing but the normal API
+    # call leaves this machine, so corporate proxies are never in the path. OFF by
+    # default on llmaas (bank gateways may not pass the tool through; flip
+    # WEB_SEARCH=on to try), on for the dev openai provider. The bench NEVER uses
+    # it — web mode exists only as an explicit chat retrieval choice.
+    web_search: bool = False
 
     # Generation defaults (overridable per call in llm_client.chat()).
     chat_temperature: float = 0.2
@@ -148,10 +159,12 @@ def load_settings() -> Settings:
         context_doc_cap=int(os.getenv("CONTEXT_DOC_CAP", "250000")),
         context_part_tokens=int(os.getenv("CONTEXT_PART_TOKENS", "48000")),
         context_concurrency=int(os.getenv("CONTEXT_CONCURRENCY", "4")),
-        judge_model=os.getenv("JUDGE_MODEL", ""),
+        judge_model=os.getenv("JUDGE_MODEL", "gpt-5.6-sol"),
         judge_base_url=os.getenv("JUDGE_BASE_URL", ""),
         judge_api_key=os.getenv("JUDGE_API_KEY", ""),
         judge_reasoning=os.getenv("JUDGE_REASONING", "none"),
+        web_search=(os.getenv("WEB_SEARCH", "on" if provider == "openai" else "off")
+                    .strip().lower() == "on"),
     )
 
     if provider == "openai":
@@ -166,8 +179,9 @@ def load_settings() -> Settings:
             # cheap. Dimension is read dynamically downstream, so this is a safe swap.
             embed_model=os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-large"),
             # The STRONG model: vision PDF parsing + graph extraction (quality is
-            # load-bearing there — see graph/providers.py).
-            parse_model=os.getenv("OPENAI_PARSE_MODEL", "gpt-5.4"),
+            # load-bearing there — see graph/providers.py). Terra: 5.5-class quality
+            # at gpt-5.4's exact price — a free upgrade for the compounding role.
+            parse_model=os.getenv("OPENAI_PARSE_MODEL", "gpt-5.6-terra"),
             chat_temperature=float(os.getenv("CHAT_TEMPERATURE", "0.2")),
             max_history_turns=int(os.getenv("MAX_HISTORY_TURNS", "8")),
             **_common,

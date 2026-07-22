@@ -237,6 +237,46 @@ def transcribe_image(
 _judge_client: OpenAI | None = None
 
 
+def web_chat(messages: Sequence[Message], *, model: str | None = None) -> tuple[str, list[dict], dict | None]:
+    """One buffered answer with the provider-side web_search tool (Responses API).
+    The searching/fetching happens on the PROVIDER's infrastructure — the only
+    outbound traffic from this machine is the normal API call, which is what makes
+    this viable behind a corporate proxy. Returns (text, citations, usage) where
+    citations are unique {"title", "url"} in encounter order. Raises RuntimeError
+    with a readable message when the endpoint doesn't support the tool (typical
+    for restricted gateways) so the UI can say so instead of failing opaquely."""
+    try:
+        resp = _client.responses.create(
+            model=model or settings.chat_model,
+            input=[dict(m) for m in messages],
+            tools=[{"type": "web_search"}],
+        )
+    except Exception as exc:  # noqa: BLE001 — gateway differences are the norm here
+        raise RuntimeError(
+            f"Web search is not available on this endpoint ({exc}). "
+            "It needs the provider's Responses API with the web_search tool enabled."
+        ) from exc
+
+    citations, seen = [], set()
+    for item in getattr(resp, "output", None) or []:
+        for part in getattr(item, "content", None) or []:
+            for ann in getattr(part, "annotations", None) or []:
+                url = getattr(ann, "url", "")
+                if getattr(ann, "type", "") == "url_citation" and url and url not in seen:
+                    seen.add(url)
+                    citations.append({"title": getattr(ann, "title", "") or url, "url": url})
+    u = getattr(resp, "usage", None)
+    usage = None if u is None else {
+        "prompt_tokens": getattr(u, "input_tokens", 0) or 0,
+        "completion_tokens": getattr(u, "output_tokens", 0) or 0,
+        "total_tokens": (getattr(u, "total_tokens", 0)
+                         or (getattr(u, "input_tokens", 0) or 0)
+                         + (getattr(u, "output_tokens", 0) or 0)),
+        "cached_tokens": getattr(getattr(u, "input_tokens_details", None), "cached_tokens", 0) or 0,
+    }
+    return (getattr(resp, "output_text", "") or "", citations, usage)
+
+
 def judge_chat(
     messages: Sequence[Message],
     *,

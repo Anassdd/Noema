@@ -213,6 +213,34 @@ def assemble(*, run_id: str, dataset: str, prepared: dict, build: dict,
             usage_totals["generation"][k] = usage_totals["generation"].get(k, 0) + ((r.get("usage") or {}).get(k) or 0)
             usage_totals["judging"][k] = usage_totals["judging"].get(k, 0) + ((r.get("judge_usage") or {}).get(k) or 0)
 
+    # Token bill per ACTUAL model (resolved snapshots from the records, so a judge
+    # fallback or a mid-run override shows up as its own row). Build-time models
+    # (extractor/contextualizer/embeddings) are listed for provenance with no token
+    # figures — their spend happened at build time and is not in the run records.
+    per_model: dict[tuple[str, str], dict] = {}
+    for r in records:
+        for role, model, usage in (("answering", r.get("answer_model") or answer_model,
+                                    r.get("usage")),
+                                   ("judging", _judge(r).get("judge_model"),
+                                    r.get("judge_usage"))):
+            if not model or not usage:
+                continue
+            row = per_model.setdefault((role, model), {
+                "role": role, "model": model, "calls": 0,
+                "prompt_tokens": 0, "completion_tokens": 0, "cached_tokens": 0})
+            row["calls"] += 1
+            for k in ("prompt_tokens", "completion_tokens", "cached_tokens"):
+                row[k] += (usage.get(k) or 0)
+    model_usage = sorted(per_model.values(),
+                         key=lambda e: (e["role"], -e["prompt_tokens"]))
+    for role, model in (("extraction (build)", (build.get("models") or {}).get("extract")),
+                        ("contextualizer (build)", (build.get("models") or {}).get("context")),
+                        ("embeddings (build)", (build.get("models") or {}).get("embed"))):
+        if model:
+            model_usage.append({"role": role, "model": model, "calls": None,
+                                "prompt_tokens": None, "completion_tokens": None,
+                                "cached_tokens": None})
+
     # Provenance a stakeholder needs to trust (or discount) the numbers: who judged, whether
     # any verdict fell back to the generator's own model (self-preference), which retrieval
     # scope ran, and whether questions were document-anchored (which lifts the closed-book floor).
@@ -249,6 +277,7 @@ def assemble(*, run_id: str, dataset: str, prepared: dict, build: dict,
                      for t in ("factoid", "synthesis", "global", "null")],
         "graph_health": build.get("graph_health"),
         "usage_totals": usage_totals,
+        "model_usage": model_usage,
         "run_cost_usd": _run_cost(usage_totals, answer_model, judge_models),
         "headline": headline,
         "verdict": _verdict(headline, fusion, provenance, fusion_lightrag),
@@ -485,6 +514,17 @@ def render_markdown(report: dict) -> str:
                   f"- judging: {j.get('prompt_tokens', 0):,} in / {j.get('completion_tokens', 0):,} out "
                   f"→ {_usd(cost.get('judging_usd'))}",
                   f"- **run total: {_usd(cost.get('total_usd'))}**"]
+
+    if report.get("model_usage"):
+        lines += ["", "### Models used", "",
+                  "| role | model | calls | tokens in | tokens out | cached |",
+                  "|---|---|---|---|---|---|"]
+        for m in report["model_usage"]:
+            n = "—" if m["calls"] is None else f"{m['calls']:,}"
+            ti = "paid at build" if m["prompt_tokens"] is None else f"{m['prompt_tokens']:,}"
+            to = "—" if m["completion_tokens"] is None else f"{m['completion_tokens']:,}"
+            ca = "—" if m.get("cached_tokens") is None else f"{m['cached_tokens']:,}"
+            lines.append(f"| {m['role']} | `{m['model']}` | {n} | {ti} | {to} | {ca} |")
 
     if report["failure_gallery"]:
         lines += ["", "## 5. Failure analysis", "",

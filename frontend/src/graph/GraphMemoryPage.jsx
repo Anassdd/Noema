@@ -1268,8 +1268,10 @@ export default function GraphMemoryPage() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 9, pointerEvents: "auto" }}>
-          <span style={{ color: "#5cc8ff", fontSize: 18 }}>◆</span>
-          <span style={{ fontWeight: 600, fontSize: 15 }}>Noema · Graph Memory</span>
+          <span style={{ color: "#3f6fe0", fontSize: 18 }}>◆</span>
+          <span style={{ fontWeight: 700, fontSize: 15.5, letterSpacing: 0.2, color: "#eef2fb" }}>
+            Noema <span style={{ color: "#9aa6c2", fontWeight: 500 }}>Graph Memory</span>
+          </span>
           {/* engine switch — which memory this page shows and feeds */}
           <span
             style={{

@@ -4,6 +4,7 @@ import { estimateTokens } from "../lib/tokens.js";
 import { findCommand, matchCommands } from "../lib/commands.js";
 import { NO_MEMORY } from "../api/chat.js";
 import { listSaves } from "../api/graphmem.js";
+import { fetchModels } from "../api/models.js";
 import { PlusIcon, SendIcon, StopIcon, SparkIcon, Icon, ChevronDownIcon, CheckIcon } from "./icons.jsx";
 
 // Rounded composer (mockup style): auto-growing textarea, a circular attach
@@ -42,12 +43,22 @@ export default function MessageInput({
     if (expertEnabled) loadSaves();
   }, [expertEnabled]);
 
-  const allowedModes = modesFor(memory, memSaves);
+  // Whether the server allows provider-side web search (off by default on the
+  // llmaas gateway) — decides if the 🌐 Web retrieval mode is offered at all.
+  const [webOk, setWebOk] = useState(false);
+  useEffect(() => {
+    fetchModels().then((r) => setWebOk(!!r.web)).catch(() => {});
+  }, []);
+
+  const allowedModes = modesFor(memory, memSaves, webOk);
   useEffect(() => {
     // A memory switch can make the current retrieval mode impossible — snap to
-    // the first mode the selected memory actually supports.
+    // the first STORE mode the selected memory supports. Never auto-snap into
+    // "web": leaving the corpus for the internet must always be an explicit click.
     if (allowedModes.length && !allowedModes.includes(retrieval)) {
-      onSelectRetrieval(allowedModes[0]);
+      const store = allowedModes.find((m) => m !== "web");
+      if (store) onSelectRetrieval(store);
+      else if (retrieval !== null) onSelectRetrieval(null); // No memory -> plain chat
     }
   }, [memory, memSaves, retrieval]);
 
@@ -289,15 +300,17 @@ const ENGINE_LABELS = { graphiti: "Graphiti", lightrag: "LightRAG" };
 // memory -> all; a save -> only the engines it was made in (a Graphiti save
 // carries graph + vector base -> hybrid/rag/graph; a LightRAG save only itself).
 // A save missing from a stale list fails open rather than locking the UI.
-function modesFor(memory, saves) {
-  if (memory === NO_MEMORY) return [];
-  if (!memory) return RETRIEVAL_MODES.map((m) => m.id);
+function modesFor(memory, saves, webOk) {
+  const web = webOk ? ["web"] : [];
+  const stores = RETRIEVAL_MODES.map((m) => m.id).filter((id) => id !== "web");
+  if (memory === NO_MEMORY) return web; // web never touches the stores
+  if (!memory) return [...stores, ...web];
   const entry = saves.find((s) => s.name === memory);
-  if (!entry) return RETRIEVAL_MODES.map((m) => m.id);
+  if (!entry) return [...stores, ...web];
   const out = [];
   if (entry.engines.includes("graphiti")) out.push("hybrid", "rag", "graph");
   if (entry.engines.includes("lightrag")) out.push("lightrag");
-  return out;
+  return [...out, ...web];
 }
 
 // Pick which memory the expert grounds answers in: none at all (plain chat), the
@@ -369,6 +382,7 @@ const RETRIEVAL_MODES = [
   { id: "rag", label: "Vector only", hint: "contextual RAG alone — graph off" },
   { id: "graph", label: "Graph only", hint: "knowledge graph alone — RAG off" },
   { id: "lightrag", label: "LightRAG", hint: "LightRAG memory — its own graph + vectors" },
+  { id: "web", label: "Web search", hint: "provider-side web search — answers from the internet, not your documents" },
 ];
 
 function RetrievalSelector({ value, onChange, allowed }) {

@@ -39,4 +39,7 @@ def get_models() -> dict:
         ]
     except Exception:
         models = []
-    return {"models": models, "default": settings.chat_model}
+    return {"models": models, "default": settings.chat_model,
+            "default_strong": settings.parse_model,
+            "default_judge": settings.judge_model or settings.chat_model,
+            "web_search": settings.web_search}

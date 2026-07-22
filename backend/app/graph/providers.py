@@ -22,10 +22,12 @@ def _api_key() -> str:
 
 
 def _reasoning_effort(model: str, small_model: str) -> str:
-    """Graphiti's 'auto' default resolves to 'minimal', which the gpt-5.4 family
-    rejects ('low' is its floor). One client serves both the extract and the small
-    model, so the value must suit whichever of the two is a reasoning model."""
-    if model.startswith("gpt-5.4") or small_model.startswith("gpt-5.4"):
+    """Graphiti's 'auto' default resolves to 'minimal', which the gpt-5.x families
+    (5.4 and newer) reject — 'low' is their floor. One client serves both the
+    extract and the small model, so the value must suit whichever is a reasoning
+    model."""
+    prefixes = ("gpt-5", "sol", "terra", "luna")  # 5.6 tiers may appear as bare names
+    if model.startswith(prefixes) or small_model.startswith(prefixes):
         return "low"
     return "auto"
 

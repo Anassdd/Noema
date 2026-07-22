@@ -114,6 +114,40 @@ def test_multiple_datasets_run_concurrently():
     print("  concurrency: two datasets run + tail + stop independently; all_active tracks them ✓")
 
 
+def test_progress_tracks_stages():
+    """The dataset list's ring: progress follows the event stream through
+    answering -> judging -> finished, the overall pct only ever grows, and
+    the answer total is questions x configs from the start event."""
+    job = jobs.BenchJob("ds-p", "run")
+    seen = []
+
+    def feed(ev):
+        job.append(ev)
+        seen.append(dict(job.info()["progress"]))
+
+    feed({"phase": "start", "questions": 4, "configs": ["rag", "graph"]})
+    for i in range(4):
+        feed({"phase": "answered", "config": "rag", "i": i + 1, "total": 4,
+              "resumed": i == 0})
+    for i in range(4):
+        feed({"phase": "answered", "config": "graph", "i": i + 1, "total": 4})
+    feed({"phase": "judge_start", "verdicts": 8})
+    for i in range(8):
+        feed({"phase": "scored", "i": i + 1, "total": 8})
+    feed({"phase": "done"})
+
+    pr = job.info()["progress"]
+    assert pr["stage"] == "finished" and pr["pct"] == 1.0
+    stages = [p["stage"] for p in seen]
+    assert "answering" in stages and "judging" in stages
+    pcts = [p["pct"] for p in seen]
+    assert all(b >= a - 1e-9 for a, b in zip(pcts, pcts[1:])), "pct must never go backwards"
+    mid = next(p for p in seen if p["stage"] == "answering" and p["done"] == 8)
+    assert mid["total"] == 8, "total = questions x configs"
+    assert seen[0]["eta_seconds"] is None, "no ETA before real progress is measurable"
+    print("  progress: stages tracked, pct monotonic, totals from start event ✓")
+
+
 TESTS = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
 
 if __name__ == "__main__":

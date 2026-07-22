@@ -4,13 +4,14 @@ What each push adds, newest first. One entry per push (a push may carry several
 commits — they're grouped under its date and headline). Update this file as
 part of every push.
 
-## 2026-07-22 — Noema knows its own settings
+## 2026-07-22 — /settings command (app help on demand)
 
-- A static app guide now rides first in every system prompt (one shared cached
-  prefix across all conversations): the assistant can answer "how do I clear my
-  memory / switch retrieval / set a persona / upload documents" with the real
-  controls — header icons, Settings rows, composer selectors, slash commands,
-  memory behavior — and is instructed never to invent controls.
+- New `/settings <question>` command: the full app guide (header icons,
+  Settings rows, composer selectors, slash commands, memory behavior) is
+  loaded for that ONE answer — asked as plain chat, no retrieval — then gone.
+  Normal chats carry only a one-line identity that redirects "how do I…?"
+  questions to /settings instead of guessing. Replaces the short-lived
+  always-in-context guide from earlier today.
 
 ## 2026-07-22 — Personal memory v2 + web retrieval mode
 

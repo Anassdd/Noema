@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 
 import { NO_MEMORY, streamChat } from "../api/chat.js";
-import { buildSystemMessage } from "../lib/systemPrompt.js";
+import { SETTINGS_GUIDE, buildSystemMessage } from "../lib/systemPrompt.js";
 import {
   looksMemorable,
   looksPastReferential,
@@ -42,7 +42,7 @@ export function useChatStream({
   const frozenMemory = useRef(null);
 
   const sendMessage = useCallback(
-    async (text) => {
+    async (text, { settingsHelp = false } = {}) => {
       const userMsg = { role: "user", content: text };
       const isFirstExchange = messages.length === 0;
       const shown = [...messages, userMsg]; // displayed transcript (may have notes)
@@ -70,6 +70,15 @@ export function useChatStream({
         (m) => m.role === "user" || m.role === "assistant",
       );
       const history = sys ? [sys, ...turns] : turns;
+
+      // /settings: the app guide rides for THIS turn only, right before the
+      // question — normal chats never pay for it.
+      if (settingsHelp) {
+        history.splice(history.length - 1, 0, {
+          role: "system",
+          content: SETTINGS_GUIDE,
+        });
+      }
 
 
       const controller = new AbortController();
@@ -118,13 +127,15 @@ export function useChatStream({
           model,
           // "No memory" selected in the composer = plain chat for this message,
           // even with expert mode on.
-          useMemory: expertEnabled && memory !== NO_MEMORY,
+          // A /settings question is about the app, not the corpus — plain
+          // chat, no retrieval, no archive recall.
+          useMemory: !settingsHelp && expertEnabled && memory !== NO_MEMORY,
           domain,
           memory: memory === NO_MEMORY ? null : memory,
-          retrieval,
+          retrieval: settingsHelp ? null : retrieval,
           // Archive recall happens server-side, in-process — no extra round
           // trip. The wide flag marks explicitly past-referential phrasing.
-          recall: memoryEnabled,
+          recall: memoryEnabled && !settingsHelp,
           recallWide: looksPastReferential(text),
         });
 

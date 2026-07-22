@@ -49,6 +49,15 @@ export const COMMANDS = [
     chip: "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900",
   },
   {
+    cmd: "/settings",
+    label: "Settings",
+    desc: "Ask how to use or configure the app",
+    usage: "/settings how do I clear my memory",
+    hint: "Loads the app guide for that one answer — normal chats never carry it.",
+    text: "text-sky-600 dark:text-sky-400",
+    chip: "bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-900",
+  },
+  {
     cmd: "/help",
     label: "Help",
     desc: "Show this command guide",

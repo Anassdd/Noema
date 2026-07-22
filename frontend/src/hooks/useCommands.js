@@ -15,6 +15,7 @@ export function useCommands({
   onRemember,
   onSetCharacter,
   onForgetMemory,
+  onSettingsQuestion,
   selectedMemory,
   expertEnabled,
 }) {
@@ -109,6 +110,22 @@ export function useCommands({
     // /clear: wipe this conversation's transcript (memory/PDFs untouched).
     if (lower === "/clear" || lower.startsWith("/clear ")) {
       setMessages([]);
+      return true;
+    }
+
+    // /settings <question>: answer an app-usage question with the app guide
+    // loaded for that ONE turn (normal chats never carry it).
+    if (lower.startsWith("/settings")) {
+      const question = trimmed.slice("/settings".length).trim();
+      if (!question) {
+        addNote(
+          "Usage: /settings <your question about the app> — e.g. " +
+            "“/settings how do I clear my memory”. The app guide is loaded " +
+            "only for that answer.",
+        );
+        return true;
+      }
+      onSettingsQuestion(question);
       return true;
     }
 

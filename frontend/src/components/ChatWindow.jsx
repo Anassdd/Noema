@@ -53,6 +53,7 @@ export default function ChatWindow({
       onRemember,
       onSetCharacter,
       onForgetMemory,
+      onSettingsQuestion: (question) => sendMessage(question, { settingsHelp: true }),
       selectedMemory,
       expertEnabled,
     });

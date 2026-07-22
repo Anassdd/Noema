@@ -1,0 +1,14 @@
+{
+ "dataset": "basel-faq",
+ "builds": [],
+ "prepared": {
+  "cap_tokens": 10000,
+  "docs": 4,
+  "tokens": 9237,
+  "corpus_hash": "b67b29e3dd3e1513",
+  "unique_contexts_in_file": 127,
+  "questions_in_file": 424,
+  "questions_kept": 24,
+  "gold_source": "human (BCBS Basel Framework FAQs — official BIS answers to market participants' questions; GBS-QA-style reconstruction)"
+ }
+}

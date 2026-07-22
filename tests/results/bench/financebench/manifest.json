@@ -1,0 +1,14 @@
+{
+ "dataset": "financebench",
+ "builds": [],
+ "prepared": {
+  "cap_tokens": 100000,
+  "docs": 4,
+  "tokens": 98390,
+  "corpus_hash": "9bb8653f96884cc6",
+  "unique_contexts_in_file": 84,
+  "questions_in_file": 150,
+  "questions_kept": 11,
+  "gold_source": "human (FinanceBench — Islam et al. 2023, Patronus AI; 150-question open-source set)"
+ }
+}

@@ -1,0 +1,14 @@
+{
+ "dataset": "s1-hotpotqa",
+ "builds": [],
+ "prepared": {
+  "cap_tokens": 10000,
+  "docs": 72,
+  "tokens": 9951,
+  "corpus_hash": "aada40b66878f63c",
+  "unique_contexts_in_file": 66569,
+  "questions_in_file": 7405,
+  "questions_kept": 8,
+  "gold_source": "human (HotpotQA dev distractor — Yang et al. 2018; crowdsourced multi-hop questions with annotated supporting sentences)"
+ }
+}

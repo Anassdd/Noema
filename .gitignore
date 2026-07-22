@@ -43,12 +43,18 @@ backend/uploads/
 #   git rm -r --cached tests/results/rag_store/
 tests/results/rag_store/
 
-# Bench data lives in the separate noema-bench-data repo (datasets, prepared
-# workdirs, run archives — see .env BENCH_*_DIR). These legacy in-repo locations
-# stay ignored so an unconfigured checkout never re-pollutes the product repo.
-tests/results/bench/
+# Bench in-flight query records — crash-resume state for a run on THIS machine;
+# deleted when its run completes, meaningless on any other box.
+tests/results/bench/*/runs/inflight/
+
+# Pull-proof local archive: every finished run's report is COPIED here
+# (app/bench/archive.py). Gitignored on purpose — `git pull` can never replace
+# or conflict with it; publishing results to git stays a manual act.
 tests/results/bench_archive/
-backend/data/bench/
+
+# Official upstream benchmark releases (CRAG bz2, FinanceBench PDFs, BCBS crawl) —
+# hundreds of MB, re-downloadable; only the converted <name>.json files are tracked.
+backend/data/bench/raw/
 
 # Accounts + sessions (salted password hashes and tokens).
 backend/data/auth/

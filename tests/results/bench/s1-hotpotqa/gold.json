@@ -1,0 +1,98 @@
+[
+ {
+  "id": "q001",
+  "n": 1,
+  "doc_id": "",
+  "source": "human",
+  "question": "Who wrote the lyrics to the theme song that was used by the Western film series Range Busters?",
+  "answer": "Dr. Brewster M. Higley",
+  "alt_answers": [],
+  "evidence": "The Range Busters was a film series of 24 Westerns of the adventures of a trio of cowboys, many filmed at the Corriganville Movie Ranch, produced by George W. Weeks and distributed by Monogram Pictures. The series used \"Home on the Range\" as its theme song with each film featuring the heroes waving goodbye and promising to return in another adventure.\"Home on the Range\" is a classic western folk song sometimes called the \"unofficial anthem\" of the American West. The lyrics were originally written by Dr. Brewster M. Higley of Smith County, Kansas, in a poem entitled \"My Western Home\" in 1872.",
+  "type": "bridge",
+  "status": "approved"
+ },
+ {
+  "id": "q002",
+  "n": 2,
+  "doc_id": "",
+  "source": "human",
+  "question": "What is the population of the town at the intersection of Interstate Highways 77 and  the longest Interstate highway within the borders of Virginia?",
+  "answer": "8,211 at the 2010 census",
+  "alt_answers": [],
+  "evidence": " Wytheville's population was 8,211 at the 2010 census. Located at the intersection of Interstate Highways 77 and 81, the town has long been a crossroads for travelers.Interstate 81 (I-81) is an 855 mi highway. It is also the longest Interstate highway within the borders of Virginia.",
+  "type": "bridge",
+  "status": "approved"
+ },
+ {
+  "id": "q003",
+  "n": 3,
+  "doc_id": "",
+  "source": "human",
+  "question": "When did the man for whom St Vincents Hall, Grantham was built found his eponymous company?",
+  "answer": "1828",
+  "alt_answers": [],
+  "evidence": "St Vincents Hall, Grantham, is a Gothic Revival mansion built in 1868 for the industrialist Richard Hornsby who founded Richard Hornsby & Sons, engine and machinery manufacturer.Richard Hornsby & Sons was an engine and machinery manufacturer in Lincolnshire, England from 1828 until 1918.",
+  "type": "bridge",
+  "status": "approved"
+ },
+ {
+  "id": "q004",
+  "n": 4,
+  "doc_id": "",
+  "source": "human",
+  "question": "The Voyage is a wooden roller coaster located at a theme park divided into how many sections ?",
+  "answer": "four sections",
+  "alt_answers": [],
+  "evidence": "The Voyage is a wooden roller coaster located at Holiday World & Splashin' Safari in Santa Claus, Indiana. The theme park is divided into four sections that celebrate Christmas, Halloween, Thanksgiving and the Fourth of July with rides, live entertainment, games, and attractions.",
+  "type": "bridge",
+  "status": "approved"
+ },
+ {
+  "id": "q005",
+  "n": 5,
+  "doc_id": "",
+  "source": "human",
+  "question": "What year was the company, who released Forever Kingdom for PlayStation 2, founded?",
+  "answer": "1986",
+  "alt_answers": [],
+  "evidence": "Forever Kingdom, known in Japan as Evergrace II (エヴァーグレイス , Evāgureisu Tsu ) , is an action role-playing game released for the PlayStation 2 by FromSoftware.FromSoftware, Inc. (株式会社フロム・ソフトウェア , Kabushikigaisha Furomu Sofutowea ) is a Japanese video game company founded in November 1986.",
+  "type": "bridge",
+  "status": "approved"
+ },
+ {
+  "id": "q006",
+  "n": 6,
+  "doc_id": "",
+  "source": "human",
+  "question": "Keith Konrad Slettedahl appeared on which season of \"How I Met Your Mother\"?",
+  "answer": "first",
+  "alt_answers": [],
+  "evidence": "Keith Konrad Slettedahl (born August 9, 1973) is an American musician. In 2006, he appeared in the episode \"Best Prom Ever\" on the sitcom \"How I Met Your Mother\", playing a gig with his band on a High School-Prom.\"Best Prom Ever\" is the 20th episode in the first season of the television series \"How I Met Your Mother\".",
+  "type": "bridge",
+  "status": "approved"
+ },
+ {
+  "id": "q007",
+  "n": 7,
+  "doc_id": "",
+  "source": "human",
+  "question": "The 2017 European Short Course Swimming Championships will be held in an Arena which began construction when?",
+  "answer": "26 June 2013",
+  "alt_answers": [],
+  "evidence": " The meet will be held in the Royal Arena, which was finished in early 2017. The ground was broken for construction on 26 June 2013 and the arena opened in February 2017.",
+  "type": "bridge",
+  "status": "approved"
+ },
+ {
+  "id": "q008",
+  "n": 8,
+  "doc_id": "",
+  "source": "human",
+  "question": "What family are the genus' Sinofranchetia and Stauntonia from?",
+  "answer": "a genus of flowering plant in the Lardizabalaceae family",
+  "alt_answers": [],
+  "evidence": "Sinofranchetia is a genus of flowering plant in the Lardizabalaceae family.Stauntonia is a genus of flowering plant in the Lardizabalaceae family.",
+  "type": "comparison",
+  "status": "approved"
+ }
+]

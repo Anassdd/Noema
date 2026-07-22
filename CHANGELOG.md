@@ -4,6 +4,15 @@ What each push adds, newest first. One entry per push (a push may carry several
 commits — they're grouped under its date and headline). Update this file as
 part of every push.
 
+## 2026-07-22 — Bench data back in-repo (split postponed)
+
+- The datasets and prepared workdirs return to the product repo (legacy
+  locations, tracked again) so today's single-zip workflow keeps working —
+  now including the four staged additions: s1-crag (1,399 Q, all CRAG
+  domains), s1-hotpotqa (7,405 Q), s2-cuad (4,182 Q), s3-finqa (883 Q).
+- The separate noema-bench-data repo and the BENCH_*_DIR env seam stay
+  available for the planned GitLab split — just unused for now.
+
 ## 2026-07-22 — Production mode + sectioned Settings; No-memory default
 
 - **Production mode** (Settings → Application, persisted): hides the token

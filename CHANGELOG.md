@@ -4,6 +4,14 @@ What each push adds, newest first. One entry per push (a push may carry several
 commits — they're grouped under its date and headline). Update this file as
 part of every push.
 
+## 2026-07-22 — Noema knows its own settings
+
+- A static app guide now rides first in every system prompt (one shared cached
+  prefix across all conversations): the assistant can answer "how do I clear my
+  memory / switch retrieval / set a persona / upload documents" with the real
+  controls — header icons, Settings rows, composer selectors, slash commands,
+  memory behavior — and is instructed never to invent controls.
+
 ## 2026-07-22 — Personal memory v2 + web retrieval mode
 
 - **Personal memory rebuilt as four markdown files per account** (frontier

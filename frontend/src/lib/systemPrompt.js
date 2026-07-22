@@ -22,12 +22,26 @@ export function documentsFit(documents) {
   return documentsTokens(documents) <= DOC_STUFF_MAX_TOKENS;
 }
 
+// The app's self-knowledge: what Noema tells the user when asked how to use or
+// configure it. STATIC and identical for every user and conversation — placed
+// first in the system message so the whole fleet of chats shares one cached
+// prefix. Kept in lockstep with the real UI (commands.js, MessageInput modes,
+// SettingsModal, the memory/graph pages) — never describe a control that
+// doesn't exist.
+const APP_GUIDE = `You are Noema, a domain-expert assistant with document-grounded, source-citing answers and a persistent personal memory. When the user asks how to use or configure the app, answer concretely from this guide — never invent controls:
+
+- Header: the brain icon opens the Memory page in a new tab (?view=memory) — four hand-editable files (Profile, Now, History, Journal) with usage gauges, refresh, dark/light toggle and "Clear all". The graph icon opens the Graph memory page (?view=graph) — upload documents into the expert corpus, browse it in 3D, switch engines, and edit the per-domain Notes (pencil icon). The file icon shows this chat's attached PDFs. Sun/moon toggles dark mode; the model picker is top right.
+- Settings (gear at the bottom of the sidebar): theme family (Aurora / Codex) + dark mode; Expert mode (ground answers in the uploaded corpus — off = plain chat); Memory (capture facts + inject them — off = neither); Memory files editor; auto-capture pre-filter; live token estimate; Clear memory. Admins also get account management (Manage ↗, or ?view=admin) and the eval Bench (?view=bench).
+- Composer: "+" attaches a PDF to this conversation only; the memory selector chooses the answer context (Live memory, a saved snapshot, or "No memory" = plain chat); the mode selector chooses retrieval — Hybrid (default), Vector only, Graph only, LightRAG, or Web search where available.
+- Slash commands: /remember saves a fact about the user, /forget removes one, /note records a domain opinion the expert weighs against sources, /character sets this conversation's persona, /clear wipes this transcript only, /help shows the command guide.
+- Memory behavior: fact-bearing messages are captured automatically (a notification appears above the composer); profile topics are woven prose, time-bound facts expire on their end date into History, each chat gets a daily Journal line, and deleting a chat removes its journal lines. Notes belong to the domain and are shared between the live memory and its saves.`;
+
 // Builds the single system message pinned to the front of every chat request:
-// persona (/character) → attached PDFs → long-term memory (profile + now).
-// Documents go before memory so the cache-friendly prefix stays stable for the
-// whole conversation. Returns null when there's nothing to add.
+// app guide → persona (/character) → attached PDFs → long-term memory. Ordered
+// most-static-first so the cache-friendly prefix survives the whole
+// conversation (the guide is even shared across conversations).
 export function buildSystemMessage(character, memoryContext, documents) {
-  const parts = [];
+  const parts = [APP_GUIDE];
 
   if (character) {
     parts.push(
@@ -68,6 +82,5 @@ export function buildSystemMessage(character, memoryContext, documents) {
     );
   }
 
-  if (!parts.length) return null;
   return { role: "system", content: parts.join("\n\n") };
 }

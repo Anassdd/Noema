@@ -45,12 +45,14 @@ ABOUT = ("CRAG (Meta, KDD Cup 2024): human-written questions with verified answe
          "slices show where the graph pays off; false-premise gold is 'invalid question'.")
 
 
-def convert(src_path, max_questions: int = 0) -> dict:
+def convert(src_path, max_questions: int = 0, domains: set[str] | None = None) -> dict:
+    domains = DOMAINS if domains is None else domains  # explicit empty set = all domains
     kept = []
     with bz2.open(src_path, "rt", encoding="utf-8") as fh:
         for line in fh:
             rec = json.loads(line)
-            if rec["domain"] not in DOMAINS or rec["static_or_dynamic"] != "static":
+            if (domains and rec["domain"] not in domains) \
+                    or rec["static_or_dynamic"] != "static":
                 continue
             pages = []
             for sr in rec.get("search_results", []):
@@ -95,9 +97,17 @@ def main():
     ap.add_argument("src", help="path to crag_task_1_and_2_dev_v*.jsonl.bz2")
     ap.add_argument("--out", default=str(RAW_DIR / "crag-fin-open.json"))
     ap.add_argument("--max-questions", type=int, default=0, help="0 = keep all")
+    ap.add_argument("--domains", default="",
+                    help="comma-separated CRAG domains to keep (default: finance,open); "
+                         "'all' = every domain — the full multi-domain generalist slice")
     args = ap.parse_args()
 
-    data = convert(args.src, args.max_questions)
+    wanted = None
+    if args.domains and args.domains != "all":
+        wanted = {d.strip() for d in args.domains.split(",") if d.strip()}
+    elif args.domains == "all":
+        wanted = set()  # empty = no domain filter
+    data = convert(args.src, args.max_questions, wanted)
     write_json_atomic(data, args.out)
     types = Counter(q["type"] for q in data["questions"])
     print(f"{args.out}: {len(data['questions'])} questions, {len(data['documents'])} pages")

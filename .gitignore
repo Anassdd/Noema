@@ -43,9 +43,11 @@ backend/uploads/
 #   git rm -r --cached tests/results/rag_store/
 tests/results/rag_store/
 
-# Bench data lives in the noema-bench-data repo, auto-detected as a SIBLING
-# clone (../noema-bench-data — see bench/store.py sibling()). These legacy
-# in-repo locations stay ignored so nothing ever re-pollutes the product repo.
+# Bench data lives in the noema-bench-data repo, cloned INTO benchdata/
+# (its own git checkout — auto-detected by bench/store.py, pulled/pushed
+# independently; ../noema-bench-data as a sibling also works). Legacy in-repo
+# locations stay ignored so nothing ever re-pollutes the product repo.
+benchdata/
 tests/results/bench/
 tests/results/bench_archive/
 backend/data/bench/

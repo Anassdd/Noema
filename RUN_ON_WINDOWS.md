@@ -191,29 +191,29 @@ Desktop.) No code changes — it's a `.env` switch.
 ## 7. Bench data (separate repo)
 
 Datasets, prepared workdirs and run archives live in a **separate repo** —
-`noema-bench-data` — which Noema **auto-detects when cloned BESIDE the code**:
+`noema-bench-data` — cloned **inside the project**, into `benchdata\`:
 
 ```
-work\
-├── noema\               (this repo)
-└── noema-bench-data\    (the data repo — same parent folder, that's the whole link)
+noema\
+└── benchdata\          <- the data repo's own git checkout (gitignored by noema)
+    ├── datasets\        the 12 drop-in dataset files
+    ├── work\            prepared corpora, gold, runs
+    └── archive\         pull-proof copies of finished reports
 ```
 
-Nothing to configure: no `.env` entries, no paths. If the sibling folder
-exists, the bench uses it; otherwise the bench simply has no datasets.
-(Explicit `BENCH_DATA_DIR`/`BENCH_WORK_DIR`/`BENCH_ARCHIVE_DIR` env vars still
-override for unusual layouts.)
+Noema auto-detects it (backend/app/bench/store.py) — no `.env`, no paths.
+Without the clone, the bench simply lists no datasets. A clone at
+`..\noema-bench-data` (beside the repo) also works.
 
 One-time setup here:
 1. Create the GitLab project `noema-bench-data`.
-2. Download the repo zip from GitHub, extract, `git init` + `git remote add
-   origin <gitlab-url>` + commit + push (same bridge as the code repo).
-3. `git clone <gitlab-url>` into the folder **next to** the noema clone.
+2. Download the repo zip from your GitHub, extract, `git init` + `git remote
+   add origin <gitlab-url>` + commit + push (same bridge as the code repo).
+3. From the noema folder: `git clone <gitlab-url> benchdata`
 
-Sync = git, both directions:
-- updates from the Mac -> zip bridge -> GitLab -> `git pull` (rare; datasets are
-  mostly one-time cargo);
-- overnight results made here -> `git add -A && git commit && git push` from the
-  data folder — versioned on GitLab, never lost, independent of code pulls.
-`work/*/runs/inflight/` is gitignored (machine-local resume state), so a pull
-never collides with a live run.
+Sync = git, both directions (`make sync` pulls code + data together):
+- updates from the Mac -> zip bridge -> GitLab -> pull (rare cargo);
+- overnight results made here -> `cd benchdata && git add -A && git commit &&
+  git push` — versioned on GitLab, never lost, independent of code pulls.
+`work/*/runs/inflight/` is gitignored inside benchdata (machine-local resume
+state), so a pull never collides with a live run.

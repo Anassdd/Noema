@@ -21,20 +21,35 @@ from app.config import state_path
 _REPO = Path(__file__).resolve().parents[3]
 
 
-def sibling(sub: str, legacy: Path) -> Path:
-    """The zero-config link between the code and data repos: when a
-    `noema-bench-data` clone sits BESIDE this repo, its `<sub>` dir is the
-    default home for that store — same convention on every machine (Mac +
-    GitHub, machine de dev + GitLab), nothing in .env. Override the location
-    with BENCH_SIBLING_DIR (empty string disables the convention entirely —
-    tests use that). Explicit per-store env vars and NOEMA_STATE_DIR still
-    win over this default."""
+def _data_root() -> Path | None:
+    """Where the noema-bench-data clone lives — the zero-config link between
+    the code and data repos, same convention on every machine (Mac + GitHub,
+    machine de dev + GitLab), nothing in .env. Checked in order:
+
+      1. BENCH_SIBLING_DIR env — explicit location; empty string disables
+         detection entirely (tests use that).
+      2. <repo>/benchdata/ — the placeholder folder shipped with the repo,
+         counted only once a real clone is inside (it has a datasets/ dir).
+      3. ../noema-bench-data — a clone beside the repo.
+    """
     root = os.getenv("BENCH_SIBLING_DIR")
-    if root is None:
-        root = str(_REPO.parent / "noema-bench-data")
-    if root and Path(root).is_dir():
-        return Path(root) / sub
-    return legacy
+    if root is not None:
+        return Path(root) if root and Path(root).is_dir() else None
+    nested = _REPO / "benchdata"
+    if (nested / "datasets").is_dir():
+        return nested
+    sib = _REPO.parent / "noema-bench-data"
+    if (sib / "datasets").is_dir():
+        return sib
+    return None
+
+
+def sibling(sub: str, legacy: Path) -> Path:
+    """A bench store's default home: `<data repo>/<sub>` when a data clone is
+    found (see _data_root), else the legacy in-repo location. Explicit
+    per-store env vars and NOEMA_STATE_DIR still win over this default."""
+    root = _data_root()
+    return (root / sub) if root else legacy
 
 
 RAW_DIR = Path(os.getenv("BENCH_DATA_DIR", "")

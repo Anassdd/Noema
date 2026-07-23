@@ -4,16 +4,17 @@ What each push adds, newest first. One entry per push (a push may carry several
 commits — they're grouped under its date and headline). Update this file as
 part of every push.
 
-## 2026-07-23 — Bench data split for real: sibling auto-detect
+## 2026-07-23 — Bench data split for real: benchdata/ clone-in-place
 
 - All bench data (12 datasets, workdirs, archives, raw sources) now lives ONLY
-  in the noema-bench-data repo. The product repo auto-detects it as a sibling
-  clone (../noema-bench-data) — zero configuration on any machine; explicit
-  BENCH_*_DIR env vars and NOEMA_STATE_DIR still override.
-- `make sync` pulls the code and the data repo together.
+  in the noema-bench-data repo, cloned INTO the project at `benchdata/` (its
+  own gitignored git checkout; a ../noema-bench-data sibling also works).
+  Auto-detected — zero configuration on any machine; explicit BENCH_*_DIR env
+  vars and NOEMA_STATE_DIR still override.
+- `make sync` pulls the code and the data repo together; setup is one command:
+  `git clone <data-repo-url> benchdata`.
 - Legacy in-repo data locations removed from tracking and fully gitignored.
-- RUN_ON_WINDOWS §7 rewritten: clone the data repo beside the code (GitLab at
-  work), nothing else to wire.
+- RUN_ON_WINDOWS §7 rewritten for the clone-in-place setup (GitLab at work).
 
 ## 2026-07-23 — Stage 4 (security) + stage 5 (coding) bench datasets
 

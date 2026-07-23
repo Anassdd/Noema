@@ -188,32 +188,26 @@ Desktop.) No code changes — it's a `.env` switch.
   (for `llmaas`: `LLMAAS_BASE_URL`, `LLMAAS_CHAT_MODEL`).
 - **Port already in use (8000/5173/6379)** → stop the other process or change the port.
 
-## 7. Bench data (separate repo)
+## 7. Bench data
 
-Datasets, prepared workdirs and run archives live in a **separate repo** —
-`noema-bench-data` — cloned **inside the project**, into `benchdata\`:
+On the Mac, bench data lives in its own GitHub repo (`noema-bench-data`)
+cloned into `benchdata\`. **At work you run a SINGLE GitLab repo with the data
+inside** — simpler, and supported out of the box:
 
-```
-noema\
-└── benchdata\          <- the data repo's own git checkout (gitignored by noema)
-    ├── datasets\        the 12 drop-in dataset files
-    ├── work\            prepared corpora, gold, runs
-    └── archive\         pull-proof copies of finished reports
-```
+One-time setup of the GitLab repo (on the bridge PC):
+1. Download BOTH zips from GitHub: `Noema` and `noema-bench-data`.
+2. Extract Noema; extract the data zip and place its folders inside the
+   project as `benchdata\` (so you have `noema\benchdata\datasets`,
+   `...\work`, `...\archive`).
+3. Push the whole thing to the ONE GitLab project as usual. `benchdata` is
+   tracked like any other folder (only `benchdata\datasets\raw` and
+   in-flight run state stay ignored).
 
-Noema auto-detects it (backend/app/bench/store.py) — no `.env`, no paths.
-Without the clone, the bench simply lists no datasets. A clone at
-`..\noema-bench-data` (beside the repo) also works.
+On the machine de dev: `git pull` — code and data arrive together, exactly as
+before the split. Noema auto-detects `benchdata\` (no `.env` entries).
+Overnight results land in `benchdata\work\...\runs` and are committed +
+pushed with a normal `git add -A && git commit && git push`.
 
-One-time setup here:
-1. Create the GitLab project `noema-bench-data`.
-2. Download the repo zip from your GitHub, extract, `git init` + `git remote
-   add origin <gitlab-url>` + commit + push (same bridge as the code repo).
-3. From the noema folder: `git clone <gitlab-url> benchdata`
-
-Sync = git, both directions (`make sync` pulls code + data together):
-- updates from the Mac -> zip bridge -> GitLab -> pull (rare cargo);
-- overnight results made here -> `cd benchdata && git add -A && git commit &&
-  git push` — versioned on GitLab, never lost, independent of code pulls.
-`work/*/runs/inflight/` is gitignored inside benchdata (machine-local resume
-state), so a pull never collides with a live run.
+Updating later from the Mac: copy the relevant zip's contents over the GitLab
+working copy (code zip -> project root, data zip -> benchdata\), commit, push,
+pull on the machine de dev.

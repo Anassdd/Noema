@@ -4,6 +4,16 @@ What each push adds, newest first. One entry per push (a push may carry several
 commits — they're grouped under its date and headline). Update this file as
 part of every push.
 
+## 2026-07-23 — benchdata/ tracks on single-repo deployments
+
+- `benchdata/` is no longer in the tracked .gitignore: at work (one GitLab
+  repo, data inside) its files — datasets, workdirs, run results — commit
+  like any other, so overnight runs can never be silently skipped. On the
+  Mac, where benchdata/ is its own GitHub clone, it's ignored locally via
+  .git/info/exclude (one line, documented). Only datasets/raw and inflight
+  state stay ignored everywhere. RUN_ON_WINDOWS §7 rewritten for the
+  single-repo work setup.
+
 ## 2026-07-23 — Bench data split for real: benchdata/ clone-in-place
 
 - All bench data (12 datasets, workdirs, archives, raw sources) now lives ONLY

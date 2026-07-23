@@ -43,11 +43,16 @@ backend/uploads/
 #   git rm -r --cached tests/results/rag_store/
 tests/results/rag_store/
 
-# Bench data lives in the noema-bench-data repo, cloned INTO benchdata/
-# (its own git checkout — auto-detected by bench/store.py, pulled/pushed
-# independently; ../noema-bench-data as a sibling also works). Legacy in-repo
-# locations stay ignored so nothing ever re-pollutes the product repo.
-benchdata/
+# Bench data lives in benchdata/ (see bench/store.py auto-detect). The folder
+# is deliberately NOT ignored here: on a single-repo deployment (the work
+# GitLab) its files — datasets, workdirs, run results — are tracked like any
+# other. On the Mac, where benchdata/ is its own git clone of noema-bench-data,
+# ignore it LOCALLY via .git/info/exclude (add a `benchdata/` line there —
+# local-only, never committed) so the embedded clone stays out of this repo.
+# Machine-local pieces of benchdata stay ignored everywhere:
+benchdata/datasets/raw/
+benchdata/work/*/runs/inflight/
+# Legacy in-repo data locations — retired, never to return:
 tests/results/bench/
 tests/results/bench_archive/
 backend/data/bench/

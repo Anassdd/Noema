@@ -24,6 +24,7 @@ export function useChatStream({
   expertEnabled,
   memory = null,
   retrieval = null,
+  effort = null,
   domain = "default",
   model,
   onUsage,

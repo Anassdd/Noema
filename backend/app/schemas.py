@@ -19,6 +19,7 @@ class ChatRequest(BaseModel):
     retrieval: str | None = None  # "hybrid" (default) | "rag" | "graph" | "lightrag" — which store answers
     recall: bool = False  # search the personal archive (history+journal) for this turn
     recall_wide: bool = False  # the message explicitly references the past (lower bar)
+    effort: str | None = None  # reasoning depth for THIS answer (composer selector)
 
 
 class MemoryRequest(BaseModel):

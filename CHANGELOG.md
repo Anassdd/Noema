@@ -1,6 +1,18 @@
 # Changelog
 
-What each push adds, newest first. One entry per push (a push may carry several
+What each push adds, newest first.
+
+## 2026-07-23 — Task-matched reasoning effort + chat effort selector
+
+- Every LLM role now runs at a research-backed thinking depth (quality-first):
+  judge **high** (the one role with measured accuracy gains from effort),
+  graph extractor **medium** (analysis-class; deeper shows no extraction
+  gain), contextualizer **low** (summarization-class), answers **medium**.
+  All env-tunable (JUDGE/EXTRACT/CONTEXT/CHAT_REASONING) and dropped
+  automatically on non-reasoning models.
+- New **Effort selector in the composer** (themed pill next to the retrieval
+  selector): Auto / Low / Medium / High per conversation, persisted, applied
+  to both plain and expert answers. One entry per push (a push may carry several
 commits — they're grouped under its date and headline). Update this file as
 part of every push.
 

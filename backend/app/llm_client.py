@@ -104,6 +104,7 @@ def chat(
     model: str | None = None,
     temperature: float | None = None,
     max_tokens: int | None = None,
+    reasoning: str | None = None,
 ) -> ChatResult | Iterator[StreamEvent]:
     """Run a chat completion.
 
@@ -118,11 +119,11 @@ def chat(
     temperature = settings.chat_temperature if temperature is None else temperature
 
     if stream:
-        return _chat_stream(messages, model, temperature, max_tokens)
-    return _chat_buffered(messages, model, temperature, max_tokens)
+        return _chat_stream(messages, model, temperature, max_tokens, reasoning)
+    return _chat_buffered(messages, model, temperature, max_tokens, reasoning)
 
 
-def _common_kwargs(model, messages, temperature, max_tokens) -> dict:
+def _common_kwargs(model, messages, temperature, max_tokens, reasoning=None) -> dict:
     """Shared request kwargs. Only include `max_tokens` when actually set —
     newer models (gpt-5, o-series) reject the legacy `max_tokens` param, even as
     null, so sending it unconditionally breaks them.
@@ -134,6 +135,10 @@ def _common_kwargs(model, messages, temperature, max_tokens) -> dict:
     }
     if max_tokens is not None:
         kwargs["max_tokens"] = max_tokens
+    # Thinking depth per call (task-matched: see config *_REASONING seams).
+    # Only sent when set; _create drops it if the model rejects the param.
+    if reasoning:
+        kwargs["reasoning_effort"] = reasoning
     return kwargs
 
 
@@ -164,9 +169,9 @@ def _create(client: OpenAI | None = None, **kwargs):
     return client.chat.completions.create(**kwargs)
 
 
-def _chat_buffered(messages, model, temperature, max_tokens) -> ChatResult:
+def _chat_buffered(messages, model, temperature, max_tokens, reasoning=None) -> ChatResult:
     resp = _create(
-        **_common_kwargs(model, messages, temperature, max_tokens),
+        **_common_kwargs(model, messages, temperature, max_tokens, reasoning),
         stream=False,
     )
     return ChatResult(
@@ -176,9 +181,9 @@ def _chat_buffered(messages, model, temperature, max_tokens) -> ChatResult:
     )
 
 
-def _chat_stream(messages, model, temperature, max_tokens) -> Iterator[StreamEvent]:
+def _chat_stream(messages, model, temperature, max_tokens, reasoning=None) -> Iterator[StreamEvent]:
     stream = _create(
-        **_common_kwargs(model, messages, temperature, max_tokens),
+        **_common_kwargs(model, messages, temperature, max_tokens, reasoning),
         stream=True,
         # Without this, the streamed response omits the usage block entirely.
         stream_options={"include_usage": True},

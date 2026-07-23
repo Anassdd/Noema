@@ -83,6 +83,8 @@ async def chat(req: ChatRequest, user: dict = Depends(require_user)) -> Streamin
     # Off-loop: the rare expansion fallback makes an LLM call, and even the
     # fast path reads files — neither belongs on the event loop.
     messages = await asyncio.to_thread(_with_recall, messages, req, user["username"])
+    # Sanitize the composer's effort pick — an unknown value must never reach the API.
+    effort = req.effort if req.effort in ("none", "low", "medium", "high", "xhigh") else None
 
     if (req.retrieval or "") == "web":
         # Web mode works with or without a memory selection — it never touches the
@@ -100,7 +102,8 @@ async def chat(req: ChatRequest, user: dict = Depends(require_user)) -> Streamin
     if not req.use_memory:
         def plain() -> Iterator[str]:
             try:
-                for event in llm_client.chat(messages, stream=True, model=req.model):
+                for event in llm_client.chat(messages, stream=True, model=req.model,
+                                             reasoning=effort or settings.chat_reasoning):
                     if event.type == "delta":
                         yield _sse("delta", {"text": event.text})
                     elif event.type == "usage":
@@ -117,7 +120,7 @@ async def chat(req: ChatRequest, user: dict = Depends(require_user)) -> Streamin
             async for ev in pipeline.answer_stream(
                 messages, model=req.model, domain_id=req.domain or "default",
                 memory=req.memory, retrieval=req.retrieval or "hybrid",
-                user=user["username"],
+                user=user["username"], effort=effort,
             ):
                 yield _sse(ev.pop("type"), ev)
         except Exception as exc:  # surface any pipeline/provider error to the UI

@@ -437,6 +437,7 @@ def _beliefs_msg(beliefs_text: str) -> dict:
 
 
 def _generate_sync(messages: list[dict], chunks: list[ScoredChunk], model: str | None,
+                   effort: str | None = None,
                    beliefs_text: str = ""):
     """Grounded answer, layering the sources (and the user's own notes, if any) onto the
     existing conversation (persona, user memory, history stay intact) just before the latest
@@ -446,7 +447,8 @@ def _generate_sync(messages: list[dict], chunks: list[ScoredChunk], model: str |
         blocks.append(_beliefs_msg(beliefs_text))
     blocks.append({"role": "system", "content": f"{_GROUND_SYS}\n\nSources:\n{_sources_block(chunks)}"})
     convo = list(messages[:-1]) + blocks + [messages[-1]] if messages else blocks
-    return llm_client.chat(convo, model=model, temperature=0.0)
+    return llm_client.chat(convo, model=model, temperature=0.0,
+                           reasoning=effort or settings.chat_reasoning)
 
 
 def grounded_answer(question: str, chunks: list[ScoredChunk], *, model: str | None = None):
@@ -460,7 +462,8 @@ def closed_book_answer(question: str, *, model: str | None = None):
     """The bench's contamination-floor config: the same generator, NO sources. What it
     scores is what the model already knew — every method's lift is measured above this."""
     return llm_client.chat(
-        [{"role": "user", "content": question}], model=model, temperature=0.0
+        [{"role": "user", "content": question}], model=model, temperature=0.0,
+        reasoning=settings.chat_reasoning,
     )
 
 
@@ -516,7 +519,7 @@ async def web_answer_stream(messages: list[dict], *,
 async def answer_stream(
     messages: list[dict], *, model: str | None = None, domain_id: str = "default",
     memory: str | None = None, retrieval: str = "hybrid", max_tries: int = 2,
-    user: str = "default",
+    user: str = "default", effort: str | None = None,
 ) -> AsyncIterator[dict]:
     """Drive the whole expert loop, yielding event dicts:
       {"type":"status", stage, detail}  — the live runtime trace
@@ -569,7 +572,8 @@ async def answer_stream(
         convo = messages
         if belief_text and messages:
             convo = list(messages[:-1]) + [_beliefs_msg(belief_text)] + [messages[-1]]
-        res = await asyncio.to_thread(lambda: llm_client.chat(convo, model=model))
+        res = await asyncio.to_thread(lambda: llm_client.chat(
+            convo, model=model, reasoning=effort or settings.chat_reasoning))
         for piece in _stream_pieces(res.text or ""):
             yield {"type": "delta", "text": piece}
         yield {"type": "usage", "usage": res.usage.__dict__ if res.usage else None}
@@ -621,7 +625,8 @@ async def answer_stream(
                 continue
 
         yield {"type": "status", "stage": "answering", "detail": "Composing a grounded answer…"}
-        res = await asyncio.to_thread(_generate_sync, messages, chunks, model, belief_text)
+        res = await asyncio.to_thread(_generate_sync, messages, chunks, model,
+                                      effort, belief_text)
         answer_text, usage = res.text or "", res.usage
 
         yield {"type": "status", "stage": "verifying", "detail": "Checking the answer is grounded in the sources…"}

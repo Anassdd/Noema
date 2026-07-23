@@ -108,6 +108,9 @@ export default function App() {
   const [selectedMemory, setSelectedMemory] = useState(NO_MEMORY);
   // Which store the expert retrieves from: "hybrid" (default) | "rag" | "graph" | "lightrag".
   const [retrievalMode, setRetrievalMode] = useState("hybrid");
+  // Reasoning depth for answers (composer selector; persisted). null = server default (medium).
+  const [effort, setEffort] = useState(() => window.localStorage.getItem("noema-effort") || null);
+  const selectEffort = (e) => { setEffort(e); e ? window.localStorage.setItem("noema-effort", e) : window.localStorage.removeItem("noema-effort"); };
 
   // Who is signed in, re-checked once against the backend so admin rights granted
   // (or a rename done) from another session show up without signing out.
@@ -227,6 +230,8 @@ export default function App() {
             selectedMemory={selectedMemory}
             onSelectMemory={setSelectedMemory}
             retrievalMode={retrievalMode}
+            effort={effort}
+            onSelectEffort={selectEffort}
             onSelectRetrieval={setRetrievalMode}
             tokenizerEnabled={settings.tokenizerEnabled}
             prodMode={settings.prodMode}

@@ -120,7 +120,16 @@ class Settings:
     # (e.g. gemini-3.5-flash) burning thinking tokens on them multiplies bench wall
     # time for nothing. "none" disables thinking; set JUDGE_REASONING= (empty) to
     # send no cap at all. Dropped automatically if the endpoint rejects it.
-    judge_reasoning: str = "none"
+    judge_reasoning: str = "high"
+
+    # Task-matched thinking depth (research-backed defaults, quality-first):
+    # extraction is analysis-class -> medium; a situating blurb is
+    # summarization-class -> low (deeper buys nothing measurable); chat answers
+    # default to medium and the composer's effort selector overrides per
+    # conversation. All are dropped automatically on non-reasoning models.
+    extract_reasoning: str = "medium"
+    context_reasoning: str = "low"
+    chat_reasoning: str = "medium"
 
     # Provider-side web search (the OpenAI web_search tool via the Responses API).
     # The searching runs on the PROVIDER's servers — nothing but the normal API
@@ -162,7 +171,10 @@ def load_settings() -> Settings:
         judge_model=os.getenv("JUDGE_MODEL", "gpt-5.6-sol"),
         judge_base_url=os.getenv("JUDGE_BASE_URL", ""),
         judge_api_key=os.getenv("JUDGE_API_KEY", ""),
-        judge_reasoning=os.getenv("JUDGE_REASONING", "none"),
+        judge_reasoning=os.getenv("JUDGE_REASONING", "high"),
+        extract_reasoning=os.getenv("EXTRACT_REASONING", "medium"),
+        context_reasoning=os.getenv("CONTEXT_REASONING", "low"),
+        chat_reasoning=os.getenv("CHAT_REASONING", "medium"),
         web_search=(os.getenv("WEB_SEARCH", "on" if provider == "openai" else "off")
                     .strip().lower() == "on"),
     )

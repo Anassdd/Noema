@@ -25,6 +25,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 from app import llm_client
+from app.config import settings
 from app.chunking.base import Chunk
 from app.chunking.tokens import count_tokens
 from app.config import settings
@@ -106,7 +107,8 @@ def _situate(context_text: str, chunk: Chunk, template: str, model: str | None,
              excerpted: bool = False) -> ContextualChunk:
     messages = [{"role": "user",
                  "content": template.format(document=context_text, chunk=chunk.text)}]
-    res = llm_client.chat(messages, model=model, temperature=0.0)
+    res = llm_client.chat(messages, model=model, temperature=0.0,
+                          reasoning=settings.context_reasoning)
     usage = res.usage
     return ContextualChunk(
         chunk=chunk,

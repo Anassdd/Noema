@@ -24,6 +24,8 @@ export default function MessageInput({
   onSelectMemory,
   retrieval,
   onSelectRetrieval,
+  effort,
+  onSelectEffort,
   expertEnabled,
   prodMode = false,
 }) {
@@ -245,6 +247,8 @@ export default function MessageInput({
             <RetrievalSelector value={retrieval} onChange={onSelectRetrieval} allowed={allowedModes} />
           )}
 
+          <EffortSelector value={effort} onChange={onSelectEffort} />
+
           <div className="ml-auto" />
 
           {isStreaming ? (
@@ -378,6 +382,67 @@ function MemorySelector({ value, onChange, saves, onOpen }) {
 // Which store answers: both fused (the product default), the contextual vector base
 // alone, the knowledge graph alone, or the self-contained LightRAG memory — so the
 // methods can be compared live in chat.
+// Reasoning depth for answers. Research-backed default = Medium (the provider
+// default and the guide's production setting); High for hard multi-step
+// questions; Low for quick lookups. null = follow the server default.
+const EFFORT_MODES = [
+  { id: null, label: "Auto", hint: "server default (medium) — balanced thinking" },
+  { id: "low", label: "Low", hint: "quick lookups — minimal thinking, fastest" },
+  { id: "medium", label: "Medium", hint: "balanced thinking for most questions" },
+  { id: "high", label: "High", hint: "deep thinking — hard, multi-step questions" },
+];
+
+function EffortSelector({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const mode = EFFORT_MODES.find((m) => m.id === value) || EFFORT_MODES[0];
+  const active = mode.id !== null;
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        title="How much the model thinks before answering"
+        className="flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs transition"
+        style={{
+          borderColor: active ? "var(--accent-border)" : "var(--border)",
+          color: active ? "var(--accent)" : "var(--text-soft)",
+          background: active ? "var(--accent-soft)" : "transparent",
+        }}
+      >
+        <Icon size={12} sw={1.8}>
+          <path d="M12 3a7 7 0 0 0-4 12.7V18a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3A7 7 0 0 0 12 3z" />
+          <path d="M10 21h4" />
+        </Icon>
+        <span>{mode.id ? `Effort: ${mode.label}` : "Effort"}</span>
+        <ChevronDownIcon size={12} sw={2} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
+          <div
+            className="animate-pop-in absolute bottom-full left-0 z-30 mb-2 w-64 rounded-xl border p-1.5"
+            style={{ background: "var(--sidebar-bg)", borderColor: "var(--border)", boxShadow: "var(--win-shadow)" }}
+          >
+            {EFFORT_MODES.map((m) => (
+              <button
+                key={String(m.id)}
+                onClick={() => { onChange(m.id); setOpen(false); }}
+                className="flex w-full flex-col rounded-lg px-3 py-2 text-left transition"
+                style={{ background: value === m.id ? "var(--accent-soft)" : "transparent" }}
+              >
+                <span className="flex items-center gap-1.5 text-[13px]" style={{ color: value === m.id ? "var(--accent)" : "var(--text)" }}>
+                  {m.label}
+                  {value === m.id && <CheckIcon size={12} sw={2.4} />}
+                </span>
+                <span className="text-[11px]" style={{ color: "var(--text-faint)" }}>{m.hint}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 const RETRIEVAL_MODES = [
   { id: "hybrid", label: "Hybrid", hint: "vector base + graph, fused (default)" },
   { id: "rag", label: "Vector only", hint: "contextual RAG alone — graph off" },

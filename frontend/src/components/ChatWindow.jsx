@@ -29,6 +29,8 @@ export default function ChatWindow({
   onSelectMemory,
   retrievalMode,
   onSelectRetrieval,
+  effort,
+  onSelectEffort,
   tokenizerEnabled,
   prodMode,
   character,
@@ -82,6 +84,7 @@ export default function ChatWindow({
     expertEnabled,
     memory: selectedMemory,
     retrieval: retrievalMode,
+    effort,
     model,
     onUsage,
     onAutoTitle,
@@ -218,6 +221,8 @@ export default function ChatWindow({
           memory={selectedMemory}
           onSelectMemory={onSelectMemory}
           retrieval={retrievalMode}
+          effort={effort}
+          onSelectEffort={onSelectEffort}
           onSelectRetrieval={onSelectRetrieval}
           expertEnabled={expertEnabled}
         />

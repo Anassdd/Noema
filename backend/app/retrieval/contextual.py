@@ -104,11 +104,11 @@ class ContextualChunk:
 
 
 def _situate(context_text: str, chunk: Chunk, template: str, model: str | None,
-             excerpted: bool = False) -> ContextualChunk:
+             excerpted: bool = False, reasoning: str | None = None) -> ContextualChunk:
     messages = [{"role": "user",
                  "content": template.format(document=context_text, chunk=chunk.text)}]
     res = llm_client.chat(messages, model=model, temperature=0.0,
-                          reasoning=settings.context_reasoning)
+                          reasoning=reasoning or settings.context_reasoning)
     usage = res.usage
     return ContextualChunk(
         chunk=chunk,
@@ -120,28 +120,32 @@ def _situate(context_text: str, chunk: Chunk, template: str, model: str | None,
     )
 
 
-def contextualize_chunk(document_markdown: str, chunk: Chunk, *, model: str | None = None) -> ContextualChunk:
+def contextualize_chunk(document_markdown: str, chunk: Chunk, *, model: str | None = None,
+                        reasoning: str | None = None) -> ContextualChunk:
     """One LLM call: whole document (cacheable prefix) + the chunk -> a short context blurb."""
-    return _situate(document_markdown, chunk, PROMPT_TEMPLATE, model)
+    return _situate(document_markdown, chunk, PROMPT_TEMPLATE, model, reasoning=reasoning)
 
 
 def _situate_group(context_text: str, chunks: list[Chunk], template: str,
-                   model: str | None, excerpted: bool, workers: int) -> list[ContextualChunk]:
+                   model: str | None, excerpted: bool, workers: int,
+                   reasoning: str | None = None) -> list[ContextualChunk]:
     """All chunks sharing one prompt prefix. The FIRST call runs alone — it writes the
     prefix cache — then the rest run in a small thread pool, reading it. Parallelizing
     the first call too would make every worker pay the full uncached prefix."""
-    first = _situate(context_text, chunks[0], template, model, excerpted)
+    first = _situate(context_text, chunks[0], template, model, excerpted, reasoning)
     rest = chunks[1:]
     if workers <= 1 or len(rest) <= 1:
-        return [first] + [_situate(context_text, c, template, model, excerpted) for c in rest]
+        return [first] + [_situate(context_text, c, template, model, excerpted, reasoning)
+                          for c in rest]
     with ThreadPoolExecutor(max_workers=workers) as pool:
         return [first] + list(pool.map(
-            lambda c: _situate(context_text, c, template, model, excerpted), rest))
+            lambda c: _situate(context_text, c, template, model, excerpted, reasoning), rest))
 
 
 def contextualize_chunks(document_markdown: str, chunks, *, model: str | None = None,
                          doc_cap: int | None = None, part_tokens: int | None = None,
-                         concurrency: int | None = None) -> list[ContextualChunk]:
+                         concurrency: int | None = None,
+                         reasoning: str | None = None) -> list[ContextualChunk]:
     """Contextualize every chunk of one document. Whole-document mode when the document
     fits `doc_cap`; excerpt mode otherwise. `concurrency` workers per prefix group
     (default CONTEXT_CONCURRENCY; 1 = fully sequential)."""
@@ -151,9 +155,10 @@ def contextualize_chunks(document_markdown: str, chunks, *, model: str | None = 
     workers = concurrency if concurrency is not None else settings.context_concurrency
     cap = doc_cap if doc_cap is not None else settings.context_doc_cap
     if count_tokens(document_markdown) <= cap:
-        return _situate_group(document_markdown, chunks, PROMPT_TEMPLATE, model, False, workers)
+        return _situate_group(document_markdown, chunks, PROMPT_TEMPLATE, model, False,
+                              workers, reasoning)
     budget = part_tokens if part_tokens is not None else settings.context_part_tokens
-    return _contextualize_excerpted(chunks, model, budget, workers)
+    return _contextualize_excerpted(chunks, model, budget, workers, reasoning)
 
 
 # ---- excerpt mode ----------------------------------------------------------
@@ -216,7 +221,8 @@ def _excerpt_for(chunks: list[Chunk], tok: list[int], head_end: int,
 
 
 def _contextualize_excerpted(chunks: list[Chunk], model: str | None,
-                             part_budget: int, workers: int) -> list[ContextualChunk]:
+                             part_budget: int, workers: int,
+                             reasoning: str | None = None) -> list[ContextualChunk]:
     tok = _chunk_tokens(chunks)
     head_end = _head_end(tok)
     span = max(_MIN_SPAN_TOKENS, part_budget - _HEAD_TOKENS - 2 * _MARGIN_TOKENS)
@@ -224,5 +230,5 @@ def _contextualize_excerpted(chunks: list[Chunk], model: str | None,
     for start, end in _batch_ranges(chunks, tok, span):
         excerpt = _excerpt_for(chunks, tok, head_end, start, end)
         out.extend(_situate_group(excerpt, chunks[start:end], EXCERPT_TEMPLATE,
-                                  model, True, workers))
+                                  model, True, workers, reasoning))
     return out

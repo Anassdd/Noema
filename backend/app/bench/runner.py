@@ -84,12 +84,19 @@ async def _with_retry(make_awaitable, *, tries: int = _ANSWER_TRIES):
 
 
 def _fingerprint(corpus_hash: str, cap: int, extract_model: str,
-                 context_model: str | None = None) -> str:
+                 context_model: str | None = None,
+                 extract_effort: str | None = None,
+                 context_effort: str | None = None) -> str:
     raw = f"{corpus_hash}|{cap}|{extract_model}|{settings.embed_model}|{_EP_VERSION}"
-    # An overridden contextualizer changes what the RAG leg produces -> a new
-    # fingerprint. Appended ONLY when set, so every existing build keeps its skip.
+    # Anything that changes what a build PRODUCES joins the fingerprint — an
+    # overridden contextualizer/extraction effort included. Appended ONLY when
+    # explicitly set, so every existing build keeps its skip.
     if context_model:
         raw += f"|ctx:{context_model}"
+    if extract_effort:
+        raw += f"|xe:{extract_effort}"
+    if context_effort:
+        raw += f"|ce:{context_effort}"
     return hashlib.sha256(raw.encode()).hexdigest()[:10]
 
 
@@ -138,7 +145,9 @@ def _usage_add(total: dict, usage) -> None:
 async def _build(dataset: str, docs: list[dict], domain: str, extract_model: str,
                  events: list, skip_episodes: set[str] | None = None,
                  skip_docs: set[str] | None = None,
-                 context_model: str | None = None) -> AsyncIterator[dict]:
+                 context_model: str | None = None,
+                 extract_effort: str | None = None,
+                 context_effort: str | None = None) -> AsyncIterator[dict]:
     """Ingest the corpus into `domain` (RAG first — cheap, then the graph — slow),
     yielding progress. `skip_episodes` / `skip_docs` = graph episodes and RAG docs
     that survived an interrupted build; they are not re-ingested (resume)."""
@@ -152,7 +161,8 @@ async def _build(dataset: str, docs: list[dict], domain: str, extract_model: str
                    "chunks": 0, "skipped": True}
             continue
         info = await asyncio.to_thread(ingest_markdown, doc["text"], doc["id"],
-                                       domain_id=domain, context_model=context_model)
+                                       domain_id=domain, context_model=context_model,
+                                       context_effort=context_effort)
         _usage_add(tokens["rag"], {"prompt_tokens": info.get("context_tokens", 0),
                                    "cached_tokens": info.get("cached_tokens", 0),
                                    "completion_tokens": 0})
@@ -162,7 +172,7 @@ async def _build(dataset: str, docs: list[dict], domain: str, extract_model: str
     from app.retrieval import VectorStore
     chunks_total = await asyncio.to_thread(lambda: VectorStore(domain).count())
 
-    mem = await graph_manager.get(domain, extract_model)
+    mem = await graph_manager.get(domain, extract_model, extract_effort or "")
     doc_instructions = mem.instructions_for("document")
     for i, doc in enumerate(docs):
         pieces = split_windows(doc["text"], EPISODE_TOKENS)
@@ -249,7 +259,8 @@ async def _ensure_lightrag_build(dataset: str, manifest: dict, docs: list[dict],
 
 async def _answer(config: str, question: dict, domain: str, model: str | None,
                   doc_titles: dict[str, str] | None = None, scope: str = "auto",
-                  ev_windows: set[int] | None = None) -> dict:
+                  ev_windows: set[int] | None = None,
+                  effort: str | None = None) -> dict:
     """One question through one config; never raises — errors become a scored record.
 
     Questions from per-document gold (QASPER: "what dataset do THEY use?") presuppose
@@ -282,9 +293,11 @@ async def _answer(config: str, question: dict, domain: str, model: str | None,
             chunks, _meta = await pipeline.retrieve(
                 q, domain_id=domain, k=8, use_graph=use_graph, use_vector=use_vector,
                 use_lightrag=use_lightrag, doc_id=scope_doc)
-            res = await asyncio.to_thread(pipeline.grounded_answer, q, chunks, model=model)
+            res = await asyncio.to_thread(
+                lambda: pipeline.grounded_answer(q, chunks, model=model, effort=effort))
         else:
-            res = await asyncio.to_thread(pipeline.closed_book_answer, q, model=model)
+            res = await asyncio.to_thread(
+                lambda: pipeline.closed_book_answer(q, model=model, effort=effort))
         return chunks, res
 
     try:
@@ -334,7 +347,8 @@ async def _answer(config: str, question: dict, domain: str, model: str | None,
 
 
 async def _judge_record(rec: dict, gold_by_id: dict[str, dict],
-                        judge_model: str | None = None) -> dict:
+                        judge_model: str | None = None,
+                        judge_effort: str | None = None) -> dict:
     """One verdict for one answered record — judged on the SAME question form the run
     asked (the document-anchored one when it was used)."""
     q = gold_by_id.get(rec["qid"], {})
@@ -342,14 +356,15 @@ async def _judge_record(rec: dict, gold_by_id: dict[str, dict],
     asked = rec.get("asked") or q.get("question", "")
     verdict = await asyncio.to_thread(scoring.judge, asked, golds[0],
                                       rec.get("answer", ""), tuple(golds[1:]),
-                                      judge_model)
+                                      judge_model, judge_effort)
     rec["judge"] = {k: verdict.get(k) for k in ("correct", "score", "note", "judge_model")}
     _usage_add(rec.setdefault("judge_usage", {}), verdict.get("usage"))
     return rec
 
 
 async def rejudge_run(dataset: str, run_id: str,
-                      judge_model: str | None = None) -> AsyncIterator[dict]:
+                      judge_model: str | None = None,
+                      judge_effort: str | None = None) -> AsyncIterator[dict]:
     """Re-score a stored run's answers with the CURRENT judge + gold (incl. alternative
     answers) — no generation re-paid; produces a new report from the same records.
     `judge_model` overrides the judging model for this pass (per-run picker)."""
@@ -379,7 +394,7 @@ async def rejudge_run(dataset: str, run_id: str,
         rec["f1"] = round(max(scoring.token_f1(rec.get("answer", ""), g) for g in golds), 4)
         verdict = await asyncio.to_thread(
             scoring.judge, judged_q, golds[0], rec.get("answer", ""), tuple(golds[1:]),
-            judge_model)
+            judge_model, judge_effort)
         rec["judge"] = {k: verdict.get(k) for k in ("correct", "score", "note", "judge_model")}
         rec["judge_usage"] = {}
         _usage_add(rec["judge_usage"], verdict.get("usage"))
@@ -395,7 +410,10 @@ async def rejudge_run(dataset: str, run_id: str,
                       # a rejudge re-scores old answers — keep the recipe THEY ran under,
                       # but stamp the CURRENT judge rubric (that's what just graded them)
                       graph_search_recipe=(old.get("provenance") or {}).get("graph_search_recipe"),
-                      judge_prompt_version=scoring.JUDGE_PROMPT_VERSION)
+                      judge_prompt_version=scoring.JUDGE_PROMPT_VERSION,
+                      reasoning_efforts={
+                          **((old.get("provenance") or {}).get("reasoning_efforts") or {}),
+                          "judge": judge_effort or settings.judge_reasoning})
     if old.get("resume_key"):  # same answers -> the reuse identity carries over
         report["resume_key"] = old["resume_key"]
     markdown = render_markdown(report)
@@ -410,6 +428,10 @@ async def run_bench(dataset: str, configs: list[str], *,
                     answer_model: str | None = None,
                     judge_model: str | None = None,
                     context_model: str | None = None,
+                    extract_effort: str | None = None,
+                    context_effort: str | None = None,
+                    answer_effort: str | None = None,
+                    judge_effort: str | None = None,
                     scope: str = "auto") -> AsyncIterator[dict]:
     """The whole cycle as an event stream: (build once) -> answer -> score -> report.
 
@@ -430,13 +452,19 @@ async def run_bench(dataset: str, configs: list[str], *,
         return
 
     extract = _resolve_extract_model(extract_model)
-    fp = _fingerprint(prepared["corpus_hash"], prepared["cap_tokens"], extract, context_model)
+    fp = _fingerprint(prepared["corpus_hash"], prepared["cap_tokens"], extract,
+                      context_model, extract_effort, context_effort)
     save_name = f"bench-{dataset}-{prepared['cap_tokens'] // 1000}k-{fp[:6]}"
     domain = saves.save_key("default", save_name)
     run_id = store.new_run_id()
 
+    efforts = {"extract": extract_effort or settings.extract_reasoning,
+               "context": context_effort or settings.context_reasoning,
+               "answer": answer_effort or settings.chat_reasoning,
+               "judge": judge_effort or settings.judge_reasoning}
     yield {"phase": "start", "run_id": run_id, "dataset": dataset, "configs": configs,
-           "fingerprint": fp, "save_name": save_name, "questions": len(gold), "scope": scope}
+           "fingerprint": fp, "save_name": save_name, "questions": len(gold),
+           "scope": scope, "efforts": efforts}
 
     build = store.find_build(manifest, fp)
     existing = await asyncio.to_thread(saves.list_saves, "default", "graphiti")
@@ -452,7 +480,7 @@ async def run_bench(dataset: str, configs: list[str], *,
         # or an interrupted one (RESUME: keep its episodes, re-ingest only the rest;
         # the vector side is cheap and rebuilds from scratch to avoid duplicates).
         expected = sum(len(split_windows(d["text"], EPISODE_TOKENS)) for d in docs)
-        mem = await graph_manager.get(domain, extract)
+        mem = await graph_manager.get(domain, extract, extract_effort or "")
         health = await mem.graph_health()
         if health.get("episodes") == expected:
             snap = await mem.snapshot()
@@ -484,7 +512,9 @@ async def run_bench(dataset: str, configs: list[str], *,
         async with graph_manager.lock(domain):
             async for ev in _build(dataset, docs, domain, extract, stats,
                                    skip_episodes=skip_episodes, skip_docs=skip_docs,
-                                   context_model=context_model):
+                                   context_model=context_model,
+                                   extract_effort=extract_effort,
+                                   context_effort=context_effort):
                 yield ev
         build = {
             "fingerprint": fp, "save_name": save_name, "domain": domain,
@@ -516,8 +546,9 @@ async def run_bench(dataset: str, configs: list[str], *,
     gold_sig = hashlib.sha1(
         "\x00".join(f"{q['id']}={q.get('question', '')}={q.get('answer', '')}"
                     for q in gold).encode()).hexdigest()[:8]
+    ans_key = f"{ans_model}|ae:{answer_effort}" if answer_effort else ans_model
     resume_key = hashlib.sha1(
-        f"{fp}|{sorted(configs)}|{ans_model}|{scope}|{gold_sig}".encode()).hexdigest()[:16]
+        f"{fp}|{sorted(configs)}|{ans_key}|{scope}|{gold_sig}".encode()).hexdigest()[:16]
 
     # Answer reuse across runs: if a FINISHED run had the exact same answer identity
     # (same build, configs, answer model, scope, gold), only the judge can have
@@ -560,7 +591,8 @@ async def run_bench(dataset: str, configs: list[str], *,
                        "qid": q["id"], "resumed": True}
                 continue
             rec = await _answer(config, q, domain, answer_model, doc_titles, scope=scope,
-                                ev_windows=ev_windows.get(q["id"]))
+                                ev_windows=ev_windows.get(q["id"]),
+                                effort=answer_effort)
             await asyncio.to_thread(store.append_record, dataset, resume_key, rec)
             by_key[key] = rec
             ev = {"phase": "answered", "config": config, "i": i + 1, "total": len(gold),
@@ -597,7 +629,7 @@ async def run_bench(dataset: str, configs: list[str], *,
 
         async def _judged(rec: dict) -> dict:
             async with sem:
-                return await _judge_record(rec, gold_by_id, judge_model)
+                return await _judge_record(rec, gold_by_id, judge_model, judge_effort)
 
         tasks = [asyncio.ensure_future(_judged(r)) for r in pending]
         for i, fut in enumerate(asyncio.as_completed(tasks)):
@@ -612,7 +644,8 @@ async def run_bench(dataset: str, configs: list[str], *,
                       configs=configs, gold=gold, records=records,
                       answer_model=ans_model, scope=scope,
                       graph_search_recipe=graph_config.search_recipe,
-                      judge_prompt_version=scoring.JUDGE_PROMPT_VERSION)
+                      judge_prompt_version=scoring.JUDGE_PROMPT_VERSION,
+                      reasoning_efforts=efforts)
     report["resume_key"] = resume_key  # lets a judge-only re-run find these answers
     markdown = render_markdown(report)
     await asyncio.to_thread(store.save_run, dataset, run_id, report, markdown)

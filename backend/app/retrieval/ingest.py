@@ -34,9 +34,11 @@ def ingest_pdf(data: bytes, filename: str, *, domain_id: str = "default",
 
 
 def ingest_markdown(markdown: str, doc_id: str, *, domain_id: str = "default",
-                    store: VectorStore | None = None, context_model: str | None = None) -> dict:
+                    store: VectorStore | None = None, context_model: str | None = None,
+                    context_effort: str | None = None) -> dict:
     chunks = chunk_markdown(markdown, doc_id=doc_id)
-    ctx = contextualize_chunks(markdown, chunks, model=context_model)
+    ctx = contextualize_chunks(markdown, chunks, model=context_model,
+                               reasoning=context_effort)
     store = store or VectorStore(domain_id)
     n = store.add(ctx)
     return {"doc_id": doc_id, "chunks": n,

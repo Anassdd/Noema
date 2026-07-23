@@ -89,7 +89,8 @@ class GraphMemory:
     """One temporal graph for one domain. Construct, then `await build()` once."""
 
     def __init__(self, domain_id: str = "default", *, config: GraphConfig | None = None,
-                 extract_model: str | None = None, extraction_instructions: str | None = None,
+                 extract_model: str | None = None, extract_effort: str | None = None,
+                 extraction_instructions: str | None = None,
                  schema: InducedSchema | None = None, use_saved_schema: bool = True):
         self.domain_id = domain_id  # the graph/database to CONNECT to
         # the group_id the data carries — differs from domain_id only for save snapshots,
@@ -108,7 +109,8 @@ class GraphMemory:
             self._driver.clone = lambda database: self._driver
         self.graphiti = Graphiti(
             graph_driver=self._driver,
-            llm_client=build_llm_client(extract_model or self.config.extract_model or None),
+            llm_client=build_llm_client(extract_model or self.config.extract_model or None,
+                                        effort=extract_effort),
             embedder=build_embedder(),
             cross_encoder=build_cross_encoder(),
             max_coroutines=self.config.max_coroutines or None,

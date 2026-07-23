@@ -168,7 +168,8 @@ def assemble(*, run_id: str, dataset: str, prepared: dict, build: dict,
              configs: list[str], gold: list[dict], records: list[dict],
              answer_model: str, scope: str = "auto",
              graph_search_recipe: str | None = None,
-             judge_prompt_version: str | None = None) -> dict:
+             judge_prompt_version: str | None = None,
+             reasoning_efforts: dict | None = None) -> dict:
     by_config = {c: [r for r in records if r["config"] == c] for c in configs}
     headline = [_row(c, by_config[c]) for c in configs]
 
@@ -255,6 +256,9 @@ def assemble(*, run_id: str, dataset: str, prepared: dict, build: dict,
                                          if r.get("answer_model")}),
         "graph_search_recipe": graph_search_recipe,
         "judge_prompt_version": judge_prompt_version,
+        # Thinking depth per role at run time — effort moves scores like models do,
+        # so runs made under different efforts must never blend silently.
+        "reasoning_efforts": reasoning_efforts,
     }
 
     fusion = _fusion(by_config, "hybrid")
@@ -514,6 +518,12 @@ def render_markdown(report: dict) -> str:
                   f"- judging: {j.get('prompt_tokens', 0):,} in / {j.get('completion_tokens', 0):,} out "
                   f"→ {_usd(cost.get('judging_usd'))}",
                   f"- **run total: {_usd(cost.get('total_usd'))}**"]
+
+    eff = (report.get("provenance") or {}).get("reasoning_efforts")
+    if eff:
+        lines += ["", f"- Reasoning effort — extraction: {eff.get('extract')} · "
+                      f"contextualizer: {eff.get('context')} · answers: {eff.get('answer')} · "
+                      f"judge: {eff.get('judge')}"]
 
     if report.get("model_usage"):
         lines += ["", "### Models used", "",

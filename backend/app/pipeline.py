@@ -451,19 +451,21 @@ def _generate_sync(messages: list[dict], chunks: list[ScoredChunk], model: str |
                            reasoning=effort or settings.chat_reasoning)
 
 
-def grounded_answer(question: str, chunks: list[ScoredChunk], *, model: str | None = None):
+def grounded_answer(question: str, chunks: list[ScoredChunk], *, model: str | None = None,
+                    effort: str | None = None):
     """One deterministic grounded answer to a standalone question — retrieval already
     done, no routing/CRAG/verify loop. This is the bench's answer path: every config
     gets the identical generation step, so only retrieval differs. Returns ChatResult."""
-    return _generate_sync([{"role": "user", "content": question}], chunks, model)
+    return _generate_sync([{"role": "user", "content": question}], chunks, model, effort)
 
 
-def closed_book_answer(question: str, *, model: str | None = None):
+def closed_book_answer(question: str, *, model: str | None = None,
+                       effort: str | None = None):
     """The bench's contamination-floor config: the same generator, NO sources. What it
     scores is what the model already knew — every method's lift is measured above this."""
     return llm_client.chat(
         [{"role": "user", "content": question}], model=model, temperature=0.0,
-        reasoning=settings.chat_reasoning,
+        reasoning=effort or settings.chat_reasoning,
     )
 
 

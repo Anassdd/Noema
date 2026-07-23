@@ -21,15 +21,15 @@ def _api_key() -> str:
     return settings.api_key or "not-needed"
 
 
-def _reasoning_effort(model: str, small_model: str) -> str:
+def _reasoning_effort(effort: str | None = None) -> str:
     """Extraction thinking depth — settings.extract_reasoning (default medium:
     relational extraction is analysis-class; KG-construction research shows no
     gain from deeper thinking). Explicit rather than Graphiti's 'auto', which
     resolves to 'minimal' — a value the gpt-5.x families reject."""
-    return settings.extract_reasoning or "medium"
+    return effort or settings.extract_reasoning or "medium"
 
 
-def build_llm_client(extract_model: str | None = None):
+def build_llm_client(extract_model: str | None = None, effort: str | None = None):
     """LLM for extraction. Defaults to the strong parse_model — extraction quality
     drives graph quality (a weak extractor yields a sparse, low-value graph)."""
     model = extract_model or settings.parse_model or settings.chat_model
@@ -42,8 +42,7 @@ def build_llm_client(extract_model: str | None = None):
     # sends no reasoning params, so the effort fix is OpenAI-path only).
     if settings.provider == "llmaas":
         return OpenAIGenericClient(config=config)
-    return OpenAIClient(config=config,
-                        reasoning=_reasoning_effort(model, settings.chat_model))
+    return OpenAIClient(config=config, reasoning=_reasoning_effort(effort))
 
 
 def build_embedder():

@@ -2,6 +2,17 @@
 
 What each push adds, newest first.
 
+## 2026-07-23 — Bench effort pickers: effort is now a first-class run factor
+
+- The bench Run section gains a per-role effort row (extractor /
+  contextualizer / answerer / judge), defaulting to the research-backed env
+  settings and showing them. Effort moves scores like models do, so it is
+  treated with the same provenance rigor: extractor/contextualizer effort
+  joins the BUILD FINGERPRINT (an override mints a new build), answerer
+  effort joins the answer identity (resume/reuse never mixes efforts), and
+  all four land in run provenance, the run log, the report view and the
+  markdown. Re-judge accepts a judge effort too.
+
 ## 2026-07-23 — Task-matched reasoning effort + chat effort selector
 
 - Every LLM role now runs at a research-backed thinking depth (quality-first):

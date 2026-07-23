@@ -7,5 +7,5 @@ export async function fetchModels() {
   const data = await res.json();
   return { models: data.models ?? [], default: data.default ?? "",
            strong: data.default_strong ?? "", judge: data.default_judge ?? "",
-           web: data.web_search ?? false };
+           web: data.web_search ?? false, efforts: data.efforts ?? {} };
 }

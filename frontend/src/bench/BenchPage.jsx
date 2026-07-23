@@ -192,6 +192,14 @@ function ReportView({ report, dataset, onRejudge, onDelete, busy }) {
           · build cost is separate (see the OpenAI dashboard)
         </div>
       )}
+      {report.provenance?.reasoning_efforts && (
+        <div style={{ fontSize: 11.5, color: "#7a87a6", marginTop: 4 }}>
+          effort — extraction: <b style={{ color: "#9aa6c2" }}>{report.provenance.reasoning_efforts.extract}</b>
+          {" · "}contextualizer: <b style={{ color: "#9aa6c2" }}>{report.provenance.reasoning_efforts.context}</b>
+          {" · "}answers: <b style={{ color: "#9aa6c2" }}>{report.provenance.reasoning_efforts.answer}</b>
+          {" · "}judge: <b style={{ color: "#9aa6c2" }}>{report.provenance.reasoning_efforts.judge}</b>
+        </div>
+      )}
       {(report.model_usage || []).length > 0 && (
         <div style={{ fontSize: 11.5, color: "#7a87a6", marginTop: 4 }}>
           {report.model_usage.map((m) => (
@@ -298,7 +306,9 @@ function Bench() {
   // contextualizer land in the build fingerprint (a new pick = a new build).
   const [models, setModels] = useState({ extract: "", context: "", answer: "", judge: "" });
   const [modelList, setModelList] = useState([]);
-  const [defaults, setDefaults] = useState({ chat: "", strong: "", judge: "" });
+  const [defaults, setDefaults] = useState({ chat: "", strong: "", judge: "", efforts: {} });
+  // Per-run reasoning-effort overrides; "" = the research-backed env default.
+  const [efforts, setEfforts] = useState({ extract: "", context: "", answer: "", judge: "" });
   const [activeJobs, setActiveJobs] = useState([]); // every dataset's running job (overnight view)
   const [busy, setBusy] = useState("");
   const [log, setLog] = useState([]);
@@ -325,7 +335,7 @@ function Bench() {
   useEffect(() => { refresh(false).catch(() => setDatasets([])); }, []);
   useEffect(() => {
     fetchModels()
-      .then((r) => { setModelList(r.models); setDefaults({ chat: r.default, strong: r.strong, judge: r.judge }); })
+      .then((r) => { setModelList(r.models); setDefaults({ chat: r.default, strong: r.strong, judge: r.judge, efforts: r.efforts || {} }); })
       .catch(() => {});
   }, []);
 
@@ -395,7 +405,10 @@ function Bench() {
   // One narrator for run events, shared by a fresh run and a reattached one.
   const handleRunEvent = (ev) => {
     if (ev.phase === "job") jobRef.current = ev.job_id;
-    if (ev.phase === "start") pushLog(`run ${ev.run_id} · ${ev.questions} questions · scope: ${ev.scope || "doc"} · build ${ev.fingerprint} → ${ev.save_name}`);
+    if (ev.phase === "start") {
+      pushLog(`run ${ev.run_id} · ${ev.questions} questions · scope: ${ev.scope || "doc"} · build ${ev.fingerprint} → ${ev.save_name}`);
+      if (ev.efforts) pushLog(`efforts — extract: ${ev.efforts.extract} · context: ${ev.efforts.context} · answer: ${ev.efforts.answer} · judge: ${ev.efforts.judge}`);
+    }
     if (ev.phase === "build_skip") pushLog(`build already exists (${ev.save_name}) — skipping straight to queries ✓`);
     if (ev.phase === "build_adopted") pushLog(`✓ ${ev.detail}`);
     if (ev.phase === "build_resume") pushLog(`↻ ${ev.detail}`);
@@ -513,6 +526,7 @@ function Bench() {
         dataset: selected, configs, scope,
         extractModel: models.extract, answerModel: models.answer,
         judgeModel: models.judge, contextModel: models.context,
+        efforts,
         signal: controller.signal,
       }, handleRunEvent);
       const r = await listRuns(selected);
@@ -849,6 +863,33 @@ function Bench() {
                       >
                         <option value="">{dflt}</option>
                         {modelList.map((m) => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                    </label>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
+                  {[
+                    ["extract", "extractor effort",
+                     "Thinking depth for graph extraction. Part of the build fingerprint: a different pick = a NEW build (paid). Default is research-backed (medium — deeper shows no extraction gain)."],
+                    ["context", "contextualizer effort",
+                     "Thinking depth for the situating blurbs. Part of the build fingerprint. Default low — summarization-class, deeper buys nothing."],
+                    ["answer", "answerer effort",
+                     "Thinking depth for every config's answers — identical across configs. Part of the answer identity (changing it re-answers, builds are reused)."],
+                    ["judge", "judge effort",
+                     "Thinking depth for verdicts. Default high — the one role with measured accuracy gains from effort. Logged in run provenance."],
+                  ].map(([key, title, hint]) => (
+                    <label key={key} title={hint} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                      <span style={label}>{title}</span>
+                      <select
+                        value={efforts[key]}
+                        onChange={(e) => setEfforts((m) => ({ ...m, [key]: e.target.value }))}
+                        disabled={busy !== ""}
+                        style={{ ...selectStyle, width: 190 }}
+                      >
+                        <option value="">{defaults.efforts?.[key] || "default"} · default</option>
+                        {["none", "low", "medium", "high", "xhigh"].map((v) => (
+                          <option key={v} value={v}>{v}</option>
+                        ))}
                       </select>
                     </label>
                   ))}

@@ -17,18 +17,20 @@ from app.graph.store import GraphMemory
 
 class GraphManager:
     def __init__(self) -> None:
-        self._mems: dict[tuple[str, str], GraphMemory] = {}
+        self._mems: dict[tuple[str, str, str], GraphMemory] = {}
         self._locks: dict[str, asyncio.Lock] = {}
         self._build_lock = asyncio.Lock()
 
-    async def get(self, domain: str, model: str = "") -> GraphMemory:
-        key = (domain, model)
+    async def get(self, domain: str, model: str = "",
+                  effort: str = "") -> GraphMemory:
+        key = (domain, model, effort)
         mem = self._mems.get(key)
         if mem is None:
             async with self._build_lock:
                 mem = self._mems.get(key)
                 if mem is None:
-                    mem = GraphMemory(domain, extract_model=model or None)
+                    mem = GraphMemory(domain, extract_model=model or None,
+                                      extract_effort=effort or None)
                     await mem.build()
                     self._mems[key] = mem
         return mem

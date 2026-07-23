@@ -42,4 +42,8 @@ def get_models() -> dict:
     return {"models": models, "default": settings.chat_model,
             "default_strong": settings.parse_model,
             "default_judge": settings.judge_model or settings.chat_model,
-            "web_search": settings.web_search}
+            "web_search": settings.web_search,
+            "efforts": {"extract": settings.extract_reasoning,
+                        "context": settings.context_reasoning,
+                        "answer": settings.chat_reasoning,
+                        "judge": settings.judge_reasoning}}

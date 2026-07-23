@@ -23,6 +23,14 @@ from app.bench import fetch, goldgen, jobs, runner, store
 router = APIRouter(prefix="/bench")
 
 
+_EFFORTS = ("none", "low", "medium", "high", "xhigh")
+
+
+def _effort(value: str | None) -> str | None:
+    """Sanitized per-run effort pick — an unknown value must never reach the API."""
+    return value if value in _EFFORTS else None
+
+
 def _line(obj: dict) -> bytes:
     return (json.dumps(obj) + "\n").encode("utf-8")
 
@@ -159,6 +167,10 @@ class RunBody(BaseModel):
     answer_model: str | None = None   # the generator every config shares
     judge_model: str | None = None    # verdict model (on the judge endpoint if set)
     context_model: str | None = None  # chunk contextualizer (RAG build blurbs)
+    extract_effort: str | None = None  # thinking depth per role — defaults are the
+    context_effort: str | None = None  # research-backed env settings; overrides are
+    answer_effort: str | None = None   # fingerprint/resume-key components and land
+    judge_effort: str | None = None    # in run provenance
     scope: str = "auto"  # "auto" = follow the dataset (scope to each question's doc_id when it has one); "corpus" = force whole-corpus
 
 
@@ -170,6 +182,10 @@ async def run(body: RunBody) -> StreamingResponse:
         body.dataset, body.configs,
         extract_model=body.extract_model, answer_model=body.answer_model,
         judge_model=body.judge_model, context_model=body.context_model,
+        extract_effort=_effort(body.extract_effort),
+        context_effort=_effort(body.context_effort),
+        answer_effort=_effort(body.answer_effort),
+        judge_effort=_effort(body.judge_effort),
         scope=body.scope,
     ))
 
@@ -256,6 +272,7 @@ class RejudgeBody(BaseModel):
     dataset: str
     run_id: str
     judge_model: str | None = None
+    judge_effort: str | None = None
 
 
 @router.post("/rejudge")
@@ -263,7 +280,8 @@ async def rejudge(body: RejudgeBody) -> StreamingResponse:
     """Re-score a stored run with the current judge/gold — no generation re-paid.
     Also a detached job, so a closed tab doesn't abandon paid verdicts mid-pass."""
     job = jobs.start(body.dataset, "rejudge",
-                     runner.rejudge_run(body.dataset, body.run_id, body.judge_model))
+                     runner.rejudge_run(body.dataset, body.run_id, body.judge_model,
+                                        _effort(body.judge_effort)))
 
     async def events():
         if job is None:

@@ -288,6 +288,7 @@ def judge_chat(
     temperature: float = 0.0,
     max_tokens: int | None = None,
     model: str | None = None,
+    reasoning: str | None = None,
 ) -> ChatResult:
     """A buffered chat call on the JUDGE endpoint (used only to score bench answers).
 
@@ -309,15 +310,16 @@ def judge_chat(
         fallback = (settings.judge_model
                     if settings.judge_model and not settings.judge_base_url
                     else settings.chat_model)
-        return _chat_buffered(messages, model or fallback, temperature, max_tokens)
+        return _chat_buffered(messages, model or fallback, temperature, max_tokens,
+                              reasoning or settings.judge_reasoning)
     if _judge_client is None:
         _judge_client = OpenAI(base_url=settings.judge_base_url,
                                api_key=settings.judge_api_key)
     kwargs = _common_kwargs(model or settings.judge_model, messages, temperature, max_tokens)
     # Cap the judge's thinking (a reasoning judge multiplies bench wall time on
     # two-field verdicts). Only sent when configured; dropped by _create on rejection.
-    if settings.judge_reasoning:
-        kwargs["reasoning_effort"] = settings.judge_reasoning
+    if reasoning or settings.judge_reasoning:
+        kwargs["reasoning_effort"] = reasoning or settings.judge_reasoning
     resp = _create(_judge_client, **kwargs, stream=False)
     return ChatResult(
         text=resp.choices[0].message.content or "",

@@ -205,7 +205,8 @@ def _is_rate_error(exc: Exception) -> bool:
 
 
 def judge(question: str, gold_answer: str, candidate: str,
-          alternatives: tuple[str, ...] = (), model: str | None = None) -> dict:
+          alternatives: tuple[str, ...] = (), model: str | None = None,
+          effort: str | None = None) -> dict:
     """Gold-anchored judgement, tolerant of annotator variants. Paced + retried on
     rate limits, falls back to the main provider, and only then goes unscored.
     `model` overrides the judge model for this verdict (per-run picker); the
@@ -226,7 +227,8 @@ def judge(question: str, gold_answer: str, candidate: str,
     for attempt in range(4):
         _throttle()
         try:
-            res = llm_client.judge_chat(messages, max_tokens=1500, model=model)
+            res = llm_client.judge_chat(messages, max_tokens=1500, model=model,
+                                        reasoning=effort)
         except Exception as exc:  # noqa: BLE001
             if _is_rate_error(exc) and attempt < 3:
                 time.sleep(min(30, 6 * (attempt + 1)))

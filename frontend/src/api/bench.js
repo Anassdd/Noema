@@ -45,7 +45,7 @@ export async function goldverifyStream(dataset, onEvent) {
 // The run is a DETACHED server job — `signal` only drops this tail (the run keeps
 // going; getActiveJob + attachJobStream reattach to it). Use stopJob to actually pause.
 export async function runStream(
-  { dataset, configs, extractModel, answerModel, judgeModel, contextModel, scope, signal },
+  { dataset, configs, extractModel, answerModel, judgeModel, contextModel, efforts = {}, scope, signal },
   onEvent,
 ) {
   const res = await authFetch(`${API_BASE}/bench/run`, {
@@ -58,6 +58,10 @@ export async function runStream(
       answer_model: answerModel || null,
       judge_model: judgeModel || null,
       context_model: contextModel || null,
+      extract_effort: efforts.extract || null,
+      context_effort: efforts.context || null,
+      answer_effort: efforts.answer || null,
+      judge_effort: efforts.judge || null,
       scope: scope || "auto",
     }),
     signal,

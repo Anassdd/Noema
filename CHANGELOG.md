@@ -4,6 +4,21 @@ What each push adds, newest first. One entry per push (a push may carry several
 commits — they're grouped under its date and headline). Update this file as
 part of every push.
 
+## 2026-07-23 — Stage 4 (security) + stage 5 (coding) bench datasets
+
+- **s4-cticonnect** (1,859 expert-curated QA, CC-BY-4.0): cyber-threat
+  intelligence over a 6,365-entry corpus (ATT&CK techniques, CWE, CAPEC,
+  3,011 CVEs, 321 vendor reports). Nine task slices — entity linking,
+  attribution, multi-doc synthesis — the graph stress test. Prose gold is
+  judged; the ground-truth ID rides as an alt answer.
+- **s5-sweqa-light / -heavy** (480 + 192 curated questions): SWE-QA over 14
+  pinned real Python repos, one document per source file. A question enters
+  the gold only when its WHOLE repository fits the prepare cap, so corpora
+  stay repo-complete. sympy dropped (25MB of symbolic-math source for 48
+  questions; GitHub's 100MB file cap decided). No evidence spans released —
+  evidence columns stay blank for this stage.
+- New adapters: cticonnect.py, sweqa.py.
+
 ## 2026-07-22 — Bench data back in-repo (split postponed)
 
 - The datasets and prepared workdirs return to the product repo (legacy

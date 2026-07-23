@@ -96,7 +96,7 @@ def induce_schema(sample_text: str, *, domain: str, model: str | None = None) ->
     sample = (sample_text or "").strip()[:8000]
     used = model or settings.parse_model or settings.chat_model
     res = llm_client.chat([{"role": "user", "content": _PROMPT.format(sample=sample)}],
-                          model=used, temperature=0)
+                          model=used, temperature=0, reasoning="medium")
     data = _parse_json(getattr(res, "text", ""))
     ents = [TypeDef(_ident(t.get("name", ""), snake=False), t.get("description", ""))
             for t in data.get("entity_types", []) if t.get("name")]

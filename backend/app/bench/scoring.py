@@ -16,6 +16,7 @@ import threading
 import time
 
 from app import llm_client
+from app.config import settings
 
 _ARTICLES = {"a", "an", "the", "le", "la", "les", "un", "une", "des"}
 
@@ -241,7 +242,8 @@ def judge(question: str, gold_answer: str, candidate: str,
         # unparseable reply: one more attempt, then fallback
 
     try:
-        res = llm_client.chat(messages, temperature=0.0, max_tokens=1500)
+        res = llm_client.chat(messages, temperature=0.0, max_tokens=1500,
+                              reasoning=settings.judge_reasoning)
         v = _parse_verdict(res.text or "") or {
             "correct": None, "score": None, "note": "fallback judge reply unparseable"}
         return {**v, "judge_model": f"{res.model} (fallback)",

@@ -408,7 +408,7 @@ def _judge_sync(system: str, user: str) -> dict:
     would truncate into a parse failure (silently degrading to the raw query)."""
     res = llm_client.chat(
         [{"role": "system", "content": system}, {"role": "user", "content": user}],
-        temperature=0.0, max_tokens=400,
+        temperature=0.0, max_tokens=400, reasoning="low",
     )
     txt = (res.text or "").strip()
     try:

@@ -149,5 +149,6 @@ def title(req: ChatRequest) -> dict[str, str]:
         ],
         stream=False,
         max_tokens=16,
+        reasoning="low",
     )
     return {"title": result.text.strip().strip('"')}

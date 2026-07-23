@@ -231,7 +231,9 @@ def transcribe_image(
             ],
         }
     ]
-    resp = _create(**_common_kwargs(model, messages, 0, max_tokens), stream=False)
+    # Transcription is extraction-class: 'low' reads the page faithfully without
+    # burning thinking tokens re-deriving it (dropped if the model rejects it).
+    resp = _create(**_common_kwargs(model, messages, 0, max_tokens, "low"), stream=False)
     return ChatResult(
         text=resp.choices[0].message.content or "",
         usage=_to_usage(resp.usage),
@@ -255,6 +257,7 @@ def web_chat(messages: Sequence[Message], *, model: str | None = None) -> tuple[
             model=model or settings.chat_model,
             input=[dict(m) for m in messages],
             tools=[{"type": "web_search"}],
+            reasoning={"effort": settings.chat_reasoning or "medium"},
         )
     except Exception as exc:  # noqa: BLE001 — gateway differences are the norm here
         raise RuntimeError(

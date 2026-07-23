@@ -156,7 +156,7 @@ def _confirm_same(pairs: list[tuple]) -> list[bool]:
         res = llm_client.chat(
             [{"role": "system", "content": _SAME_ENTITY_SYS},
              {"role": "user", "content": "\n".join(lines)}],
-            temperature=0.0, max_tokens=200,
+            temperature=0.0, max_tokens=200, reasoning="low",
         )
         txt = res.text or ""
         verdicts = json.loads(txt[txt.index("{"): txt.rindex("}") + 1]).get("same", [])

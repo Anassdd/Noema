@@ -167,7 +167,7 @@ async def generate(dataset: str, total: int = 24) -> AsyncIterator[dict]:
             llm_client.chat,
             [{"role": "system", "content": _GEN_SYS},
              {"role": "user", "content": f"Create {want} questions.\n\nExcerpt (from {doc_id}):\n{window}"}],
-            temperature=0.3,
+            temperature=0.3, reasoning="medium",
         )
         for q in _parse_questions(res.text or "")[:want]:
             next_id += 1
@@ -185,7 +185,7 @@ async def generate(dataset: str, total: int = 24) -> AsyncIterator[dict]:
             llm_client.chat,
             [{"role": "system", "content": _NULL_SYS},
              {"role": "user", "content": f"Create {n_nulls} unanswerable questions.\n\nExcerpt (from {doc_id}):\n{window}"}],
-            temperature=0.4,
+            temperature=0.4, reasoning="medium",
         )
         try:
             arr = json.loads(res.text[res.text.index("["): res.text.rindex("]") + 1])

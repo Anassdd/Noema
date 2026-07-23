@@ -4,6 +4,18 @@ What each push adds, newest first. One entry per push (a push may carry several
 commits — they're grouped under its date and headline). Update this file as
 part of every push.
 
+## 2026-07-23 — Every LLM call now runs at a task-matched effort
+
+- Full audit of all ~25 call sites: each now sends an explicit reasoning
+  effort instead of inheriting the provider default (medium) everywhere.
+  Low: internal judges (route/CRAG/Self-RAG/note-clean), reranker, titles,
+  PDF-page transcription, journal summaries/digests/tense rewrites, recall
+  keyword expansion, Dream same-entity checks. Medium: memory-mutating
+  passes (evolve, place-fact, consolidations), schema induction, gold
+  drafting, web answers. Role seams unchanged: extraction medium,
+  contextualizer low, answers medium (+ composer override), judge high
+  (incl. its fallback path, which previously judged at default depth).
+
 ## 2026-07-23 — Bench effort pickers: effort is now a first-class run factor
 
 - The bench Run section gains a per-role effort row (extractor /

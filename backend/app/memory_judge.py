@@ -123,6 +123,7 @@ def evolve(messages: list[dict], profile: str, now_lines: list[str],
     result = llm_client.chat(
         [{"role": "system", "content": _SYSTEM}, {"role": "user", "content": user}],
         stream=False,
+        reasoning="medium",
         temperature=0,
     )
     return _parse_operations(result.text, now_lines, notes or [])
@@ -145,6 +146,7 @@ def place_fact(fact: str, profile: str, today: str) -> tuple[str, str] | None:
         [{"role": "system", "content": system},
          {"role": "user", "content": f"profile:\n{profile.strip() or '(empty)'}\n\nfact: {fact}"}],
         stream=False,
+        reasoning="medium",
         temperature=0,
     )
     data = _loads_lenient(result.text)
@@ -173,6 +175,7 @@ def consolidate_profile(text: str, cap: int, today: str) -> dict | None:
     result = llm_client.chat(
         [{"role": "system", "content": system}, {"role": "user", "content": text}],
         stream=False,
+        reasoning="medium",
         temperature=0,
     )
     data = _loads_lenient(result.text)
@@ -208,6 +211,7 @@ def consolidate_now(lines: list[str], cap: int, today: str) -> dict | None:
         [{"role": "system", "content": system},
          {"role": "user", "content": "\n".join(lines)}],
         stream=False,
+        reasoning="medium",
         temperature=0,
     )
     data = _loads_lenient(result.text)
@@ -242,6 +246,7 @@ def summarize_chats(convs: list[dict]) -> list[str] | None:
         [{"role": "system", "content": system},
          {"role": "user", "content": "\n\n".join(blocks)}],
         stream=False,
+        reasoning="low",
         temperature=0,
     )
     data = _loads_lenient(result.text)
@@ -265,6 +270,7 @@ def compact_journal(text: str, target: int) -> str | None:
     result = llm_client.chat(
         [{"role": "system", "content": system}, {"role": "user", "content": text}],
         stream=False,
+        reasoning="low",
         temperature=0,
     )
     data = _loads_lenient(result.text)
@@ -292,6 +298,7 @@ def consolidate_notes(lines: list[str], cap: int) -> list[str] | None:
         [{"role": "system", "content": system},
          {"role": "user", "content": "\n".join(lines)}],
         stream=False,
+        reasoning="medium",
         temperature=0,
     )
     data = _loads_lenient(result.text)
@@ -327,6 +334,7 @@ def expand_query(question: str) -> list[str]:
             {"role": "user", "content": question},
         ],
         stream=False,
+        reasoning="low",
         temperature=0,
         max_tokens=100,
     )
@@ -355,6 +363,7 @@ def rewrite_past(facts: list[str]) -> list[str] | None:
             {"role": "user", "content": numbered},
         ],
         stream=False,
+        reasoning="low",
         temperature=0,
     )
     data = _loads_lenient(result.text)

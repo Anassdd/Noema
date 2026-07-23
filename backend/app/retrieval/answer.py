@@ -7,6 +7,7 @@ grounded and the user can verify against doc + page (provenance).
 from __future__ import annotations
 
 from app import llm_client
+from app.config import settings
 from app.retrieval.base import Answer, ScoredChunk
 from app.retrieval.search import search
 
@@ -27,7 +28,8 @@ def answer_from(query: str, chunks: list[ScoredChunk]) -> Answer:
         {"role": "system", "content": SYSTEM},
         {"role": "user", "content": f"Sources:\n{block}\n\nQuestion: {query}"},
     ]
-    res = llm_client.chat(messages, temperature=0.0)
+    res = llm_client.chat(messages, temperature=0.0,
+                          reasoning=settings.chat_reasoning)
     u = res.usage
     return Answer(text=res.text or "", sources=chunks,
                   prompt_tokens=u.prompt_tokens if u else 0,

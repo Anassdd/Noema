@@ -19,9 +19,29 @@ from pathlib import Path
 from app.config import state_path
 
 _REPO = Path(__file__).resolve().parents[3]
-RAW_DIR = Path(os.getenv("BENCH_DATA_DIR", "") or _REPO / "backend" / "data" / "bench")
+
+
+def sibling(sub: str, legacy: Path) -> Path:
+    """The zero-config link between the code and data repos: when a
+    `noema-bench-data` clone sits BESIDE this repo, its `<sub>` dir is the
+    default home for that store — same convention on every machine (Mac +
+    GitHub, machine de dev + GitLab), nothing in .env. Override the location
+    with BENCH_SIBLING_DIR (empty string disables the convention entirely —
+    tests use that). Explicit per-store env vars and NOEMA_STATE_DIR still
+    win over this default."""
+    root = os.getenv("BENCH_SIBLING_DIR")
+    if root is None:
+        root = str(_REPO.parent / "noema-bench-data")
+    if root and Path(root).is_dir():
+        return Path(root) / sub
+    return legacy
+
+
+RAW_DIR = Path(os.getenv("BENCH_DATA_DIR", "")
+               or sibling("datasets", _REPO / "backend" / "data" / "bench"))
 WORK_DIR = Path(os.getenv("BENCH_WORK_DIR", "")
-                or state_path("bench", _REPO / "tests" / "results" / "bench"))
+                or state_path("bench",
+                              sibling("work", _REPO / "tests" / "results" / "bench")))
 
 
 def work_dir(dataset: str) -> Path:

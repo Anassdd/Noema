@@ -20,7 +20,8 @@ from app.config import state_path
 _REPO = Path(__file__).resolve().parents[3]
 ARCHIVE_DIR = Path(os.getenv("BENCH_ARCHIVE_DIR", "")
                    or state_path("bench_archive",
-                                 _REPO / "tests" / "results" / "bench_archive"))
+                                 store.sibling("archive",
+                                               _REPO / "tests" / "results" / "bench_archive")))
 
 
 def save(dataset: str, run_id: str) -> dict:

@@ -25,6 +25,11 @@ frontend:        ## run the UI dev server (port 5173)
 test:            ## all free test suites (~1 min, $0, offline)
 	$(PY) tests/run_all.py
 
+sync:            ## pull the code AND the sibling bench-data repo
+	git pull
+	@if [ -d ../noema-bench-data ]; then git -C ../noema-bench-data pull; \
+	else echo ">> no ../noema-bench-data clone beside this repo — bench data unavailable (clone it side-by-side)"; fi
+
 build:           ## production frontend build -> frontend/dist/
 	cd frontend && npm run build
 

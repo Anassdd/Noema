@@ -190,28 +190,30 @@ Desktop.) No code changes — it's a `.env` switch.
 
 ## 7. Bench data (separate repo)
 
-Datasets, prepared workdirs and run archives live in a **separate private repo**
-— https://github.com/Anassdd/noema-bench-data — so the product repo stays lean
-and data syncs independently of code.
-
-```bat
-cd \wherever\you\keep\code
-git clone https://github.com/Anassdd/noema-bench-data.git
-```
-
-Then in `backend\.env` (absolute Windows paths):
+Datasets, prepared workdirs and run archives live in a **separate repo** —
+`noema-bench-data` — which Noema **auto-detects when cloned BESIDE the code**:
 
 ```
-BENCH_DATA_DIR=C:\path\to\noema-bench-data\datasets
-BENCH_WORK_DIR=C:\path\to\noema-bench-data\work
-BENCH_ARCHIVE_DIR=C:\path\to\noema-bench-data\archive
+work\
+├── noema\               (this repo)
+└── noema-bench-data\    (the data repo — same parent folder, that's the whole link)
 ```
 
-Restart the backend; the bench page then sees every dataset after a rescan.
+Nothing to configure: no `.env` entries, no paths. If the sibling folder
+exists, the bench uses it; otherwise the bench simply has no datasets.
+(Explicit `BENCH_DATA_DIR`/`BENCH_WORK_DIR`/`BENCH_ARCHIVE_DIR` env vars still
+override for unusual layouts.)
+
+One-time setup here:
+1. Create the GitLab project `noema-bench-data`.
+2. Download the repo zip from GitHub, extract, `git init` + `git remote add
+   origin <gitlab-url>` + commit + push (same bridge as the code repo).
+3. `git clone <gitlab-url>` into the folder **next to** the noema clone.
 
 Sync = git, both directions:
-- new datasets prepared on the Mac → `git pull` here;
-- overnight results produced here → `git add -A && git commit && git push`
-  from the data repo (never touches the product repo).
+- updates from the Mac -> zip bridge -> GitLab -> `git pull` (rare; datasets are
+  mostly one-time cargo);
+- overnight results made here -> `git add -A && git commit && git push` from the
+  data folder — versioned on GitLab, never lost, independent of code pulls.
 `work/*/runs/inflight/` is gitignored (machine-local resume state), so a pull
-can never collide with a run in progress.
+never collides with a live run.

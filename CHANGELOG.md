@@ -4,6 +4,17 @@ What each push adds, newest first. One entry per push (a push may carry several
 commits — they're grouped under its date and headline). Update this file as
 part of every push.
 
+## 2026-07-23 — Bench data split for real: sibling auto-detect
+
+- All bench data (12 datasets, workdirs, archives, raw sources) now lives ONLY
+  in the noema-bench-data repo. The product repo auto-detects it as a sibling
+  clone (../noema-bench-data) — zero configuration on any machine; explicit
+  BENCH_*_DIR env vars and NOEMA_STATE_DIR still override.
+- `make sync` pulls the code and the data repo together.
+- Legacy in-repo data locations removed from tracking and fully gitignored.
+- RUN_ON_WINDOWS §7 rewritten: clone the data repo beside the code (GitLab at
+  work), nothing else to wire.
+
 ## 2026-07-23 — Stage 4 (security) + stage 5 (coding) bench datasets
 
 - **s4-cticonnect** (1,859 expert-curated QA, CC-BY-4.0): cyber-threat

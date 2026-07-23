@@ -386,7 +386,7 @@ function MemorySelector({ value, onChange, saves, onOpen }) {
 // default and the guide's production setting); High for hard multi-step
 // questions; Low for quick lookups. null = follow the server default.
 const EFFORT_MODES = [
-  { id: null, label: "Auto", hint: "server default (medium) — balanced thinking" },
+  { id: null, label: "Default", hint: "the server's configured depth (medium unless changed)" },
   { id: "low", label: "Low", hint: "quick lookups — minimal thinking, fastest" },
   { id: "medium", label: "Medium", hint: "balanced thinking for most questions" },
   { id: "high", label: "High", hint: "deep thinking — hard, multi-step questions" },

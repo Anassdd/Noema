@@ -1,6 +1,8 @@
 # Changelog
 
-What each push adds, newest first.
+What each push adds, newest first. One entry per push (a push may carry several
+commits — they're grouped under its date and headline). Update this file as
+part of every push.
 
 ## 2026-07-23 — Bench effort pickers: effort is now a first-class run factor
 
@@ -22,10 +24,8 @@ What each push adds, newest first.
   All env-tunable (JUDGE/EXTRACT/CONTEXT/CHAT_REASONING) and dropped
   automatically on non-reasoning models.
 - New **Effort selector in the composer** (themed pill next to the retrieval
-  selector): Auto / Low / Medium / High per conversation, persisted, applied
-  to both plain and expert answers. One entry per push (a push may carry several
-commits — they're grouped under its date and headline). Update this file as
-part of every push.
+  selector): Default / Low / Medium / High per conversation, persisted, applied
+  to both plain and expert answers.
 
 ## 2026-07-23 — benchdata/ tracks on single-repo deployments
 
